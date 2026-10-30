@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lesson 0002: Trade / TradableProduct / TradeLot の構造と当事者（Party ↔ Counterparty）の抽象化メカニズム</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="./0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="./0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
+        <a href="./0002-trade-tradableproduct-party.html" class="active">Lesson 0002: Tradeと当事者抽象化</a>
+        <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
+        <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Phase 2 · Lesson 0002 · Base &amp; Trade Structure</div>
+      <h1><code>Trade</code> / <code>TradableProduct</code> / <code>TradeLot</code> の構造と、当事者（<code>Party</code> ↔ <code>Counterparty</code>）の抽象化メカニズム</h1>
+      <p class="lesson-subtitle">
+        Lesson 0001 で鳥瞰した6階層のうち、実務データの項目が最も集中する <strong>L5（<code>Trade</code> と <code>TradableProduct</code>）</strong>にズームインします。なぜCDMはプロダクト定義の中に具体的な銀行名（LEI）を直接書かず、<code>Party1</code> / <code>Party2</code> という抽象ロールを経由させるのか？その設計理由とJSON参照の追跡方法を一次ソースから完全習得します。
+      </p>
+    </header>
+
+    <div class="callout callout-mission">
+      <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
+      <p style="margin-bottom: 0;">
+        為替フォワードや為替オプションの実データJSONを読んだとき、<strong>「実際にどの銀行（LEI）がどの通貨を支払い、どちらがオプションの買い手なのか」</strong>を <code>PayerReceiver</code> / <code>BuyerSeller</code> → <code>Counterparty</code> → <code>Party</code> の参照チェーン（<code>@ref:external</code> → <code>@key:external</code>）から100%正確に特定・設計できるようになります。
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section>
+      <h2>1. <code>Trade extends TradableProduct</code>：2つのクラスの役割分担</h2>
+      <p>
+        Lesson 0001 で確認した通り、<code>Trade</code> 型（<span class="cite-badge">event-common-type.rosetta:L295</span>）は <code>TradableProduct</code> 型（<span class="cite-badge">product-template-type.rosetta:L321</span>）を継承（<code>extends</code>）しています。なぜ最初から1つの型にまとめず、親子に分けているのでしょうか？
+      </p>
+      <p>
+        理由は<strong>「約定前の見積・注文・執行指示（Pre-execution / Execution）」と「約定成立後の取引契約（Trade）」で、経済条件の部分をそのまま再利用するため</strong>です。両者の属性の分担は以下の通り明確に分かれています。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">定義クラス</th>
+            <th style="width: 26%;">主な属性（多重度）</th>
+            <th>金融実務での意味と役割</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>親：<code>TradableProduct</code></strong><br />
+              <span class="cite-badge">product-template-type.rosetta:L321-L329</span>
+            </td>
+            <td>
+              <code>product (1..1)</code><br />
+              <code>tradeLot (1..*)</code><br />
+              <code>counterparty (2..2)</code><br />
+              <code>ancillaryParty (0..*)</code><br />
+              <code>adjustment (0..1)</code>
+            </td>
+            <td>
+              <strong>「何を・いくらで・どの2者ロール間で取引するか」</strong>という取引可能な商品パッケージ。<br />
+              商品の契約テンプレート（<code>product</code>）に対し、ロットごとの価格・数量（<code>tradeLot</code>）と、抽象ロール <code>Party1</code> / <code>Party2</code> の割り当て（<code>counterparty</code>）を束ねる。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>子：<code>Trade</code></strong><br />
+              （<code>extends TradableProduct</code>）<br />
+              <span class="cite-badge">event-common-type.rosetta:L295-L309</span>
+            </td>
+            <td>
+              <code>tradeIdentifier (1..*)</code><br />
+              <code>tradeDate (1..1)</code><br />
+              <code>tradeTime (0..1)</code><br />
+              <code>party (0..*)</code><br />
+              <code>partyRole (0..*)</code><br />
+              <code>executionDetails (0..1)</code><br />
+              <code>contractDetails (0..1)</code><br />
+              <code>collateral (0..1)</code>
+            </td>
+            <td>
+              <strong>「いつ合意され、取引番号は何で、どの法的契約・担保の下にあるか」</strong>という約定済取引の契約・行政情報。<br />
+              UTI/USIや社内取引番号（<code>tradeIdentifier</code>）、約定日（<code>tradeDate</code>）、取引当事者の実体リスト（<code>party</code>）、準拠法・ISDAマスター契約（<code>contractDetails</code>）を保持する。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 2 -->
+    <section>
+      <h2>2. 当事者抽象化の核心：なぜ <code>Party1</code> と <code>party1</code> を分けるのか？</h2>
+      <p>
+        実務でCDMのJSONデータを初めて読む人がほぼ確実につまずく「罠」があります。公式の検証済みサンプルデータ <span class="cite-badge">execution-fx-forward-func-output.json:L252-L301</span>（および <code>fx-ex03-fx-fwd.json</code>）の当事者定義を見てみましょう。
+      </p>
+
+      <div class="code-header">
+        <span>⚠️ 公式サンプル JSON における「Party1 ↔ party2」の交差マッピング（execution-fx-forward-func-output.json:L173-L176, L252-L301）</span>
+      </div>
+      <pre><code><span class="cm">// ① Product 内（SettlementPayout）：誰が原資産（10,000,000 EUR）を支払うか？</span>
+"payerReceiver" : {
+  "payer" : <span class="st">"Party1"</span>,
+  "receiver" : <span class="st">"Party2"</span>
+},
+
+<span class="cm">// ② TradableProduct 直下（counterparty）：抽象ロール Party1 / Party2 と実体キーの対応付け</span>
+"counterparty" : [ {
+  "role" : <span class="st">"Party1"</span>,
+  "partyReference" : { <span class="mt">"@ref:external" : "party2"</span> }  <span class="cm">// ← Party1 の中身は "party2"！</span>
+}, {
+  "role" : <span class="st">"Party2"</span>,
+  "partyReference" : { <span class="mt">"@ref:external" : "party1"</span> }  <span class="cm">// ← Party2 の中身は "party1"！</span>
+} ],
+
+<span class="cm">// ③ Trade 直下（party）：実在する金融機関（LEI）の定義</span>
+"party" : [ {
+  <span class="mt">"@key:external" : "party1"</span>,
+  "partyId" : [ {
+    "identifier" : { "@data" : <span class="st">"BFXS5XCH7N0Y05NIXW11"</span> }, <span class="cm">// ABN Amro</span>
+    "identifierType" : "LEI"
+  } ]
+}, {
+  <span class="mt">"@key:external" : "party2"</span>,
+  "partyId" : [ {
+    "identifier" : { "@data" : <span class="st">"213800QILIUD4ROSUO03"</span> }, <span class="cm">// Deutsche Bank (DB)</span>
+    "identifierType" : "LEI"
+  } ]
+} ]</code></pre>
+
+      <p>
+        注目してください。<code>counterparty</code> 配列の中で、<strong>抽象ロール <code>"Party1"</code>（大文字Pの列挙値）は <code>"@ref:external": "party2"</code>（ドイツ銀行）を指し、<code>"Party2"</code> は <code>"@ref:external": "party1"</code>（ABNアムロ）を指しています</strong>。もし開発者が「<code>Party1</code> だから <code>party1</code> のことだろう」と決め打ちすると、1,000万ユーロの支払人と受取人が完全に逆転してしまいます。
+      </p>
+
+      <h3>なぜCDMはこのような3段階の間接参照（Indirection）を採用しているのか？</h3>
+      <ul>
+        <li>
+          <strong>理由① 商品の再利用性と標準化（Product Agnosticism）</strong>：<br />
+          <code>NonTransferableProduct</code>（経済条件）の中に特定の銀行のLEIを書かないことで、「EUR/USDのフォワード契約」「EUR/USDのバニラオプション契約」というプロダクト構造を当事者から完全に独立（Party-agnostic）させています（<span class="cite-badge">base-staticdata-party-type.rosetta:L7</span>）。
+        </li>
+        <li>
+          <strong>理由② ノベーション（更改：<code>PartyChange</code>）時の不変性</strong>：<br />
+          取引の途中で一方の当事者（たとえばドイツ銀行）が別の銀行へ契約を譲渡（Novation）する場合、CDMの関数 <code>Create_PartyChange</code>（<span class="cite-badge">event-common-func.rosetta:L897-L958</span>）は、外側の <code>Trade -> party</code> と <code>counterparty</code> の参照先だけを新しい銀行に差し替えます。<strong>内側の <code>Product</code>（<code>EconomicTerms</code> や <code>Payout</code>）には1ビットも変更を加える必要がありません</strong>。
+        </li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Interactive Explorer -->
+    <section>
+      <h2>3. インタラクティブ探索：<code>Trade</code> 層と当事者モデルの5大コンポーネント</h2>
+      <p>
+        左側の5つのコンポーネントをクリックし、右側のタブ（<strong>① 実務での役割と設計ルール</strong> ／ <strong>② <code>.rosetta</code> 一次ソース定義</strong> ／ <strong>③ 実データJSON抜粋</strong>）を切り替えて、<code>Trade</code> から <code>Payout</code> までの当事者・ロット・識別子のつながりを確認してください。
+      </p>
+
+      <div class="hierarchy-explorer" data-component="hierarchy-explorer">
+        <!-- Left Tree -->
+        <div class="hierarchy-tree">
+          <button class="tree-node-btn active" data-node="node-c1">
+            <span class="node-level">Component 1 · Subclass</span>
+            <span class="node-name">Trade &amp; Details</span>
+            <span class="node-ja">取引契約・約定日・準拠法</span>
+          </button>
+          <div class="tree-arrow">↑ extends (継承)</div>
+
+          <button class="tree-node-btn" data-node="node-c2">
+            <span class="node-level">Component 2 · Superclass</span>
+            <span class="node-name">TradableProduct &amp; TradeLot</span>
+            <span class="node-ja">取引可能商品とロット構造</span>
+          </button>
+          <div class="tree-arrow">↔ @key:external / @ref:external</div>
+
+          <button class="tree-node-btn" data-node="node-c3">
+            <span class="node-level">Component 3 · Concrete Entity</span>
+            <span class="node-name">Party &amp; TradeIdentifier</span>
+            <span class="node-ja">当事者実体(LEI)と取引ID(UTI)</span>
+          </button>
+          <div class="tree-arrow">↑ partyReference で参照</div>
+
+          <button class="tree-node-btn" data-node="node-c4">
+            <span class="node-level">Component 4 · Role Bridge</span>
+            <span class="node-name">Counterparty &amp; AncillaryParty</span>
+            <span class="node-ja">Party1/Party2 と計算代理人の橋渡し</span>
+          </button>
+          <div class="tree-arrow">↓ Product内 / Transfer内で使用</div>
+
+          <button class="tree-node-btn" data-node="node-c5">
+            <span class="node-level">Component 5 · Direction Types</span>
+            <span class="node-name">PayerReceiver vs BuyerSeller</span>
+            <span class="node-ja">支払/受取・買手/売手の3つの型</span>
+          </button>
+        </div>
+
+        <!-- Right Detail View -->
+        <div class="hierarchy-detail">
+          <div class="detail-tabs">
+            <button class="detail-tab-btn active" data-tab="tab-meaning">① 実務での役割と設計ルール</button>
+            <button class="detail-tab-btn" data-tab="tab-rosetta">② .rosetta 一次ソース定義</button>
+            <button class="detail-tab-btn" data-tab="tab-json">③ 実データJSON抜粋</button>
+          </div>
+
+          <!-- C1: Trade & Details -->
+          <div class="node-detail-card" data-node-content="node-c1" style="display: block;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C1: <code>Trade</code> と <code>ExecutionDetails</code> / <code>ContractDetails</code></h3>
+              <p>
+                <code>Trade</code> は親 <code>TradableProduct</code> の属性に加え、約定成立後の管理に必要な8つの属性を持ちます。
+              </p>
+              <ul>
+                <li><code>tradeIdentifier (1..*)</code>：必須（1個以上）。両当事者それぞれの社内取引番号や、規制報告用の <code>UniqueTransactionIdentifier</code> (UTI) / <code>UniqueSwapIdentifier</code> (USI) を格納します。</li>
+                <li><code>tradeDate (1..1)</code>：必須。取引が合意された約定日（<code>[metadata id]</code> 付き）。</li>
+                <li><code>party (0..*)</code>：取引に関わる当事者（LEI等）の実体リスト。</li>
+                <li><code>partyRole (0..*)</code>：執行ブローカー、清算機関、ヘッジ当事者などの追加ロール。</li>
+                <li><code>executionDetails (0..1)</code>：執行形態（<code>Electronic</code> / <code>Voice</code> 等）、執行市場（<code>executionVenue</code>）、パッケージ取引参照（<code>packageReference</code>）。<code>condition ExecutionVenue</code> により、電子執行（<code>Electronic</code>）の場合は <code>executionVenue</code> が必須となります。</li>
+                <li><code>contractDetails (0..1)</code>：準拠法（<code>governingLaw</code>）やISDAマスター契約（<code>documentation</code>）。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/event-common-type.rosetta (L295-L315, L492-L511)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">Trade</span> <span class="kw">extends</span> <span class="ty">TradableProduct</span>:
+    <span class="mt">[metadata key]</span>
+    tradeIdentifier <span class="ty">TradeIdentifier</span> (1..*)
+    tradeDate <span class="ty">date</span> (1..1)
+        <span class="mt">[metadata id]</span>
+    tradeTime <span class="ty">TimeZone</span> (0..1)
+        <span class="mt">[metadata id]</span>
+    party <span class="ty">Party</span> (0..*)
+    partyRole <span class="ty">PartyRole</span> (0..*)
+    executionDetails <span class="ty">ExecutionDetails</span> (0..1)
+    contractDetails <span class="ty">ContractDetails</span> (0..1)
+    collateral <span class="ty">Collateral</span> (0..1)
+
+    <span class="cd">condition</span> SettlementPayout:
+        <span class="kw">if</span> SettlementPayoutOnlyExists(product -> economicTerms -> payout)
+        <span class="kw">then</span> partyRole -> role <span class="kw">contains</span> <span class="ty">PartyRoleEnum</span> -> Buyer
+                <span class="kw">and</span> partyRole -> role <span class="kw">contains</span> <span class="ty">PartyRoleEnum</span> -> Seller
+                <span class="kw">and</span> tradeLot -> priceQuantity -> price <span class="kw">exists</span>
+
+<span class="kw">type</span> <span class="ty">ExecutionDetails</span>:
+    <span class="mt">[metadata key]</span>
+    executionType <span class="ty">ExecutionTypeEnum</span> (1..1)
+    executionVenue <span class="ty">LegalEntity</span> (0..1)
+    packageReference <span class="ty">IdentifiedList</span> (0..1)
+
+    <span class="cd">condition</span> ExecutionVenue:
+        <span class="kw">if</span> executionType = <span class="ty">ExecutionTypeEnum</span> -> Electronic
+        <span class="kw">then</span> executionVenue <span class="kw">exists</span>
+
+<span class="kw">type</span> <span class="ty">ContractDetails</span>:
+    <span class="mt">[metadata key]</span>
+    documentation <span class="ty">LegalAgreement</span> (0..*)
+    governingLaw <span class="ty">GoverningLawEnum</span> (0..1)
+        <span class="mt">[metadata scheme]</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>execution-fx-forward-func-output.json (L263-L301) — tradeIdentifier, tradeDate, party</span>
+              </div>
+              <pre><code>"tradeIdentifier" : [ {
+  "issuerReference" : { "@ref:external" : "party1" },
+  "assignedIdentifier" : [ {
+    "identifier" : {
+      "@scheme" : "http://www.abn-amro.com/fx/trade-id",
+      "@data" : "ABN1234"
+    }
+  } ]
+}, {
+  "issuerReference" : { "@ref:external" : "party2" },
+  "assignedIdentifier" : [ {
+    "identifier" : {
+      "@scheme" : "http://www.db.com/fx/trade-id",
+      "@data" : "DB5678"
+    }
+  } ]
+} ],
+"tradeDate" : {
+  "@data" : "2001-11-19"
+},
+"party" : [ ... ]</code></pre>
+            </div>
+          </div>
+
+          <!-- C2: TradableProduct & TradeLot -->
+          <div class="node-detail-card" data-node-content="node-c2" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C2: <code>TradableProduct</code> と <code>TradeLot</code>（ロット分割と複数レッグ）</h3>
+              <p>
+                <code>TradableProduct</code> は、商品テンプレート <code>product (1..1)</code> とロット配列 <code>tradeLot (1..*)</code>、そして2者の対応 <code>counterparty (2..2)</code> を持ちます。
+              </p>
+              <ul>
+                <li>
+                  <strong>なぜ <code>tradeLot (1..*)</code> と <code>priceQuantity (1..*)</code> の2段階配列なのか？</strong>
+                  <ul>
+                    <li><strong>外側の <code>tradeLot (1..*)</code></strong>：同じ契約に対して後から増額（Increase）や追加ロット取引を行った際、別ロット（<code>lotIdentifier</code> 付き）として追加できるようにするためです。通常の単一約定の為替取引では <strong><code>tradeLot</code> は要素数1</strong> です。</li>
+                    <li><strong>内側の <code>priceQuantity (1..*)</code></strong>：1つの商品の中に複数のレッグ（例：<strong>FX Swap の Near Leg と Far Leg</strong>）がある場合、1つの <code>TradeLot</code> の中に<strong>2つの <code>PriceQuantity</code> 要素</strong>を並べて表現します（Lesson 0003〜0004で詳解）。</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta (L317-L330)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">TradeLot</span>: <span class="cm">&lt;"Specifies the price and quantity of a trade lot..."&gt;</span>
+    lotIdentifier <span class="ty">Identifier</span> (0..*) <span class="cm">&lt;"Specifies one or more identifiers for the lot, if any."&gt;</span>
+    priceQuantity <span class="ty">PriceQuantity</span> (1..*) <span class="cm">&lt;"Specifies the settlement characteristics of a trade lot: price, quantity, observable (optionally)... This attribute has a multiple cardinality to allow to specify the price, quantity and observable of different legs in a single, composite product (e.g. a Swap)."&gt;</span>
+
+<span class="kw">type</span> <span class="ty">TradableProduct</span>:
+    product <span class="ty">NonTransferableProduct</span> (1..1) <span class="cm">&lt;"The underlying product to be included in a contract or execution."&gt;</span>
+    tradeLot <span class="ty">TradeLot</span> (1..*) <span class="cm">&lt;"Specifies the price, quantity and effective date of each trade lot..."&gt;</span>
+    counterparty <span class="ty">Counterparty</span> (2..2) <span class="cm">&lt;"Specifies the parties which are the two counterparties to the transaction."&gt;</span>
+    ancillaryParty <span class="ty">AncillaryParty</span> (0..*) <span class="cm">&lt;"Specifies the parties with ancillary roles in the transaction."&gt;</span>
+    adjustment <span class="ty">NotionalAdjustmentEnum</span> (0..1)</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>FX Forward（1要素）vs FX Swap（Near/Far の2要素）の tradeLot 構造比較</span>
+              </div>
+              <pre><code><span class="cm">// FX Forward (fx-ex03-fx-fwd.json): priceQuantity は 1要素</span>
+"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ { "@key:scoped" : "price-1", "value" : 0.9175, ... } ],
+    "quantity" : { "@key:scoped" : "quantity-1", "value" : 10000000, ... },
+    "observable" : { "@key:scoped" : "observable-1", ... }
+  } ]
+} ]
+
+<span class="cm">// FX Swap (fx-ex08-fx-swap.json): Near Leg と Far Leg で priceQuantity が 2要素</span>
+"tradeLot" : [ {
+  "priceQuantity" : [
+    { <span class="cm">/* Near Leg: price-1, quantity-1, observable-1 */</span> },
+    { <span class="cm">/* Far Leg:  price-2, quantity-2, observable-2 */</span> }
+  ]
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- C3: Party & TradeIdentifier -->
+          <div class="node-detail-card" data-node-content="node-c3" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C3: <code>Party</code> と <code>TradeIdentifier</code>（<code>@key:external</code> による参照基盤）</h3>
+              <p>
+                <code>Party</code> 型には <code>[metadata key]</code> が付与されており、JSON上では <code>"@key:external": "party1"</code> のようなドキュメント内キーを持ちます。
+              </p>
+              <ul>
+                <li><strong><code>Party</code> の識別子（<code>partyId (1..*)</code>）</strong>：<code>PartyIdentifierTypeEnum</code> により <code>LEI</code>（20桁の取引主体識別子）、<code>BIC</code>（SWIFTコード）、<code>MIC</code>（市場識別コード）等を明示できます。</li>
+                <li><strong><code>TradeIdentifier</code> の発行者（<code>condition IssuerChoice</code>）</strong>：取引番号を誰が発番したかを表す際、<code>issuerReference Party (0..1)</code>（<code>@ref:external</code> で <code>party</code> を参照）または <code>issuer string (0..1)</code>（文字列で直接記述）の<strong>どちらか一方を必須選択（<code>required choice</code>）</strong>します。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>base-staticdata-party-type.rosetta (L137-L154) &amp; base-staticdata-identifier-type.rosetta (L15-L26)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">Party</span>:
+    <span class="mt">[metadata key]</span>
+    partyId <span class="ty">PartyIdentifier</span> (1..*) <span class="cm">&lt;"e.g. the 20 digits LEI code."&gt;</span>
+    name <span class="ty">string</span> (0..1)
+        <span class="mt">[metadata scheme]</span>
+    businessUnit <span class="ty">BusinessUnit</span> (0..*)
+    person <span class="ty">NaturalPerson</span> (0..*)
+    personRole <span class="ty">NaturalPersonRole</span> (0..*)
+    account <span class="ty">Account</span> (0..1)
+    contactInformation <span class="ty">ContactInformation</span> (0..1)
+
+<span class="kw">type</span> <span class="ty">Identifier</span>:
+    <span class="mt">[metadata key]</span>
+    issuerReference <span class="ty">Party</span> (0..1)
+        <span class="mt">[metadata reference]</span>
+    issuer <span class="ty">string</span> (0..1)
+        <span class="mt">[metadata scheme]</span>
+    assignedIdentifier <span class="ty">AssignedIdentifier</span> (1..*)
+
+    <span class="cd">condition</span> IssuerChoice:
+        <span class="kw">required choice</span> issuerReference, issuer</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L143-L185) — Party の定義と TradeIdentifier からの参照</span>
+              </div>
+              <pre><code>"tradeIdentifier" : [ {
+  "issuerReference" : {
+    <span class="mt">"@ref:external" : "party1"</span>
+  },
+  "assignedIdentifier" : [ {
+    "identifier" : {
+      "@scheme" : "http://www.abn-amro.com/fx/trade-id",
+      "@data" : "ABN1234"
+    }
+  } ]
+} ],
+"party" : [ {
+  <span class="mt">"@key:external" : "party1"</span>,
+  "partyId" : [ {
+    "identifier" : {
+      "@scheme" : "http://www.fpml.org/coding-scheme/external/iso17442",
+      "@data" : "BFXS5XCH7N0Y05NIXW11"
+    },
+    "identifierType" : "LEI"
+  } ]
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- C4: Counterparty & AncillaryParty -->
+          <div class="node-detail-card" data-node-content="node-c4" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C4: <code>Counterparty</code> と <code>AncillaryParty</code>（抽象ロールと実体のブリッジ）</h3>
+              <p>
+                <code>Product</code> 内部の抽象ロールと、外側の <code>Party</code> 実体を結ぶブリッジが以下の2つの型です。
+              </p>
+              <ul>
+                <li>
+                  <strong>主たる2当事者：<code>counterparty Counterparty (2..2)</code></strong><br />
+                  カーディナリティが <code>(2..2)</code> であるため、必ず <code>Party1</code> と <code>Party2</code> の2要素が存在します。CDM内部の関数 <code>ExtractCounterpartyByRole</code>（<span class="cite-badge">base-staticdata-party-func.rosetta:L4-L15</span>）がこの配列を検索して実当事者を特定します。
+                </li>
+                <li>
+                  <strong>付随ロール当事者：<code>ancillaryParty AncillaryParty (0..*)</code></strong><br />
+                  独立計算代理人（<code>CalculationAgentIndependent</code>）や、オプションの手動権利行使通知の受取先（<code>ExerciseNoticeReceiverPartyManual</code>）など、<code>Product</code> 内で指定された <code>AncillaryRoleEnum</code> を実際の <code>Party</code> に紐づけます。<code>TradableProduct</code> の多数の <code>condition</code>（L344-L394）により、<code>Product</code> 側で該当ロールを使った場合は <code>ancillaryParty</code> 側にも必ず登録することが強制されています。
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>base-staticdata-party-type.rosetta (L7-L16) &amp; product-template-type.rosetta (L352-L356, L376-L380)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">Counterparty</span>:
+    role <span class="ty">CounterpartyRoleEnum</span> (1..1) <span class="cm">&lt;"Either Party1 or Party2"&gt;</span>
+    partyReference <span class="ty">Party</span> (1..1)
+        <span class="mt">[metadata reference]</span>
+
+<span class="kw">type</span> <span class="ty">AncillaryParty</span>:
+    role <span class="ty">AncillaryRoleEnum</span> (1..1)
+    partyReference <span class="ty">Party</span> (1..*)
+        <span class="mt">[metadata reference]</span>
+    onBehalfOf <span class="ty">CounterpartyRoleEnum</span> (0..1)
+
+<span class="cm">// TradableProduct 上の整合性制約（抜粋）</span>
+<span class="cd">condition</span> ExerciseNoticeReceiverPartyManual:
+    <span class="kw">if</span> product -> economicTerms -> payout <span class="kw">as</span> <span class="ty">OptionPayout</span> -> exerciseTerms -> exerciseProcedure -> manualExercise -> exerciseNotice -> exerciseNoticeReceiver <span class="kw">exists</span>
+    <span class="kw">then</span> ancillaryParty -> role <span class="kw">contains</span> <span class="ty">AncillaryRoleEnum</span> -> ExerciseNoticeReceiverPartyManual</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex09-euro-opt.json (L143-L159) — counterparty と ancillaryParty の実データ例</span>
+              </div>
+              <pre><code>"counterparty" : [ {
+  "role" : "Party1",
+  "partyReference" : {
+    "@ref:external" : "party1"
+  }
+}, {
+  "role" : "Party2",
+  "partyReference" : {
+    "@ref:external" : "party2"
+  }
+} ],
+"ancillaryParty" : [ {
+  "role" : "ExerciseNoticeReceiverPartyManual",
+  "partyReference" : [ {
+    "@ref:external" : "party2"
+  } ]
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- C5: PayerReceiver vs BuyerSeller vs PartyReferencePayerReceiver -->
+          <div class="node-detail-card" data-node-content="node-c5" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C5: 方向を表す3つの型：<code>PayerReceiver</code> / <code>BuyerSeller</code> / <code>PartyReferencePayerReceiver</code></h3>
+              <p>
+                「誰が誰に支払うか／誰が買い手か」を表す型は、<strong>配置される場所（Productの内か外か）と商品の種類</strong>によって以下の3つが厳密に使い分けられます。
+              </p>
+              <ul>
+                <li>
+                  <strong>① <code>PayerReceiver</code>（<code>Product</code> 内のすべての <code>PayoutBase</code>）</strong>：<br />
+                  <code>payer</code> と <code>receiver</code> を <code>CounterpartyRoleEnum</code>（<code>Party1</code> / <code>Party2</code>）で指定します。<code>SettlementPayout</code> では<strong>「<code>underlier</code>（対象通貨 <code>observable</code>）を引き渡す側が <code>payer</code>、受け取る側が <code>receiver</code>」</strong>となります（対価通貨の支払方向はその逆になります：<code>Create_AssetFlowFromSettlementPayout</code> <span class="cite-badge">product-template-func.rosetta:L94-L157</span>）。
+                </li>
+                <li>
+                  <strong>② <code>BuyerSeller</code>（<code>OptionPayout</code> 固有）</strong>：<br />
+                  オプションの権利の買い手（<code>buyer</code>）と売り手（<code>seller</code>）を <code>Party1</code> / <code>Party2</code> で指定します（<span class="cite-badge">product-template-type.rosetta:L127</span>）。
+                </li>
+                <li>
+                  <strong>③ <code>PartyReferencePayerReceiver</code>（<code>Product</code> 外の <code>TransferHistory</code> 等）</strong>：<br />
+                  オプション・プレミアムや決済キャッシュフローの実績（<code>TradeState -> transferHistory</code>）は商品テンプレートではなく具体的な当事者間の送金であるため、<code>Party1</code> ではなく <strong><code>payerPartyReference</code> / <code>receiverPartyReference</code>（<code>@ref:external</code> で直接 <code>Party</code> を指す）</strong>を使います！
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/base-staticdata-party-type.rosetta (L18-L46)</span>
+              </div>
+              <pre><code><span class="cm">// Product 内の OptionPayout で使用（抽象ロール Party1 / Party2）</span>
+<span class="kw">type</span> <span class="ty">BuyerSeller</span>:
+    buyer <span class="ty">CounterpartyRoleEnum</span> (1..1)
+    seller <span class="ty">CounterpartyRoleEnum</span> (1..1)
+
+<span class="cm">// Product 内の PayoutBase（SettlementPayout / OptionPayout 等）で使用（抽象ロール Party1 / Party2）</span>
+<span class="kw">type</span> <span class="ty">PayerReceiver</span>:
+    payer <span class="ty">CounterpartyRoleEnum</span> (1..1)
+    receiver <span class="ty">CounterpartyRoleEnum</span> (1..1)
+
+<span class="cm">// Product 外の TransferBase（プレミアム等の資金決済）で使用（Party への直接参照！）</span>
+<span class="kw">type</span> <span class="ty">PartyReferencePayerReceiver</span>:
+    payerPartyReference <span class="ty">Party</span> (1..1)
+        <span class="mt">[metadata reference]</span>
+    payerAccountReference <span class="ty">Account</span> (0..1)
+        <span class="mt">[metadata reference]</span>
+    receiverPartyReference <span class="ty">Party</span> (1..1)
+        <span class="mt">[metadata reference]</span>
+    receiverAccountReference <span class="ty">Account</span> (0..1)
+        <span class="mt">[metadata reference]</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex09-euro-opt.json (L28-L45, L211-L218) — Product内の抽象ロール vs Transfer内の直接参照</span>
+              </div>
+              <pre><code><span class="cm">// ① Product 内（OptionPayout）：Party1 / Party2 で記述</span>
+"payout" : [ {
+  "@type" : "cdm.product.template.OptionPayout",
+  "payerReceiver" : { "payer" : "Party2", "receiver" : "Party1" },
+  "buyerSeller"   : { "buyer" : "Party1", "seller"   : "Party2" },
+  ...
+} ]
+
+<span class="cm">// ② Product 外（TradeState -> transferHistory のオプション・プレミアム）：@ref:external で直接記述</span>
+"transferHistory" : [ {
+  "transfer" : {
+    "payerReceiver" : {
+      "payerPartyReference"    : { <span class="mt">"@ref:external" : "party1"</span> },
+      "receiverPartyReference" : { <span class="mt">"@ref:external" : "party2"</span> }
+    },
+    "transferType" : "Premium"
+  }
+} ]</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Docs Discrepancy Warning -->
+    <section>
+      <h2>4. 一次ソース検証で見つかる <code>docs/</code> とスキーマの重要注意点</h2>
+      <p>
+        <code>TradableProduct</code> や <code>Trade</code>、<code>PriceQuantity</code> 周辺の二次資料（<code>common-domain-model/docs/product-model.md</code>）を一次ソースと突合すると、実務設計で致命傷になりかねない<strong>「存在しない属性（Phantom Attributes）の記述」</strong>が見つかります。
+      </p>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点①：<code>PriceQuantity</code> に <code>settlementTerms</code> や <code>buyerSeller</code> は存在しない</div>
+        <p>
+          二次資料 <code>common-domain-model/docs/product-model.md</code>（L808-L816、L1063-L1065）には、<em>「FXスポットやフォワード、オプションプレミアムでは、<code>PriceQuantity</code> オブジェクトの中に <code>settlementTerms</code> と <code>buyerSeller</code> 属性が含まれる」</em>と明記されています（また <code>product-template-type.rosetta:L319</code> のコメント文字列にも古い説明文が残っています）。<br />
+          しかし、一次ソース <span class="cite-badge">observable-asset-type.rosetta:L97-L106</span> の <code>PriceQuantity</code> 型には、<strong><code>price</code>, <code>quantity</code>, <code>observable</code>, <code>effectiveDate</code> の4属性しか存在しません</strong>。現行のCDMでは以下の場所に配置されます：
+        </p>
+        <ul style="margin-bottom: 0;">
+          <li>決済条件（<code>settlementTerms</code>）と支払・受取方向（<code>payerReceiver</code>）→ <code>PayoutBase</code>（<code>SettlementPayout</code> や <code>OptionPayout</code> の親型：<span class="cite-badge">product-common-settlement-type.rosetta:L68-L71</span>）</li>
+          <li>買手・売手（<code>buyerSeller</code>）→ <code>OptionPayout</code> 直下（<span class="cite-badge">product-template-type.rosetta:L127</span>）</li>
+          <li>オプション・プレミアムの受渡 → <code>TradeState -> transferHistory</code>（<span class="cite-badge">fx-ex09-euro-opt.json:L184-L221</span>）</li>
+        </ul>
+      </div>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点②：<code>Trade</code> の <code>condition SettlementPayout</code> と FpML 変換出力のギャップ</div>
+        <p style="margin-bottom: 0;">
+          一次ソース <span class="cite-badge">event-common-type.rosetta:L310-L315</span> の <code>Trade</code> 型には、<code>condition SettlementPayout</code> として <em>「<code>SettlementPayout</code> のみを使用する場合、<code>Trade -> partyRole</code> に <code>Buyer</code> と <code>Seller</code> の両方が含まれなければならない」</em> という制約が定義されています。<br />
+          一方で、FpML Confirmation から自動変換された公式サンプル（<code>fx-ex03-fx-fwd.json</code> 等）では、<code>SettlementPayout -> payerReceiver</code> は出力されるものの、<code>Trade -> partyRole</code> は空のまま出力されています。したがって、<strong>システムで <code>Trade</code> のフルバリデーション（<code>condition</code> 検証）を有効化する場合は、<code>Trade -> partyRole</code> にも <code>Buyer</code> / <code>Seller</code> をマッピングしておく必要がある</strong>点に注意してください。
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 5: Interactive Mapping & Resolution Exercise -->
+    <section>
+      <h2>5. 実践演習①：当事者参照の追跡とCDMパスマッピング</h2>
+      <p>
+        上記セクション2〜3の一次ソース定義と公式サンプルJSON（<code>execution-fx-forward-func-output.json</code> / <code>fx-ex09-euro-opt.json</code>）に基づき、正しいマッピング先・解釈を選択して「検証」を押してください。
+      </p>
+
+      <div class="exercise-box">
+        <!-- Item 1 -->
+        <div
+          class="mapping-item"
+          data-answer="213800QILIUD4ROSUO03 (Deutsche Bank / @key:external = party2)"
+          data-explanation="<code>SettlementPayout -> payerReceiver -> payer</code> は <code>&quot;Party1&quot;</code> です。これを <code>TradableProduct -> counterparty</code> で引くと、<code>role: &quot;Party1&quot;</code> の <code>partyReference</code> は <code>&quot;@ref:external&quot;: &quot;party2&quot;</code> を指しています。そして <code>Trade -> party</code> で <code>&quot;@key:external&quot;: &quot;party2&quot;</code> を引くと、LEI <code>213800QILIUD4ROSUO03</code>（Deutsche Bank）であることが分かります（対価の 9,175,000 USD は逆に <code>Party2</code>＝<code>party1</code>［ABN Amro］が支払います）。"
+        >
+          <div class="mapping-prompt">
+            問1. セクション2の公式サンプルJSONにおいて、<code>underlier</code> である <strong>10,000,000 EUR を実際に支払う（<code>payer: "Party1"</code> に該当する）金融機関のLEI</strong> はどちらか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 参照チェーンを辿って選択 --</option>
+              <option value="BFXS5XCH7N0Y05NIXW11 (ABN Amro / @key:external = party1)">BFXS5XCH7N0Y05NIXW11 (ABN Amro / @key:external = party1)</option>
+              <option value="213800QILIUD4ROSUO03 (Deutsche Bank / @key:external = party2)">213800QILIUD4ROSUO03 (Deutsche Bank / @key:external = party2)</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 2 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> tradeIdentifier -> assignedIdentifier -> identifier"
+          data-explanation="規制報告用のUTI/USIや各当事者が発番した取引番号は、<code>Trade</code> 直下の必須属性 <code>tradeIdentifier (1..*)</code> 内の <code>assignedIdentifier -> identifier</code> に格納し、発番元を <code>issuerReference</code>（または <code>issuer</code>）で指定します（<code>event-common-type.rosetta:L299</code>）。<code>TradeLot -> lotIdentifier</code> は同一契約内のロット識別用です。"
+        >
+          <div class="mapping-prompt">
+            問2. <strong>各当事者の社内取引番号（例：<code>"ABN1234"</code>, <code>"DB5678"</code>）や UTI</strong> を格納する正規のCDMパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> product -> identifier -> identifier">TradeState -> trade -> product -> identifier -> identifier</option>
+              <option value="TradeState -> trade -> tradeLot -> lotIdentifier -> assignedIdentifier">TradeState -> trade -> tradeLot -> lotIdentifier -> assignedIdentifier</option>
+              <option value="TradeState -> trade -> tradeIdentifier -> assignedIdentifier -> identifier">TradeState -> trade -> tradeIdentifier -> assignedIdentifier -> identifier</option>
+              <option value="TradeState -> trade -> contractDetails -> documentation -> agreementIdentification">TradeState -> trade -> contractDetails -> documentation -> agreementIdentification</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 3 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> product -> economicTerms -> payout -> OptionPayout -> buyerSeller"
+          data-explanation="為替オプションの権利の買い手（<code>buyer</code>）と売り手（<code>seller</code>）は、<code>OptionPayout</code> が持つ必須属性 <code>buyerSeller BuyerSeller (1..1)</code>（<code>product-template-type.rosetta:L127</code>）に抽象ロール <code>Party1</code> / <code>Party2</code> でマッピングします。"
+        >
+          <div class="mapping-prompt">
+            問3. 為替オプション取引において、<strong>「どちらがオプションの買い手（Buyer）で、どちらが売り手（Seller）か」</strong>を抽象ロール（<code>Party1</code> / <code>Party2</code>）で指定するパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> tradeLot -> priceQuantity -> buyerSeller">TradeState -> trade -> tradeLot -> priceQuantity -> buyerSeller</option>
+              <option value="TradeState -> trade -> product -> economicTerms -> payout -> OptionPayout -> buyerSeller">TradeState -> trade -> product -> economicTerms -> payout -> OptionPayout -> buyerSeller</option>
+              <option value="TradeState -> trade -> counterparty -> buyerSeller">TradeState -> trade -> counterparty -> buyerSeller</option>
+              <option value="TradeState -> trade -> contractDetails -> buyerSeller">TradeState -> trade -> contractDetails -> buyerSeller</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 4 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> ancillaryParty"
+          data-explanation="<code>TradableProduct</code> の <code>condition ExerciseNoticeReceiverPartyManual</code>（<code>product-template-type.rosetta:L368-L372</code>）および <code>condition CalculationAgentIndependent</code>（<code>L384-L388</code>）により、<code>Product</code> 内で指定した <code>AncillaryRoleEnum</code> と実際の <code>Party</code>（<code>@ref:external</code>）の対応は <code>TradableProduct</code> から継承された <code>Trade -> ancillaryParty</code> に格納します。"
+        >
+          <div class="mapping-prompt">
+            問4. 為替オプションの「手動行使通知の受取先（<code>ExerciseNoticeReceiverPartyManual</code>）」や「独立計算代理人（<code>CalculationAgentIndependent</code>）」という抽象ロールを、<strong>実際の <code>Party</code>（<code>@ref:external</code>）へ紐づける</strong>パスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> counterparty">TradeState -> trade -> counterparty</option>
+              <option value="TradeState -> trade -> ancillaryParty">TradeState -> trade -> ancillaryParty</option>
+              <option value="TradeState -> trade -> executionDetails -> executionVenue">TradeState -> trade -> executionDetails -> executionVenue</option>
+              <option value="TradeState -> trade -> product -> taxonomy">TradeState -> trade -> product -> taxonomy</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Retrieval Practice Quiz -->
+    <section>
+      <h2>6. 実践演習②：記憶定着クイズ（Retrieval Practice）</h2>
+      <p>
+        画面上の解説を見ずに、記憶から引き出して回答してください（選択肢をクリックすると即座に判定されます）。
+      </p>
+
+      <div class="quiz-container">
+        <!-- Q1: Correct = index 2 (All 4 options = 27 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="2"
+          data-explanation="<code>TradableProduct -> counterparty Counterparty (2..2)</code>（<code>product-template-type.rosetta:L326</code>）は、<code>Product</code> 内部で使われる抽象ロール（<code>CounterpartyRoleEnum</code>: <code>Party1</code> / <code>Party2</code>）と、<code>Trade -> party</code> に定義された当事者実体への参照（<code>partyReference</code>）を結びつけるブリッジです。"
+        >
+          <div class="quiz-q-title">
+            Q1. <code>TradableProduct</code> において <code>counterparty</code> 属性が果たす役割として、一次ソース定義に照らして正しいものはどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">取引の決済通貨名と営業日カレンダー定義を直接結びつける</button>
+            <button class="quiz-option-btn">商品の経済条件群とリセット履歴の観測値を直接結びつける</button>
+            <button class="quiz-option-btn">商品の抽象ロールと取引当事者の実体参照を直接結びつける</button>
+            <button class="quiz-option-btn">約定日の時刻情報と執行市場の識別コードを直接結びつける</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q2: Correct = index 0 (All 4 options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="0"
+          data-explanation="<code>NonTransferableProduct</code>（および内側の <code>Payout</code>）では当事者を <code>Party1</code> / <code>Party2</code> という抽象ロール列挙値（<code>CounterpartyRoleEnum</code>）で記述するため、ノベーション（<code>PartyChange</code>）で取引相手が交代しても、外側の <code>counterparty</code> と <code>party</code> を差し替えるだけで済み、<code>Product</code> 自体は不変に保たれます。"
+        >
+          <div class="quiz-q-title">
+            Q2. ノベーション（更改：<code>PartyChange</code>）で取引相手が交代する際、<code>Product</code> 内部の定義を書き換えずに済む理由は何か？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">ペイアウト内部の当事者が抽象ロール列挙値で書かれる為</button>
+            <button class="quiz-option-btn">トレードロット内の数量が決済通貨コード値で書かれる為</button>
+            <button class="quiz-option-btn">コントラクト詳細の文書が準拠法別の列挙値で書かれる為</button>
+            <button class="quiz-option-btn">ビジネスイベントの日付が営業日調整前の値で書かれる為</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q3: Correct = index 3 (All 4 options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="3"
+          data-explanation="<code>Product</code> 内部の <code>PayoutBase</code> は抽象ロールを持つ <code>PayerReceiver</code> を使いますが、<code>TradeState -> transferHistory</code>（オプション・プレミアム等の決済履歴）が継承する <code>TransferBase</code>（<code>event-common-type.rosetta:L274</code>）は、<code>Party</code> への直接参照（<code>@ref:external</code>）を持つ <code>PartyReferencePayerReceiver</code>（<code>base-staticdata-party-type.rosetta:L37-L46</code>）を使用します。"
+        >
+          <div class="quiz-q-title">
+            Q3. 一次ソースの <code>TransferBase</code>（プレミアム等の決済履歴）で支払人・受取人を指定する型はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">抽象ロール列挙値をペアで持つバイヤーセラー構造体の型</button>
+            <button class="quiz-option-btn">取引識別子と発行者参照を持つトレードアイディー派生型</button>
+            <button class="quiz-option-btn">第三者計算代理人の役割を持つアンシラリーパーティー型</button>
+            <button class="quiz-option-btn">当事者実体への直接参照を持つパーティー参照支払受取型</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q4: Correct = index 1 (All 4 options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="1"
+          data-explanation="二次資料 <code>docs/product-model.md</code> には <code>PriceQuantity</code> が <code>settlementTerms</code> や <code>buyerSeller</code> を持つという古い記述が残っていますが、現行の一次ソース（<code>observable-asset-type.rosetta:L97-L106</code>）の <code>PriceQuantity</code> には <code>price</code>, <code>quantity</code>, <code>observable</code>, <code>effectiveDate</code> の4属性しか存在しません。"
+        >
+          <div class="quiz-q-title">
+            Q4. 二次資料 <code>docs/product-model.md</code> と異なり、現行の <code>PriceQuantity</code> 型に実在しない属性はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">為替レートや金利水準を表すプライススケジュールの属性</button>
+            <button class="quiz-option-btn">決済条件と買手売手側を表すセトルメントタームズの属性</button>
+            <button class="quiz-option-btn">対象通貨や参照指標側を表すオブザーバブル対象物の属性</button>
+            <button class="quiz-option-btn">数量変更の発効日付側を表すエフェクティブデートの属性</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer: Primary Source Recommendation & Agent Reminder -->
+    <footer class="lesson-footer">
+      <div class="callout">
+        <div class="callout-title">📚 今回の推奨一次ソース（ぜひ直接開いて確認してください）</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>当事者・ロール定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/base-staticdata-party-type.rosetta</code>（L7-L46 の <code>Counterparty</code>, <code>AncillaryParty</code>, <code>BuyerSeller</code>, <code>PayerReceiver</code>, <code>PartyReferencePayerReceiver</code>、および L137-L176 の <code>Party</code> / <code>PartyRole</code>）
+          </li>
+          <li>
+            <strong><code>TradableProduct</code> / <code>Trade</code> 定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta</code>（L317-L395）および <code>event-common-type.rosetta</code>（L276-L319, L492-L511）
+          </li>
+          <li>
+            <strong>検証済み実データJSON</strong>：<code>common-domain-model/rosetta-source/src/main/resources/ingest/output/fpml-confirmation-to-trade-state/fpml-5-13-products-fx-derivatives/fx-ex09-euro-opt.json</code>（<code>OptionPayout</code> の <code>buyerSeller</code> / <code>payerReceiver</code> と <code>transferHistory</code> の <code>PartyReferencePayerReceiver</code> の対比）
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout callout-mission">
+        <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
+        <p style="margin-bottom: 0;">
+          <code>Party1</code> ↔ <code>party2</code> の参照解決や、<code>PayerReceiver</code> と <code>BuyerSeller</code> の使い分けなどで気になる点があれば、何でも質問してください。<br />
+          演習①・②をクリアしたら、次は為替データ設計の最重要ヤマ場のひとつである <strong>Lesson 0003（為替の2通貨数量とレートを結ぶ <code>PriceQuantity</code>・<code>ExchangeRate</code>・<code>ForwardPoint</code>・<code>derivedQuantity</code> と <code>@key:scoped</code> / <code>@ref:scoped</code> メタデータ参照）</strong>へ進みましょう！
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+</html>

@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lesson 0001: 為替取引で掴むCDMの全体鳥瞰図と .rosetta 読解の基礎</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="./0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="./0001-cdm-top-down-overview.html" class="active">Lesson 0001: 全体鳥瞰</a>
+        <a href="./0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
+        <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
+        <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Phase 1 · Lesson 0001 · Top-Down Architecture</div>
+      <h1>為替取引で掴むCDMの全体鳥瞰図と <code>.rosetta</code> 読解の基礎</h1>
+      <p class="lesson-subtitle">
+        1件の為替フォワード（FX Forward）取引が約定してから決済されるまでの流れをトップダウンで辿り、CDMの6階層（<code>WorkflowStep</code> → <code>BusinessEvent</code> → <code>Instruction</code> → <code>TradeState</code> → <code>Trade</code> → <code>Product</code>）の役割分担と <code>.rosetta</code> 一次ソースの読み方を習得します。
+      </p>
+    </header>
+
+    <div class="callout callout-mission">
+      <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
+      <p style="margin-bottom: 0;">
+        既存の金融システムにある「為替取引データ（約定日・取引ID・当事者・通貨ペア・為替レート・受渡日・取引ステータス）」をCDMへマッピングする際、<strong>「どの項目がどの階層の箱（型）に入るのか」</strong>を迷わず特定できるようになります。
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section>
+      <h2>1. なぜCDMは「複数の箱（マトリョーシカ構造）」に分かれているのか？</h2>
+      <p>
+        実務の為替システムでは、1枚のデータベーステーブル（あるいは1つのフラットなCSV/電文）に「取引ID」「約定日」「EUR/USDの金額とレート」「現在のステータス（約定済・解約済）」「承認タイムスタンプ」をすべて並べて持つことがよくあります。
+      </p>
+      <p>
+        しかし、金融取引のライフサイクル（新規約定 → 一部解約 → レート決定［Fixing］ → 決済）を厳密に追跡しようとすると、フラットな構造では<strong>「契約そのものの条件」と「取引の現在の状態」と「それを変更したイベント」</strong>が混ざり合って破綻します。そこでCDMは、トップダウンで以下の<strong>6つの階層</strong>に明確に分離しています。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 8%;">階層</th>
+            <th style="width: 24%;">CDM 型名</th>
+            <th style="width: 26%;">一言でいうと（金融実務の意味）</th>
+            <th>一次ソース定義箇所</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>L1</strong></td>
+            <td><code>WorkflowStep</code></td>
+            <td><strong>業務承認・メッセージの封筒</strong><br />（誰がいつ提案・承認したか、電文IDは何か）</td>
+            <td><span class="cite-badge">event-workflow-type.rosetta:L37</span></td>
+          </tr>
+          <tr>
+            <td><strong>L2</strong></td>
+            <td><code>BusinessEvent</code></td>
+            <td><strong>取引ライフサイクル上の出来事</strong><br />（新規約定・権利行使・一部解約などのイベント日と結果）</td>
+            <td><span class="cite-badge">event-common-type.rosetta:L60</span></td>
+          </tr>
+          <tr>
+            <td><strong>L3</strong></td>
+            <td><code>Instruction</code> /<br /><code>PrimitiveInstruction</code></td>
+            <td><strong>状態を変更する「操作命令書」</strong><br />（変更前の状態 <code>before</code> に何の操作を加えるか）</td>
+            <td><span class="cite-badge">event-common-type.rosetta:L31-L59</span></td>
+          </tr>
+          <tr>
+            <td><strong>L4</strong></td>
+            <td><code>TradeState</code></td>
+            <td><strong>ある時点の「取引スナップショット」</strong><br />（取引本体＋現在の生死ステータス＋Fixing・決済の履歴）</td>
+            <td><span class="cite-badge">event-common-type.rosetta:L198</span></td>
+          </tr>
+          <tr>
+            <td><strong>L5</strong></td>
+            <td><code>Trade</code><br />(<code>extends TradableProduct</code>)</td>
+            <td><strong>合意された「取引契約と数量・価格」</strong><br />（約定日・取引ID・当事者・具体的な金額とレート）</td>
+            <td><span class="cite-badge">event-common-type.rosetta:L295</span><br /><span class="cite-badge">product-template-type.rosetta:L321</span></td>
+          </tr>
+          <tr>
+            <td><strong>L6</strong></td>
+            <td><code>NonTransferableProduct</code> &amp;<br /><code>EconomicTerms</code> / <code>Payout</code></td>
+            <td><strong>金融商品の「純粋な経済条件・ペイアウト構造」</strong><br />（為替フォワードの受渡条件 <code>SettlementPayout</code> 等）</td>
+            <td><span class="cite-badge">product-template-type.rosetta:L30-L50</span><br /><span class="cite-badge">product-template-type.rosetta:L307</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 2 -->
+    <section>
+      <h2>2. 一次ソースを読むための最小限の <code>.rosetta</code> ルール</h2>
+      <p>
+        下のインタラクティブ・ビューアで一次ソースを読む前に、たった4つの記法だけ押さえましょう（詳細は <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解チートシート</a> にいつでも戻れます）。
+      </p>
+      <ul>
+        <li>
+          <strong>属性と多重度（カーディナリティ）</strong>：<code>trade Trade (1..1)</code> は「<code>trade</code> という属性に <code>Trade</code> 型が<strong>必須で1つだけ</strong>入る」ことを意味します。<code>(0..1)</code> は任意（0または1）、<code>(0..*)</code> は0個以上のリスト、<code>(1..*)</code> は1個以上の必須リスト、<code>(2..2)</code> は2個固定のリストです。
+        </li>
+        <li>
+          <strong>継承（<code>extends</code>）</strong>：<code>type Trade extends TradableProduct:</code> と書かれていたら、<code>Trade</code> は親である <code>TradableProduct</code> の属性（<code>product</code>, <code>tradeLot</code>, <code>counterparty</code>）を<strong>すべて自分の属性として持っている</strong>と読みます。
+        </li>
+        <li>
+          <strong>選択型（<code>choice</code>）</strong>：<code>choice Payout:</code> は「列挙された候補（<code>SettlementPayout</code>, <code>OptionPayout</code> 等）のうち、<strong>どれか1種類だけ</strong>を選んで入れる箱」です。
+        </li>
+        <li>
+          <strong>制約条件（<code>condition</code>）</strong>：型の後半に書かれる検証ルールです。たとえば <code>if A exists then B is absent</code> は「Aが存在するなら、Bは必ず空（未設定）でなければならない」という排他ルールを表します。
+        </li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Interactive Hierarchy Explorer -->
+    <section>
+      <h2>3. インタラクティブ探索：トップダウン6階層とFX Forward一次ソース</h2>
+      <p>
+        左側のツリーから階層（L1〜L6）をクリックし、右側のタブ（<strong>① 金融実務での意味</strong> ／ <strong>② <code>.rosetta</code> 一次ソース定義</strong> ／ <strong>③ FX Forward 実データJSON</strong>）を切り替えて、10,000,000 EUR（対価 9,175,000 USD、レート 0.9175）の為替フォワード取引がどう格納されているかを確認してください。
+      </p>
+
+      <div class="hierarchy-explorer" data-component="hierarchy-explorer">
+        <!-- Left: Clickable Top-Down Tree -->
+        <div class="hierarchy-tree">
+          <button class="tree-node-btn active" data-node="node-l1">
+            <span class="node-level">Layer 1 · Root Wrapper</span>
+            <span class="node-name">WorkflowStep</span>
+            <span class="node-ja">承認・メッセージの封筒</span>
+          </button>
+          <div class="tree-arrow">↓ businessEvent (0..1)</div>
+
+          <button class="tree-node-btn" data-node="node-l2">
+            <span class="node-level">Layer 2 · Lifecycle Event</span>
+            <span class="node-name">BusinessEvent</span>
+            <span class="node-ja">取引ライフサイクルイベント</span>
+          </button>
+          <div class="tree-arrow">↓ instruction (0..*) &amp; after (0..*)</div>
+
+          <button class="tree-node-btn" data-node="node-l3">
+            <span class="node-level">Layer 3 · State Transition Input</span>
+            <span class="node-name">Instruction / Primitive</span>
+            <span class="node-ja">変更前(before)＋操作命令</span>
+          </button>
+          <div class="tree-arrow">↓ 生成・更新される結果 (after)</div>
+
+          <button class="tree-node-btn" data-node="node-l4">
+            <span class="node-level">Layer 4 · Snapshot Root</span>
+            <span class="node-name">TradeState</span>
+            <span class="node-ja">ある時点の取引スナップショット</span>
+          </button>
+          <div class="tree-arrow">↓ trade (1..1)</div>
+
+          <button class="tree-node-btn" data-node="node-l5">
+            <span class="node-level">Layer 5 · Trade &amp; Lot</span>
+            <span class="node-name">Trade (extends TradableProduct)</span>
+            <span class="node-ja">取引契約＋具体的な金額・レート</span>
+          </button>
+          <div class="tree-arrow">↓ product (1..1) -> economicTerms</div>
+
+          <button class="tree-node-btn" data-node="node-l6">
+            <span class="node-level">Layer 6 · Product &amp; Payout</span>
+            <span class="node-name">EconomicTerms &amp; Payout</span>
+            <span class="node-ja">経済条件と決済ペイアウト</span>
+          </button>
+        </div>
+
+        <!-- Right: Tabbed Detail View -->
+        <div class="hierarchy-detail">
+          <div class="detail-tabs">
+            <button class="detail-tab-btn active" data-tab="tab-meaning">① 金融実務での意味とマッピング項目</button>
+            <button class="detail-tab-btn" data-tab="tab-rosetta">② .rosetta 一次ソース定義</button>
+            <button class="detail-tab-btn" data-tab="tab-json">③ FX Forward 実JSON抜粋</button>
+          </div>
+
+          <!-- L1 Content -->
+          <div class="node-detail-card" data-node-content="node-l1" style="display: block;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L1: <code>WorkflowStep</code>（ワークフローステップ）</h3>
+              <p>
+                取引システム間や清算機関・取引情報蓄積機関（DTCC等）との間でやり取りされる<strong>「業務ステップ（提案・承認・却下・成立）」</strong>を表す最上位の器です。
+              </p>
+              <ul>
+                <li><strong>まだ提案中のとき</strong>：<code>proposedEvent (EventInstruction)</code> に提案内容が入る。</li>
+                <li><strong>承認・成立したとき</strong>：<code>businessEvent (BusinessEvent)</code> に確定したイベントが入る（<code>condition WorkflowStepStatus</code> により、<code>proposedEvent</code> と <code>businessEvent</code> は同時には存在できない）。</li>
+                <li><strong>マッピング対象項目</strong>：イベント識別子（<code>eventIdentifier</code>）、タイムスタンプ（<code>timestamp</code>）、直前のステップへの参照（<code>previousWorkflowStep</code>）、メッセージヘッダ（<code>messageInformation</code>）。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/event-workflow-type.rosetta (L37-L67)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">WorkflowStep</span>:
+    <span class="mt">[metadata key]</span>
+    <span class="mt">[rootType]</span>
+
+    businessEvent <span class="ty">BusinessEvent</span> (0..1) <span class="cm">&lt;"Life cycle event for the step."&gt;</span>
+    counterpartyPositionBusinessEvent <span class="ty">CounterpartyPositionBusinessEvent</span> (0..1)
+    proposedEvent <span class="ty">EventInstruction</span> (0..1) <span class="cm">&lt;"The proposed event for a workflow step."&gt;</span>
+    rejected <span class="ty">boolean</span> (0..1) <span class="cm">&lt;"Flags this step as rejected."&gt;</span>
+    approval <span class="ty">WorkflowStepApproval</span> (0..*)
+    previousWorkflowStep <span class="ty">WorkflowStep</span> (0..1)
+        <span class="mt">[metadata reference]</span>
+    messageInformation <span class="ty">MessageInformation</span> (0..1)
+    timestamp <span class="ty">EventTimestamp</span> (1..*)
+    eventIdentifier <span class="ty">Identifier</span> (1..*)
+    action <span class="ty">ActionEnum</span> (0..1) <span class="cm">&lt;"New, Correct, Cancel"&gt;</span>
+    party <span class="ty">Party</span> (0..*)
+    account <span class="ty">Account</span> (0..*)
+    workflowState <span class="ty">WorkflowState</span> (0..1)
+
+    <span class="cd">condition</span> CounterpartyPositionBusinessEventOrBusinessEventOrProposedEventChoice:
+        <span class="kw">required choice</span> counterpartyPositionBusinessEvent, businessEvent, proposedEvent</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>WorkflowStep が BusinessEvent を内包する構造イメージ</span>
+              </div>
+              <pre><code>{
+  "@type": "cdm.event.workflow.WorkflowStep",
+  "businessEvent": {
+    "@type": "cdm.event.common.BusinessEvent",
+    "eventDate": "2001-11-19",
+    "eventQualifier": "Execution",
+    "instruction": [ ... ],
+    "after": [ ... ]
+  },
+  "timestamp": [ {
+    "dateTime": "2001-11-19T10:15:00Z",
+    "qualification": "eventCreationDateTime"
+  } ],
+  "eventIdentifier": [ {
+    "assignedIdentifier": [ { "identifier": { "@data": "EVENT-001" } } ]
+  } ]
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- L2 Content -->
+          <div class="node-detail-card" data-node-content="node-l2" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L2: <code>BusinessEvent</code>（ビジネスイベント）</h3>
+              <p>
+                <code>EventInstruction</code> を継承（<code>extends</code>）し、取引ライフサイクル上の<strong>「1つの確定した出来事（新規約定・オプション行使・一部解約・ノベーション等）」</strong>を表します。
+              </p>
+              <ul>
+                <li><strong>親 <code>EventInstruction</code> から引き継ぐ属性</strong>：<code>eventDate</code>（イベント発生日）、<code>effectiveDate</code>（効力発生日）、<code>intent</code>（イベント意図）、そして<strong><code>instruction Instruction (0..*)</code>（どんな操作を行ったか）</strong>。</li>
+                <li><strong><code>BusinessEvent</code> 固有の属性</strong>：<code>eventQualifier</code>（<code>"Execution"</code> 等の自動判定ラベル）と、<strong><code>after TradeState (0..*)</code>（イベントの結果として生まれた取引状態）</strong>。</li>
+                <li><strong>重要ルール</strong>：<code>condition EventDate</code> により、<code>BusinessEvent</code> では <code>eventDate</code> が必ず存在しなければなりません。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>event-workflow-type.rosetta (L72-L82) &amp; event-common-type.rosetta (L60-L69)</span>
+              </div>
+              <pre><code><span class="cm">// 親型（event-workflow-type.rosetta:L72）</span>
+<span class="kw">type</span> <span class="ty">EventInstruction</span>:
+    intent <span class="ty">EventIntentEnum</span> (0..1)
+    corporateActionIntent <span class="ty">CorporateActionTypeEnum</span> (0..1)
+    eventDate <span class="ty">date</span> (0..1)
+    eventTime <span class="ty">TimeZone</span> (0..1)
+    effectiveDate <span class="ty">date</span> (0..1)
+    effectiveTime <span class="ty">TimeZone</span> (0..1)
+    packageInformation <span class="ty">IdentifiedList</span> (0..1)
+    instruction <span class="ty">Instruction</span> (0..*) <span class="cm">&lt;"Specifies the instructions to create the Business Event."&gt;</span>
+
+<span class="cm">// 子型（event-common-type.rosetta:L60）</span>
+<span class="kw">type</span> <span class="ty">BusinessEvent</span> <span class="kw">extends</span> <span class="ty">EventInstruction</span>:
+    <span class="mt">[metadata key]</span>
+    <span class="mt">[rootType]</span>
+
+    eventQualifier <span class="ty">string</span> (0..1) <span class="cm">&lt;"e.g. Execution, PartialTermination, Novation..."&gt;</span>
+    after <span class="ty">TradeState</span> (0..*) <span class="cm">&lt;"Specifies the after trade state(s) created."&gt;</span>
+
+    <span class="cd">condition</span> EventDate:
+        eventDate <span class="kw">exists</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>rosetta-source/src/main/resources/functions/business-event/execution/execution-fx-forward-func-output.json (L1-L10, L157-L160)</span>
+              </div>
+              <pre><code>{
+  "@model" : "cdm",
+  "@type" : "cdm.event.common.BusinessEvent",
+  "eventDate" : "2001-11-19",
+  "instruction" : [ {
+    "primitiveInstruction" : {
+      "execution" : { ... }
+    }
+  } ],
+  "eventQualifier" : "Execution",
+  "after" : [ {
+    "trade" : { ... },
+    "state" : {
+      "positionState" : "Executed"
+    }
+  } ]
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- L3 Content -->
+          <div class="node-detail-card" data-node-content="node-l3" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L3: <code>Instruction</code> &amp; <code>PrimitiveInstruction</code>（操作命令）</h3>
+              <p>
+                CDMのイベントモデルの核心は、<strong>「変更前の取引状態（<code>before</code>）＋ プリミティブ命令（<code>primitiveInstruction</code>）＝ 変更後の取引状態（<code>after</code>）」</strong>という関数型ステートマシンになっている点です。
+              </p>
+              <ul>
+                <li><strong>新規約定（Execution）のとき</strong>：まだ取引が存在しない状態から新しい取引を作るため、<strong><code>before</code> は必ず空（<code>is absent</code>）</strong>になり、<code>primitiveInstruction -> execution</code> に約定内容を入れます（<code>condition NewTrade</code> で厳密に強制）。</li>
+                <li><strong>既存取引のイベント（一部解約・権利行使・Fixing等）のとき</strong>：<code>before</code> に変更前の <code>TradeState</code> を参照させ、<code>quantityChange</code>（数量変更）や <code>exercise</code>（権利行使）、<code>reset</code>（レート確定）を指定します。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/event-common-type.rosetta (L31-L59)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">Instruction</span>:
+    <span class="mt">[rootType]</span>
+    primitiveInstruction <span class="ty">PrimitiveInstruction</span> (0..1)
+    before <span class="ty">TradeState</span> (0..1) <span class="cm">&lt;"Specifies the trade state that will be acted on"&gt;</span>
+        <span class="mt">[metadata reference]</span>
+
+    <span class="cd">condition</span> NewTrade: <span class="cm">&lt;"There must be no before trade state if execution exists, and vice versa."&gt;</span>
+        (<span class="kw">if</span> primitiveInstruction -> execution <span class="kw">exists then</span> before <span class="kw">is absent else</span> True)
+            <span class="kw">and</span> (<span class="kw">if</span> before <span class="kw">is absent then</span> primitiveInstruction -> execution <span class="kw">exists else</span> True)
+
+<span class="kw">type</span> <span class="ty">PrimitiveInstruction</span>:
+    contractFormation <span class="ty">ContractFormationInstruction</span> (0..1)
+    execution <span class="ty">ExecutionInstruction</span> (0..1)       <span class="cm">// 新規約定</span>
+    exercise <span class="ty">ExerciseInstruction</span> (0..1)         <span class="cm">// FXオプション等の権利行使</span>
+    partyChange <span class="ty">PartyChangeInstruction</span> (0..1)   <span class="cm">// ノベーション（当事者変更）</span>
+    quantityChange <span class="ty">QuantityChangeInstruction</span> (0..1) <span class="cm">// 一部解約・増額</span>
+    reset <span class="ty">ResetInstruction</span> (0..1)               <span class="cm">// NDF等のFixing（レート決定）</span>
+    split <span class="ty">SplitInstruction</span> (0..1)               <span class="cm">// アロケーション・清算分割</span>
+    termsChange <span class="ty">TermsChangeInstruction</span> (0..1)   <span class="cm">// 条件変更（アメンドメント）</span>
+    transfer <span class="ty">TransferInstruction</span> (0..1)         <span class="cm">// キャッシュフロー受渡・決済</span>
+    observation <span class="ty">ObservationInstruction</span> (0..1)
+    valuation <span class="ty">ValuationInstruction</span> (0..1)</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>execution-fx-forward-func-output.json (L7-L19, L130-L156) — 新規約定のため before は存在しない</span>
+              </div>
+              <pre><code>"instruction" : [ {
+  "primitiveInstruction" : {
+    "execution" : {
+      "product" : {
+        "taxonomy" : [ {
+          "source" : "ISDA",
+          "value" : { "name" : { "@data" : "ForeignExchange_Spot_Forward" } },
+          "calculated" : true
+        } ],
+        "economicTerms" : { ... }
+      },
+      "priceQuantity" : [ ... ],
+      "counterparty" : [ ... ],
+      "parties" : [ ... ],
+      "tradeDate" : { "@data" : "2001-11-19" },
+      "tradeIdentifier" : [ ... ]
+    }
+  }
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- L4 Content -->
+          <div class="node-detail-card" data-node-content="node-l4" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L4: <code>TradeState</code>（トレード・ステート）</h3>
+              <p>
+                実務で「ポジション管理画面」や「取引一覧DB」が保持している<strong>「ある時点における1件の取引の最新状態（スナップショット）」</strong>に相当します。<code>[rootType]</code> がついているため、<code>BusinessEvent</code> の外で単体のJSONルートとしても扱えます（FpMLのConfirmation変換出力もこの <code>TradeState</code> がルートになります）。
+              </p>
+              <ul>
+                <li><code>trade Trade (1..1)</code>：取引契約そのもの（必須）。</li>
+                <li><code>state State (0..1)</code>：現在のポジション状態（<code>Executed</code>［約定済］、<code>Formed</code>［契約成立済］、<code>Settled</code>［決済済］、<code>Closed</code>［解約・消滅済］など）。</li>
+                <li><strong>4つの履歴リスト（<code>0..*</code>）</strong>：<code>resetHistory</code>（NDF等のFixing履歴）、<code>transferHistory</code>（決済キャッシュフロー履歴）、<code>observationHistory</code>（イベント観測履歴）、<code>valuationHistory</code>（時価評価履歴）。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/event-common-type.rosetta (L198-L206, L235-L242)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">TradeState</span>:
+    <span class="mt">[metadata key]</span>
+    <span class="mt">[rootType]</span>
+    trade <span class="ty">Trade</span> (1..1) <span class="cm">&lt;"Represents the Trade that has been effected by a business or life-cycle event."&gt;</span>
+    state <span class="ty">State</span> (0..1) <span class="cm">&lt;"Represents the State of the Trade through its life-cycle."&gt;</span>
+    resetHistory <span class="ty">Reset</span> (0..*) <span class="cm">&lt;"Represents the updated Trade attributes which can change as the result of a reset event."&gt;</span>
+    transferHistory <span class="ty">TransferState</span> (0..*) <span class="cm">&lt;"Represents the updated Trade attributes which can change as the result of a transfer event."&gt;</span>
+    observationHistory <span class="ty">ObservationEvent</span> (0..*)
+    valuationHistory <span class="ty">Valuation</span> (0..*)
+
+<span class="kw">type</span> <span class="ty">State</span>:
+    closedState <span class="ty">ClosedState</span> (0..1)
+    positionState <span class="ty">PositionStatusEnum</span> (0..1) <span class="cm">&lt;"Executed, Formed, Settled, Cancelled, Closed..."&gt;</span>
+
+    <span class="cd">condition</span> ClosedStateExists:
+        <span class="kw">if</span> positionState = <span class="ty">PositionStatusEnum</span> -> Closed
+        <span class="kw">then</span> closedState <span class="kw">exists</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>rosetta-source/src/main/resources/ingest/output/fpml-confirmation-to-trade-state/fpml-5-13-products-fx-derivatives/fx-ex03-fx-fwd.json</span>
+              </div>
+              <pre><code>{
+  "@model" : "cdm",
+  "@type" : "cdm.event.common.TradeState",
+  "@version" : "0.0.0.master-SNAPSHOT",
+  "@key" : "97ab3971",
+  "trade" : {
+    "product" : { ... },
+    "tradeLot" : [ ... ],
+    "counterparty" : [ ... ],
+    "tradeIdentifier" : [ ... ],
+    "tradeDate" : { "@data" : "2001-11-19" },
+    "party" : [ ... ]
+  }
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- L5 Content -->
+          <div class="node-detail-card" data-node-content="node-l5" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L5: <code>Trade</code>（<code>extends TradableProduct</code>）</h3>
+              <p>
+                ここがデータマッピング上の最重要ポイントです。<code>Trade</code> は親型である <strong><code>TradableProduct</code> を継承（<code>extends</code>）</strong>しているため、以下の2グループの属性を併せ持ちます。
+              </p>
+              <ul>
+                <li>
+                  <strong>① <code>Trade</code> 自身の属性（取引の行政・契約メタ情報）</strong>：
+                  <code>tradeIdentifier (1..*)</code>（両当事者の取引番号やUTI/USI）、<code>tradeDate (1..1)</code>（約定日）、<code>party (0..*)</code>（LEI等の当事者情報の実体）、<code>contractDetails (0..1)</code>（準拠法やISDAマスター契約への紐づけ）、<code>collateral (0..1)</code>。
+                </li>
+                <li>
+                  <strong>② 親 <code>TradableProduct</code> から継承した属性（経済実体）</strong>：
+                  <code>product (1..1)</code>（商品構造）、<code>tradeLot (1..*)</code>（<strong>実際の金額・為替レート・通貨を入れる <code>priceQuantity</code> はここに入る！</strong>）、<code>counterparty (2..2)</code>（<code>Party1</code> / <code>Party2</code> と実当事者 <code>party</code> の対応付け）。
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta (L317-L329) &amp; event-common-type.rosetta (L295-L309)</span>
+              </div>
+              <pre><code><span class="cm">// 親型（product-template-type.rosetta:L321）</span>
+<span class="kw">type</span> <span class="ty">TradableProduct</span>:
+    product <span class="ty">NonTransferableProduct</span> (1..1)
+    tradeLot <span class="ty">TradeLot</span> (1..*) <span class="cm">&lt;"Specifies the price, quantity and effective date of each trade lot"&gt;</span>
+    counterparty <span class="ty">Counterparty</span> (2..2) <span class="cm">&lt;"Party1 and Party2 mapped to actual party references"&gt;</span>
+    ancillaryParty <span class="ty">AncillaryParty</span> (0..*)
+    adjustment <span class="ty">NotionalAdjustmentEnum</span> (0..1)
+
+<span class="kw">type</span> <span class="ty">TradeLot</span>:
+    lotIdentifier <span class="ty">Identifier</span> (0..*)
+    priceQuantity <span class="ty">PriceQuantity</span> (1..*) <span class="cm">&lt;"為替レート(price)・金額(quantity)・通貨(observable)の実体"&gt;</span>
+
+<span class="cm">// 子型（event-common-type.rosetta:L295）</span>
+<span class="kw">type</span> <span class="ty">Trade</span> <span class="kw">extends</span> <span class="ty">TradableProduct</span>:
+    <span class="mt">[metadata key]</span>
+    tradeIdentifier <span class="ty">TradeIdentifier</span> (1..*)
+    tradeDate <span class="ty">date</span> (1..1)
+        <span class="mt">[metadata id]</span>
+    tradeTime <span class="ty">TimeZone</span> (0..1)
+    party <span class="ty">Party</span> (0..*)
+    partyRole <span class="ty">PartyRole</span> (0..*)
+    executionDetails <span class="ty">ExecutionDetails</span> (0..1)
+    contractDetails <span class="ty">ContractDetails</span> (0..1)
+    collateral <span class="ty">Collateral</span> (0..1)</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L44-L142) — tradeLot に 10,000,000 EUR とレート 0.9175 USD/EUR の実体が入る</span>
+              </div>
+              <pre><code>"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ {
+      "@key:scoped" : "price-1",
+      "value" : 0.9175,
+      "unit" : { "currency" : { "@data" : "USD" } },
+      "perUnitOf" : { "currency" : { "@data" : "EUR" } },
+      "priceType" : "ExchangeRate",
+      "composite" : {
+        "baseValue" : 0.9130,
+        "operand" : 0.0045,
+        "arithmeticOperator" : "Add",
+        "operandType" : "ForwardPoint"
+      },
+      "derivedQuantity" : {
+        "value" : 9175000,
+        "unit" : { "currency" : { "@data" : "USD" } }
+      }
+    } ],
+    "quantity" : {
+      "@key:scoped" : "quantity-1",
+      "value" : 10000000,
+      "unit" : { "currency" : { "@data" : "EUR" } }
+    },
+    "observable" : {
+      "@key:scoped" : "observable-1",
+      "@data" : { "@type" : "cdm.base.staticdata.asset.common.Cash", ... }
+    }
+  } ]
+} ],
+"tradeDate" : { "@data" : "2001-11-19" }</code></pre>
+            </div>
+          </div>
+
+          <!-- L6 Content -->
+          <div class="node-detail-card" data-node-content="node-l6" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>L6: <code>NonTransferableProduct</code> → <code>EconomicTerms</code> → <code>Payout</code></h3>
+              <p>
+                一番内側にあるのが「金融商品の仕組み（キャッシュフローや決済のルール）」を表す層です。
+              </p>
+              <ul>
+                <li><strong><code>NonTransferableProduct</code></strong>：2者間の相対契約型プロダクト。ISDA分類などを入れる <code>taxonomy</code> と、経済条件の本体 <code>economicTerms (1..1)</code> を持ちます。</li>
+                <li><strong><code>EconomicTerms</code></strong>：発効日・終了日や、<strong><code>payout Payout (1..*)</code></strong> を持ちます。</li>
+                <li>
+                  <strong>為替商品の <code>Payout</code> の使い分け</strong>（Phase 3で詳解）：
+                  <ul>
+                    <li><strong>FX Spot / Forward / Swap / NDF / NDS</strong>：<code>SettlementPayout</code> を使用。</li>
+                    <li><strong>FX Option（バニラ / NDO / アベレージレート / アベレージストライク / バリア / ギャップ）</strong>：<code>OptionPayout</code> を使用。</li>
+                    <li><strong>シンセティック・マルチフォワード</strong>：<code>payout (1..*)</code> に複数の <code>OptionPayout</code>（Call＋Put等）およびスケジュールを組み合わせて表現。</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta (L30-L50, L287-L312)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">NonTransferableProduct</span>:
+    <span class="mt">[metadata key]</span>
+    identifier <span class="ty">ProductIdentifier</span> (0..*)
+    taxonomy <span class="ty">ProductTaxonomy</span> (0..*)
+    economicTerms <span class="ty">EconomicTerms</span> (1..1)
+
+<span class="kw">type</span> <span class="ty">EconomicTerms</span>:
+    effectiveDate <span class="ty">AdjustableOrRelativeDate</span> (0..1)
+    terminationDate <span class="ty">AdjustableOrRelativeDate</span> (0..1)
+    dateAdjustments <span class="ty">BusinessDayAdjustments</span> (0..1)
+    payout <span class="ty">Payout</span> (1..*) <span class="cm">&lt;"1個以上のPayoutを組み合わせる"&gt;</span>
+    terminationProvision <span class="ty">TerminationProvision</span> (0..1)
+    calculationAgent <span class="ty">CalculationAgent</span> (0..1)
+    nonStandardisedTerms <span class="ty">boolean</span> (0..1)
+    collateral <span class="ty">Collateral</span> (0..1)
+
+<span class="kw">choice</span> <span class="ty">Payout</span>:
+    <span class="ty">AssetPayout</span>
+    <span class="ty">CommodityPayout</span>
+    <span class="ty">CreditDefaultPayout</span>
+    <span class="ty">FixedPricePayout</span>
+    <span class="ty">InterestRatePayout</span>
+    <span class="ty">OptionPayout</span>       <span class="cm">// 為替オプション・シンセティック系で使用</span>
+    <span class="ty">PerformancePayout</span>
+    <span class="ty">SettlementPayout</span>   <span class="cm">// FX Spot / Forward / Swap / NDF で使用</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L7-L43) — Payout内からは @ref:scoped で tradeLot の金額・レートを参照する</span>
+              </div>
+              <pre><code>"product" : {
+  "taxonomy" : [ {
+    "source" : "ISDA",
+    "value" : { "name" : { "@data" : "ForeignExchange_Spot_Forward" } },
+    "calculated" : true
+  } ],
+  "economicTerms" : {
+    "payout" : [ {
+      "@type" : "cdm.product.template.SettlementPayout",
+      "payerReceiver" : { "payer" : "Party1", "receiver" : "Party2" },
+      "priceQuantity" : {
+        "quantitySchedule" : { "@ref:scoped" : "quantity-1" },
+        "priceSchedule" : [ { "@ref:scoped" : "price-1" } ]
+      },
+      "settlementTerms" : {
+        "settlementDate" : { "valueDate" : "2001-12-21" }
+      },
+      "underlier" : {
+        "@type" : "cdm.observable.asset.Observable",
+        "@ref:scoped" : "observable-1"
+      }
+    } ]
+  }
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Docs Discrepancy Warning -->
+    <section>
+      <h2>4. 一次ソース検証で見つかる <code>docs/</code> の不正確さ（要注意ポイント）</h2>
+      <p>
+        本ワークスペースのルール通り、<code>common-domain-model/docs/</code> 内のMarkdown解説を一次ソース <code>rosetta-source</code> と突合すると、以下のような<strong>記述漏れや旧仕様の残存</strong>が確認できます。実務でマッピング設計を行う際は、必ず <code>.rosetta</code> 側を正としてください。
+      </p>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点①：<code>TradeState</code> の属性数</div>
+        <p>
+          二次資料の <code>common-domain-model/docs/event-model.md</code>（L93-L108）では、<code>TradeState</code> のコードブロックに <code>trade</code>, <code>state</code>, <code>resetHistory</code>, <code>transferHistory</code> の<strong>4属性のみ</strong>が掲載され、「この4属性ですべての取引後状態を記述するのに十分である」と書かれています。<br />
+          しかし、一次ソース <span class="cite-badge">event-common-type.rosetta:L198-L206</span> では、さらに <strong><code>observationHistory ObservationEvent (0..*)</code></strong> と <strong><code>valuationHistory Valuation (0..*)</code></strong> を加えた<strong>計6属性</strong>が定義されています。時価評価履歴（Valuation）や観測イベント履歴も <code>TradeState</code> 直下にぶら下がるのが現行の正しい仕様です。
+        </p>
+      </div>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点②：<code>docs/product-model.md</code> における為替商品の記載漏れと属性の説明誤り</div>
+        <p style="margin-bottom: 0;">
+          二次資料の <code>common-domain-model/docs/product-model.md</code>（L328-L351「Product Scope」）には、金利・クレジット・エクイティ・オプション・レポ・証券貸借しか列挙されておらず、<strong>FX Spot / FX Forward / FX Swap / NDF が一覧から抜けています</strong>。しかし一次ソース <span class="cite-badge">product-qualification-func.rosetta:L1639-L1785</span> には <code>Qualify_ForeignExchange_Spot_Forward</code> や <code>Qualify_ForeignExchange_Swap</code>、<code>Qualify_ForeignExchange_NDF</code> 等が完備されています。<br />
+          また同ドキュメント（L305）には「<code>NonTransferableProduct</code> は <code>TransferableProduct</code> と <code>identifier</code>・<code>taxonomy</code> 属性を共有している」と書かれていますが、一次ソース <span class="cite-badge">product-template-type.rosetta:L22-L26</span> の <code>TransferableProduct</code> 直下にはそれらの属性はなく、内側の <code>asset (AssetBase)</code> が保持しています。
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 5: Interactive Mapping Exercise -->
+    <section>
+      <h2>5. 実践演習①：FX Forward データ項目のトップダウン・マッピング</h2>
+      <p>
+        既存の社内システムにある為替フォワード取引データ（4項目）をCDMの <code>TradeState</code> 構造へマッピングします。各項目が入るべき<strong>正確なCDMパス（一次ソース準拠）</strong>をプルダウンから選んで「検証」を押してください。
+      </p>
+
+      <div class="exercise-box">
+        <!-- Item 1 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> tradeDate"
+          data-explanation="約定日（Trade Date）は商品の経済条件（EconomicTerms）ではなく、合意された取引契約を表す <code>Trade</code> 型の必須属性 <code>tradeDate date (1..1)</code>（<code>event-common-type.rosetta:L300</code>）に格納します。"
+        >
+          <div class="mapping-prompt">
+            問1. <strong>取引の約定日（Trade Date: <code>2001-11-19</code>）</strong> を格納するパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> product -> economicTerms -> effectiveDate">TradeState -> trade -> product -> economicTerms -> effectiveDate</option>
+              <option value="TradeState -> trade -> tradeDate">TradeState -> trade -> tradeDate</option>
+              <option value="TradeState -> state -> tradeDate">TradeState -> state -> tradeDate</option>
+              <option value="TradeState -> trade -> tradeLot -> tradeDate">TradeState -> trade -> tradeLot -> tradeDate</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 2 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> tradeLot -> priceQuantity"
+          data-explanation="具体的な取引金額（<code>quantity</code>: 10,000,000 EUR）と約定為替レート（<code>price</code>: 0.9175 USD/EUR）の実体データは、<code>TradableProduct</code> から継承された <code>Trade -> tradeLot -> priceQuantity</code> に格納され、<code>SettlementPayout</code> 側からは <code>@ref:scoped</code> で参照されます。"
+        >
+          <div class="mapping-prompt">
+            問2. <strong>取引金額（<code>10,000,000 EUR</code>）および約定為替レート（<code>0.9175 USD/EUR</code>）の実体（<code>@key:scoped</code>）</strong> を格納するパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> product -> economicTerms -> priceQuantity">TradeState -> trade -> product -> economicTerms -> priceQuantity</option>
+              <option value="TradeState -> trade -> executionDetails -> priceQuantity">TradeState -> trade -> executionDetails -> priceQuantity</option>
+              <option value="TradeState -> trade -> tradeLot -> priceQuantity">TradeState -> trade -> tradeLot -> priceQuantity</option>
+              <option value="TradeState -> valuationHistory -> amount">TradeState -> valuationHistory -> amount</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 3 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> trade -> product -> economicTerms -> payout -> SettlementPayout -> settlementTerms -> settlementDate"
+          data-explanation="為替フォワードの受渡決済日（Value Date / Settlement Date）は、決済ペイアウト <code>SettlementPayout</code> が持つ <code>settlementTerms -> settlementDate</code> にマッピングされます（<code>fx-ex03-fx-fwd.json:L32-L35</code>）。"
+        >
+          <div class="mapping-prompt">
+            問3. <strong>為替フォワードの受渡決済日（Value Date: <code>2001-12-21</code>）</strong> を格納するパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> product -> economicTerms -> payout -> SettlementPayout -> settlementTerms -> settlementDate">TradeState -> trade -> product -> economicTerms -> payout -> SettlementPayout -> settlementTerms -> settlementDate</option>
+              <option value="TradeState -> transferHistory -> transfer -> settlementDate">TradeState -> transferHistory -> transfer -> settlementDate</option>
+              <option value="TradeState -> trade -> contractDetails -> settlementDate">TradeState -> trade -> contractDetails -> settlementDate</option>
+              <option value="TradeState -> trade -> tradeDate">TradeState -> trade -> tradeDate</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 4 -->
+        <div
+          class="mapping-item"
+          data-answer="TradeState -> state -> positionState"
+          data-explanation="取引が現在どのライフサイクル段階にあるか（<code>Executed</code>, <code>Formed</code>, <code>Settled</code>, <code>Closed</code> 等）は、<code>Trade</code> の中ではなく1つ外側の <code>TradeState -> state -> positionState</code>（<code>event-common-type.rosetta:L237</code>）に格納されます。"
+        >
+          <div class="mapping-prompt">
+            問4. <strong>取引の現在のポジション状態（<code>"Executed"</code>［約定済］や <code>"Closed"</code>［解約済］）</strong> を格納するパスはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- マッピング先のCDMパスを選択 --</option>
+              <option value="TradeState -> trade -> product -> economicTerms -> state">TradeState -> trade -> product -> economicTerms -> state</option>
+              <option value="TradeState -> state -> positionState">TradeState -> state -> positionState</option>
+              <option value="TradeState -> trade -> executionDetails -> executionType">TradeState -> trade -> executionDetails -> executionType</option>
+              <option value="TradeState -> resetHistory -> positionState">TradeState -> resetHistory -> positionState</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Retrieval Practice Quiz -->
+    <section>
+      <h2>6. 実践演習②：記憶定着クイズ（Retrieval Practice）</h2>
+      <p>
+        上の解説を見ずに、思い出しながら回答してください（選択肢をクリックすると即座に判定されます）。
+      </p>
+
+      <div class="quiz-container">
+        <!-- Q1: Correct = index 1 (All options = 23 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="1"
+          data-explanation="<code>TradeState</code>（<code>event-common-type.rosetta:L198-L206</code>）が、<code>trade</code> 本体と <code>state</code>、および4種の履歴（<code>resetHistory</code>, <code>transferHistory</code>, <code>observationHistory</code>, <code>valuationHistory</code>）を1つに束ねるスナップショットのルート型です。"
+        >
+          <div class="quiz-q-title">
+            Q1. ある時点における「取引本体」と「現在のステータス」および「リセットや決済の履歴」を1つに束ねるCDMのルート型はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">承認状態と通信情報を包むワークフローステップ型</button>
+            <button class="quiz-option-btn">取引本体と状態や各履歴を包むトレードステート型</button>
+            <button class="quiz-option-btn">状態遷移の命令と結果群を包むビジネスイベント型</button>
+            <button class="quiz-option-btn">発効日と決済条件群を包むエコノミックタームズ型</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q2: Correct = index 3 (All options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="3"
+          data-explanation="<code>Instruction</code> 型の <code>condition NewTrade</code>（<code>event-common-type.rosetta:L41-L43</code>）は、<code>if primitiveInstruction -> execution exists then before is absent</code>（執行命令がある場合は変更前の状態 <code>before</code> は必ず空欄であり、逆もまた真である）と定義しています。"
+        >
+          <div class="quiz-q-title">
+            Q2. <code>Instruction</code> 型に定義されている制約 <code>condition NewTrade</code> が強制しているルールとして正しいものはどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">執行命令がある場合は変更後の取引状態を空欄にする規則</button>
+            <button class="quiz-option-btn">数量変更がある場合は変更前の取引状態を空欄にする規則</button>
+            <button class="quiz-option-btn">権利行使がある場合は変更前の取引状態を空欄にする規則</button>
+            <button class="quiz-option-btn">執行命令がある場合は変更前の取引状態を空欄にする規則</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q3: Correct = index 0 (All options = 25 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="0"
+          data-explanation="<code>Product</code> 内の <code>Payout</code> は契約テンプレートであり、具体的な数値（10,000,000 EUR や 0.9175 USD/EUR）は <code>Trade -> tradeLot -> priceQuantity</code> 側に <code>@key:scoped</code> 付きで格納され、<code>Payout</code> からは <code>@ref:scoped</code> で参照されます。"
+        >
+          <div class="quiz-q-title">
+            Q3. 為替フォワードのJSONデータにおいて、<code>SettlementPayout</code> が <code>@ref:scoped</code> で参照している金額・為替レートの実体はどこに格納されるか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">トレードロット内のプライス・クオンティティ配列要素</button>
+            <button class="quiz-option-btn">ビジネスイベント内のイベント・クオリファイア文字列</button>
+            <button class="quiz-option-btn">エコノミックタームズ内のビジネスデイ調整ルール要素</button>
+            <button class="quiz-option-btn">ワークフローステップ内のメッセージ・ヘッダ情報要素</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer: Primary Source Recommendation & Agent Reminder -->
+    <footer class="lesson-footer">
+      <div class="callout">
+        <div class="callout-title">📚 今回の推奨一次ソース（ぜひ直接開いて確認してください）</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>Rune DSL 定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/event-common-type.rosetta</code>（特に L31-L69 の <code>Instruction</code> / <code>BusinessEvent</code>、および L198-L309 の <code>TradeState</code> / <code>Trade</code>）
+          </li>
+          <li>
+            <strong>検証済み実データJSON</strong>：<code>common-domain-model/rosetta-source/src/main/resources/functions/business-event/execution/execution-fx-forward-func-output.json</code>（FX Forward 新規約定イベントの全体構造）
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout callout-mission">
+        <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
+        <p style="margin-bottom: 0;">
+          このレッスンの内容や <code>.rosetta</code> の記法、演習の解説で少しでも疑問があれば、いつでもチャットで質問してください。<br />
+          演習①・②を完了し、次のステップへ進む準備ができたら<strong>「Lesson 2へ進む」</strong>（Phase 2：為替取引で紐解く <code>Trade</code> / <code>Counterparty</code> の当事者抽象化と、2通貨を結ぶ <code>PriceQuantity</code>・<code>ExchangeRate</code>・<code>ForwardPoint</code> の詳細構造）とお知らせください。
+        </p>
+      </div>
+    </footer>
+  </div>
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+</html>

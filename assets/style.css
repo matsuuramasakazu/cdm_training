@@ -1,0 +1,589 @@
+/* ==========================================================================
+   FINOS CDM Training Workspace — Shared Stylesheet (Tufte-inspired)
+   ========================================================================== */
+
+:root {
+  --bg-paper: #fcfbf9;
+  --bg-card: #ffffff;
+  --bg-code: #1e242b;
+  --bg-subtle: #f3f1ec;
+  --bg-accent-soft: #eef4f8;
+  --bg-warn-soft: #fff8eb;
+  --bg-success-soft: #edf7f0;
+  --bg-error-soft: #fdf0f0;
+
+  --text-main: #1f2428;
+  --text-muted: #586069;
+  --text-light: #f6f8fa;
+
+  --accent-primary: #1b4f72;
+  --accent-secondary: #2874a6;
+  --accent-gold: #b7791f;
+  --accent-success: #1e7e34;
+  --accent-error: #c0392b;
+
+  --border-light: #e2dfd7;
+  --border-strong: #c8c3b8;
+
+  --font-serif: "Palatino Linotype", "Book Antiqua", Palatino, "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", "SFMono-Regular", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-paper);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layout Container */
+.page-wrapper {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 5rem;
+}
+
+/* Top Navigation Bar */
+.workspace-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 2.5rem;
+  border-bottom: 2px solid var(--text-main);
+  font-size: 0.9rem;
+}
+
+.workspace-nav .brand {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+.workspace-nav .nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.workspace-nav a {
+  color: var(--text-main);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.workspace-nav a:hover,
+.workspace-nav a.active {
+  color: var(--accent-secondary);
+  border-bottom-color: var(--accent-secondary);
+}
+
+/* Header & Typography */
+.lesson-header {
+  margin-bottom: 2.5rem;
+}
+
+.lesson-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-primary);
+  background: var(--bg-accent-soft);
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+
+h1 {
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.25rem 0 1rem;
+  color: var(--text-main);
+}
+
+.lesson-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 820px;
+}
+
+h2 {
+  font-family: var(--font-serif);
+  font-size: 1.55rem;
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-main);
+}
+
+h3 {
+  font-size: 1.2rem;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+  color: var(--accent-primary);
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 1.15rem;
+}
+
+/* Primary Source Citation Badge */
+.cite-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background-color: var(--bg-subtle);
+  color: var(--accent-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem;
+  text-decoration: none;
+  vertical-align: baseline;
+  transition: background-color 0.15s ease;
+}
+
+.cite-badge:hover {
+  background-color: var(--bg-accent-soft);
+  border-color: var(--accent-secondary);
+}
+
+.cite-badge::before {
+  content: "📄";
+  font-size: 0.75rem;
+}
+
+/* Callout Boxes (Primary Source Note / Docs Discrepancy Warning / Mission Tie-in) */
+.callout {
+  padding: 1.15rem 1.35rem;
+  margin: 1.5rem 0;
+  border-radius: 6px;
+  border-left: 4px solid var(--accent-primary);
+  background-color: var(--bg-accent-soft);
+}
+
+.callout-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.callout.callout-discrepancy {
+  border-left-color: var(--accent-gold);
+  background-color: var(--bg-warn-soft);
+}
+
+.callout.callout-mission {
+  border-left-color: var(--accent-success);
+  background-color: var(--bg-success-soft);
+}
+
+/* Code & Rosetta Blocks */
+pre {
+  background-color: var(--bg-code);
+  color: var(--text-light);
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  padding: 1.1rem 1.35rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1rem 0 1.5rem;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background-color: var(--bg-subtle);
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #14181d;
+  color: #9da7b3;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 0.45rem 1rem;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  margin-top: 1rem;
+}
+
+.code-header + pre {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.code-header a {
+  color: #79b8ff;
+  text-decoration: none;
+}
+
+/* Syntax Highlighting Helpers */
+.kw { color: #ff7b72; font-weight: 600; }
+.ty { color: #79c0ff; }
+.cm { color: #8b949e; font-style: italic; }
+.st { color: #a5d6ff; }
+.mt { color: #d2a8ff; }
+.cd { color: #ffa657; font-weight: 600; }
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.93rem;
+  background: var(--bg-card);
+}
+
+th, td {
+  text-align: left;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+
+th {
+  background-color: var(--bg-subtle);
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 2px solid var(--border-strong);
+}
+
+/* ==========================================================================
+   Component 1: Interactive Top-Down Hierarchy Explorer
+   ========================================================================== */
+.hierarchy-explorer {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1.75rem 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+@media (max-width: 840px) {
+  .hierarchy-explorer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hierarchy-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tree-node-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-paper);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.tree-node-btn:hover {
+  background: var(--bg-accent-soft);
+  border-left-color: var(--accent-secondary);
+}
+
+.tree-node-btn.active {
+  background: var(--bg-accent-soft);
+  border-color: var(--accent-primary);
+  border-left: 5px solid var(--accent-primary);
+  box-shadow: 0 1px 4px rgba(27, 79, 114, 0.12);
+}
+
+.tree-node-btn .node-level {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.tree-node-btn .node-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--accent-primary);
+}
+
+.tree-node-btn .node-ja {
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.tree-arrow {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.hierarchy-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 1rem;
+}
+
+.detail-tab-btn {
+  padding: 0.5rem 0.95rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+}
+
+.detail-tab-btn.active {
+  background: var(--bg-subtle);
+  color: var(--accent-primary);
+  border-color: var(--border-light);
+}
+
+.detail-pane {
+  display: none;
+}
+
+.detail-pane.active {
+  display: block;
+}
+
+/* ==========================================================================
+   Component 2: Interactive Mapping & Reading Exercise
+   ========================================================================== */
+.exercise-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+}
+
+.mapping-item {
+  padding: 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  background: var(--bg-paper);
+}
+
+.mapping-prompt {
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+.mapping-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.mapping-select {
+  flex: 1;
+  min-width: 260px;
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-card);
+}
+
+.btn-check {
+  padding: 0.5rem 1rem;
+  background: var(--accent-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.btn-check:hover {
+  background: var(--accent-secondary);
+}
+
+.feedback-msg {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 4px;
+  font-size: 0.88rem;
+  display: none;
+}
+
+.feedback-msg.correct {
+  display: block;
+  background: var(--bg-success-soft);
+  border-left: 3px solid var(--accent-success);
+  color: #145523;
+}
+
+.feedback-msg.incorrect {
+  display: block;
+  background: var(--bg-error-soft);
+  border-left: 3px solid var(--accent-error);
+  color: #7c1f16;
+}
+
+/* ==========================================================================
+   Component 3: Desirable-Difficulty 4-Choice Quiz Widget
+   ========================================================================== */
+.quiz-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+}
+
+.quiz-question-card {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.quiz-question-card:last-of-type {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.quiz-q-title {
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+}
+
+.quiz-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.quiz-option-btn {
+  text-align: left;
+  padding: 0.7rem 1rem;
+  background: var(--bg-paper);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.quiz-option-btn:hover:not(:disabled) {
+  background: var(--bg-accent-soft);
+  border-color: var(--accent-secondary);
+}
+
+.quiz-option-btn.selected-correct {
+  background: var(--bg-success-soft);
+  border-color: var(--accent-success);
+  font-weight: 600;
+}
+
+.quiz-option-btn.selected-wrong {
+  background: var(--bg-error-soft);
+  border-color: var(--accent-error);
+}
+
+/* Footer & Agent Reminder */
+.lesson-footer {
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Print Optimization */
+@media print {
+  body {
+    background: #ffffff;
+    font-size: 11pt;
+  }
+  .page-wrapper {
+    max-width: 100%;
+    padding: 0;
+  }
+  .btn-check, .detail-tabs {
+    display: none;
+  }
+  .detail-pane {
+    display: block !important;
+    margin-bottom: 1rem;
+  }
+  pre {
+    white-space: pre-wrap;
+    border: 1px solid #ccc;
+  }
+}
