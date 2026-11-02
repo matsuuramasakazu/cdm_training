@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lesson 0003: 為替の2通貨数量とレートを結ぶ PriceQuantity・Observable・メタデータ参照（@key:scoped / @ref:scoped）</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="./0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="./0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
+        <a href="./0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
+        <a href="./0003-pricequantity-fx-rate-and-scoped-references.html" class="active">Lesson 0003: PriceQuantityと為替レート</a>
+        <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
+        <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Phase 2 · Lesson 0003 · PriceQuantity, Observable &amp; Scoped Metadata</div>
+      <h1>為替の2通貨数量とレートを結ぶ <code>PriceQuantity</code>・<code>Observable</code>・メタデータ参照（<code>@key:scoped</code> / <code>@ref:scoped</code>）</h1>
+      <p class="lesson-subtitle">
+        為替取引は「通貨A（例：10,000,000 EUR）と通貨B（例：9,175,000 USD）を、合意した為替レート（例：0.9175 USD/EUR）で交換する」取引です。しかしCDMの <code>PriceQuantity</code> 型には <code>quantity</code> 属性が<strong>単数（<code>0..1</code>）</strong>しかありません。では2つ目の通貨金額はどこに入り、<code>Product</code> 内のペイアウトとどう結びつくのか？一次ソースの定義と整合性検証関数（Triangulation）から完全解明します。
+      </p>
+    </header>
+
+    <div class="callout callout-mission">
+      <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
+      <p style="margin-bottom: 0;">
+        FX Spot / Forward / Swap / NDF / FX Option のすべての商品で共通に使われる <strong><code>PriceQuantity</code>（2通貨の金額・為替レートの単位方向・スポット＋フォワードポイント複合価格・対象通貨 <code>Cash</code>）</strong> と、それを <code>Payout</code> 側へ接続する <strong><code>@key:scoped</code> ↔ <code>@ref:scoped</code>（<code>[metadata location]</code> ↔ <code>[metadata address]</code>）</strong> を迷わず設計・検証できるようになります。
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section>
+      <h2>1. なぜ <code>Payout</code> の中に具体的な金額やレートを直接書かないのか？</h2>
+      <p>
+        Lesson 0002 で「<code>Product</code> の中に具体的な銀行名（LEI）を書かず、外側の <code>Trade -> party</code> に分離する」ことを学びました。CDMは<strong>数量・価格・対象通貨についてもまったく同じ分離原則（Product-Lot Separation）</strong>を適用しています。
+      </p>
+      <p>
+        具体的には、契約の計算ルールを表す <code>Product</code>（<code>SettlementPayout</code> や <code>OptionPayout</code>）の内部には<strong>「どこにある数量・価格・対象資産を使うか」というポインタ（<code>@ref:scoped</code>）だけ</strong>を置き、実際の金額や為替レートは外側の <code>TradeLot -> priceQuantity</code>（<code>@key:scoped</code>）に格納します。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">概念カテゴリ</th>
+            <th style="width: 38%;">参照側：<code>Product</code> 内（<code>Payout</code>）<br /><span class="cite-badge">[metadata address] → @ref:scoped</span></th>
+            <th style="width: 40%;">実体側：<code>TradeLot</code> 内（<code>PriceQuantity</code>）<br /><span class="cite-badge">[metadata location] → @key:scoped</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>① 数量（基準通貨額）</strong><br />Primary Quantity</td>
+            <td>
+              <code>PayoutBase -> priceQuantity -> quantitySchedule</code><br />
+              <span class="cite-badge">product-common-settlement-type.rosetta:L51-L52</span><br />
+              JSON: <code>{"@ref:scoped": "quantity-1"}</code>
+            </td>
+            <td>
+              <code>PriceQuantity -> quantity (0..1)</code><br />
+              <span class="cite-badge">observable-asset-type.rosetta:L101-L102</span><br />
+              JSON: <code>{"@key:scoped": "quantity-1", "value": 10000000, "unit": {"currency": "EUR"}}</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>② 価格（為替レート＋対価通貨額）</strong><br />Exchange Rate &amp; Derived Quantity</td>
+            <td>
+              <code>PayoutBase -> priceQuantity -> priceSchedule</code><br />
+              <span class="cite-badge">product-common-settlement-type.rosetta:L58-L59</span><br />
+              JSON: <code>[{"@ref:scoped": "price-1"}]</code>
+            </td>
+            <td>
+              <code>PriceQuantity -> price (0..*)</code><br />
+              <span class="cite-badge">observable-asset-type.rosetta:L99-L100</span><br />
+              JSON: <code>[{"@key:scoped": "price-1", "value": 0.9175, ..., "derivedQuantity": {"value": 9175000, ...}}]</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>③ 観測・受渡対象（通貨資産）</strong><br />Underlier / Observable</td>
+            <td>
+              <code>SettlementPayout / OptionPayout -> underlier</code><br />
+              <span class="cite-badge">product-template-type.rosetta:L298-L300</span><br />
+              JSON: <code>{"@type": "...Observable", "@ref:scoped": "observable-1"}</code>
+            </td>
+            <td>
+              <code>PriceQuantity -> observable (0..1)</code><br />
+              <span class="cite-badge">observable-asset-type.rosetta:L103-L104</span><br />
+              JSON: <code>{"@key:scoped": "observable-1", "@data": {"@type": "...Cash", "identifier": "EUR"}}</code>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        この分離により、たとえば「1,000万ユーロのFXフォワードを途中で600万ユーロに一部解約（Partial Termination / <code>QuantityChange</code>）する」といったライフサイクルイベントでも、<strong><code>Product</code> 内の契約条件には一切触れず、<code>TradeLot -> priceQuantity</code> 内の数値だけを更新すればよい</strong>アーキテクチャになっています。
+      </p>
+    </section>
+
+    <!-- Section 2 -->
+    <section>
+      <h2>2. 為替の2通貨とレートはどう格納されるか？（<code>unit</code> / <code>perUnitOf</code> / <code>derivedQuantity</code>）</h2>
+      <p>
+        為替取引のデータマッピングで最も重要なのが、<strong>「2つの通貨（EURとUSD）のうち、どちらを <code>quantity</code> に入れ、どちらを <code>derivedQuantity</code> に入れるのか？」</strong>という規則です。
+      </p>
+      <p>
+        一次ソースの変換関数 <code>MapFxCoreDetailsModelQuantityWithLocation</code>（<span class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L574-L605</span>）および <code>MapExchangeRateToPrice</code>（<span class="cite-badge">L1365-L1427</span>）を読むと、その決定ロジックが100%明確に定義されています。すべては<strong>為替レートのクオート基準（<code>QuoteBasisEnum</code>）</strong>から決まります。
+      </p>
+
+      <div class="code-header">
+        <span>為替クオート基準と PriceQuantity の対応関係（fx-ex03-fx-fwd.json: 1 EUR = 0.9175 USD の例）</span>
+      </div>
+      <pre><code><span class="cm">// 前提：1 EUR あたり 0.9175 USD（Currency2PerCurrency1: USD per EUR）で 10,000,000 EUR と 9,175,000 USD を交換</span>
+"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ {
+      <span class="mt">"@key:scoped" : "price-1"</span>,
+      "value" : <span class="st">0.9175</span>,                      <span class="cm">// ① アウトライト・フォワードレート (0.9130 + 0.0045)</span>
+      "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } },      <span class="cm">// ② 分子（対価通貨 / Term Currency）：USD</span>
+      "perUnitOf" : { "currency" : { "@data" : <span class="st">"EUR"</span> } }, <span class="cm">// ③ 分母（1単位あたりの基準通貨 / Base Currency）：EUR</span>
+      "priceType" : <span class="st">"ExchangeRate"</span>,
+      "composite" : {                        <span class="cm">// ④ スポットレートとフォワードポイントの内訳</span>
+        "baseValue" : <span class="st">0.9130</span>,                <span class="cm">//    スポットレート (Spot Rate)</span>
+        "operand" : <span class="st">0.0045</span>,                  <span class="cm">//    フォワードポイント (Forward Points)</span>
+        "arithmeticOperator" : <span class="st">"Add"</span>,
+        "operandType" : <span class="st">"ForwardPoint"</span>
+      },
+      "derivedQuantity" : {                  <span class="cm">// ⑤ 対価通貨（unit = USD）の金額は derivedQuantity に入る！</span>
+        "value" : <span class="st">9175000</span>,
+        "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } }
+      }
+    } ],
+    "quantity" : {                           <span class="cm">// ⑥ 基準通貨（perUnitOf = EUR）の金額は quantity に入る！</span>
+      <span class="mt">"@key:scoped" : "quantity-1"</span>,
+      "value" : <span class="st">10000000</span>,
+      "unit" : { "currency" : { "@data" : <span class="st">"EUR"</span> } }
+    },
+    "observable" : {                         <span class="cm">// ⑦ 対象資産（observable）も基準通貨（perUnitOf = EUR）の Cash！</span>
+      <span class="mt">"@key:scoped" : "observable-1"</span>,
+      "@data" : {
+        "@type" : "cdm.base.staticdata.asset.common.Cash",
+        "identifier" : [ {
+          "identifier" : { "@data" : <span class="st">"EUR"</span> },
+          "identifierType" : "CurrencyCode"
+        } ],
+        "assetType" : "Cash"
+      }
+    }
+  } ]
+} ]</code></pre>
+
+      <h3>鉄則：分母（<code>perUnitOf</code>）と分子（<code>unit</code>）による役割分担</h3>
+      <ul>
+        <li>
+          <strong>分母の通貨（<code>perUnitOf</code> ＝「1単位あたり」の基準通貨：上記では <code>EUR</code>）</strong>：<br />
+          主数量である <code>PriceQuantity -> quantity</code>（<code>10,000,000 EUR</code>）および <code>PriceQuantity -> observable</code>（<code>Cash: EUR</code>）になります。そして <code>SettlementPayout -> payerReceiver</code> の <code>payer</code> は、<strong>この <code>perUnitOf</code> 通貨（<code>observable</code>）を支払う当事者</strong>を指します。
+        </li>
+        <li>
+          <strong>分子の通貨（<code>price -> unit</code> ＝ レート表記の対価通貨：上記では <code>USD</code>）</strong>：<br />
+          <code>PriceSchedule -> derivedQuantity</code>（算出数量：<code>9,175,000 USD</code>）になります。一次ソースの <code>condition DerivedQuantityUnit</code>（<span class="cite-badge">observable-asset-type.rosetta:L196-L198</span>）により、<strong><code>derivedQuantity -> unit</code> は必ず親の <code>price -> unit</code> と同じ通貨でなければならない</strong>ことが強制されています。
+        </li>
+        <li>
+          <strong>三角整合性チェック（<code>condition PriceQuantityTriangulation</code>）</strong>：<br />
+          <code>PriceQuantity</code> 型の制約 <code>PriceQuantityTriangulation(price, quantity) = True</code>（<span class="cite-badge">observable-asset-type.rosetta:L120-L121</span>, <span class="cite-badge">observable-common-func.rosetta:L18-L38</span>）により、CDMは自動的に以下の等式を検証します：
+          \[
+            \underbrace{\text{price.value}}_{0.9175\text{ (USD/EUR)}} \times \underbrace{\text{quantity.value}}_{10,000,000\text{ (EUR)}} = \underbrace{\text{price.derivedQuantity.value}}_{9,175,000\text{ (USD)}}
+          \]
+        </li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Interactive Hierarchy Explorer -->
+    <section>
+      <h2>3. インタラクティブ探索：<code>PriceQuantity</code> 周辺の5大構成要素</h2>
+      <p>
+        左側の5つのコンポーネントをクリックし、右側のタブ（<strong>① 実務での役割と設計ルール</strong> ／ <strong>② <code>.rosetta</code> 一次ソース定義</strong> ／ <strong>③ 実データJSON抜粋</strong>）を切り替えて、一次ソースの型・制約・変換ロジックを確認してください。
+      </p>
+
+      <div class="hierarchy-explorer" data-component="hierarchy-explorer">
+        <!-- Left Tree -->
+        <div class="hierarchy-tree">
+          <button class="tree-node-btn active" data-node="node-pq1">
+            <span class="node-level">Component 1 · Container &amp; Rule</span>
+            <span class="node-name">PriceQuantity &amp; Triangulation</span>
+            <span class="node-ja">4属性構造と三角整合性検証</span>
+          </button>
+          <div class="tree-arrow">↓ price (0..*) を保持</div>
+
+          <button class="tree-node-btn" data-node="node-pq2">
+            <span class="node-level">Component 2 · FX Rate &amp; 2nd Amount</span>
+            <span class="node-name">PriceSchedule &amp; derivedQuantity</span>
+            <span class="node-ja">為替レート単位と対価通貨金額</span>
+          </button>
+          <div class="tree-arrow">↓ composite (0..1) を保持</div>
+
+          <button class="tree-node-btn" data-node="node-pq3">
+            <span class="node-level">Component 3 · Spot + Forward Point</span>
+            <span class="node-name">PriceComposite</span>
+            <span class="node-ja">スポットレートと直先スプレッド</span>
+          </button>
+          <div class="tree-arrow">↔ quantity (0..1) / observable (0..1)</div>
+
+          <button class="tree-node-btn" data-node="node-pq4">
+            <span class="node-level">Component 4 · Base Currency &amp; Asset</span>
+            <span class="node-name">QuantitySchedule &amp; Cash</span>
+            <span class="node-ja">基準通貨数量と通貨資産(Cash)</span>
+          </button>
+          <div class="tree-arrow">↑ @ref:scoped で Payout から参照</div>
+
+          <button class="tree-node-btn" data-node="node-pq5">
+            <span class="node-level">Component 5 · Scoped Metadata Bridge</span>
+            <span class="node-name">ResolvablePriceQuantity</span>
+            <span class="node-ja">location と address の接続機構</span>
+          </button>
+        </div>
+
+        <!-- Right Detail View -->
+        <div class="hierarchy-detail">
+          <div class="detail-tabs">
+            <button class="detail-tab-btn active" data-tab="tab-meaning">① 実務での役割と設計ルール</button>
+            <button class="detail-tab-btn" data-tab="tab-rosetta">② .rosetta 一次ソース定義</button>
+            <button class="detail-tab-btn" data-tab="tab-json">③ 実データJSON抜粋</button>
+          </div>
+
+          <!-- PQ1: PriceQuantity & Triangulation -->
+          <div class="node-detail-card" data-node-content="node-pq1" style="display: block;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C1: <code>PriceQuantity</code> と三角整合性（<code>PriceQuantityTriangulation</code>）</h3>
+              <p>
+                <code>PriceQuantity</code> は <code>TradeLot -> priceQuantity (1..*)</code> の要素であり、1つのレッグの価格・数量・対象物を束ねます。
+              </p>
+              <ul>
+                <li><code>price PriceSchedule (0..*)</code>：<code>[metadata location]</code> 付き。為替レートやオプションの算出数量を保持。</li>
+                <li><code>quantity NonNegativeQuantitySchedule (0..1)</code>：<code>[metadata location]</code> 付き。<strong>単数（<code>0..1</code>）</strong>であり、基準通貨（<code>perUnitOf</code>）の金額を保持。</li>
+                <li><code>observable Observable (0..1)</code>：<code>[metadata location]</code> 付き。対象通貨（<code>Cash</code>）またはインデックスを保持。</li>
+                <li><code>effectiveDate AdjustableOrRelativeDate (0..1)</code>：途中増額・減額ロットの発効日（通常の新規約定では省略）。</li>
+                <li><strong><code>condition PriceQuantityTriangulation</code></strong>：<code>priceType</code> が <code>ExchangeRate</code>（または <code>AssetPrice</code>）であり、<code>price -> value</code>、<code>quantity -> value</code>、<code>derivedQuantity -> value</code> の3つが存在する場合、<code>value * noOfUnits = derivedQuantity -> value</code> が成立しないとバリデーションエラーになります。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>observable-asset-type.rosetta (L97-L122) &amp; observable-common-func.rosetta (L18-L38)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">PriceQuantity</span>:
+    <span class="mt">[metadata key]</span>
+    price <span class="ty">PriceSchedule</span> (0..*)
+        <span class="mt">[metadata location]</span>
+    quantity <span class="ty">NonNegativeQuantitySchedule</span> (0..1)
+        <span class="mt">[metadata location]</span>
+    observable <span class="ty">Observable</span> (0..1)
+        <span class="mt">[metadata location]</span>
+    effectiveDate <span class="ty">AdjustableOrRelativeDate</span> (0..1)
+
+    <span class="cd">condition</span> PriceQuantityTriangulation: <span class="cm">&lt;"Check price quantity triangulation."&gt;</span>
+        PriceQuantityTriangulation(price, quantity) = <span class="kw">True</span>
+
+<span class="kw">func</span> <span class="ty">PriceQuantityTriangulation</span>:
+    <span class="kw">inputs</span>:
+        price <span class="ty">PriceSchedule</span> (0..*)
+        quantity <span class="ty">NonNegativeQuantitySchedule</span> (0..1)
+    <span class="kw">output</span>:
+        success <span class="ty">boolean</span> (1..1)
+    <span class="kw">alias</span> noOfUnits:
+        quantity <span class="kw">extract</span> <span class="kw">if</span> multiplier <span class="kw">exists</span> <span class="kw">then</span> value * multiplier -> value <span class="kw">else</span> value
+    <span class="kw">set</span> success:
+        price
+            <span class="kw">filter</span> priceType = <span class="ty">AssetPrice</span> <span class="kw">or</span> priceType = <span class="ty">ExchangeRate</span>
+            <span class="kw">then extract</span>
+                <span class="kw">if</span> value <span class="kw">exists and</span> noOfUnits <span class="kw">exists and</span> derivedQuantity -> value <span class="kw">exists</span>
+                <span class="kw">then</span> value * noOfUnits = derivedQuantity -> value
+            <span class="kw">then if any</span> = <span class="kw">False then False else True</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex01-fx-spot.json (L44-L92) — GBP/USD スポット取引（1 GBP = 1.48 USD）の PriceQuantity</span>
+              </div>
+              <pre><code>"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ {
+      "@key:scoped" : "price-1",
+      "value" : 1.48,
+      "unit" : { "currency" : { "@data" : "USD" } },
+      "perUnitOf" : { "currency" : { "@data" : "GBP" } },
+      "priceType" : "ExchangeRate",
+      "derivedQuantity" : {
+        "value" : 14800000, <span class="cm">// 1.48 * 10,000,000 = 14,800,000 USD</span>
+        "unit" : { "currency" : { "@data" : "USD" } }
+      }
+    } ],
+    "quantity" : {
+      "@key:scoped" : "quantity-1",
+      "value" : 10000000,   <span class="cm">// 10,000,000 GBP</span>
+      "unit" : { "currency" : { "@data" : "GBP" } }
+    },
+    "observable" : {
+      "@key:scoped" : "observable-1",
+      "@data" : {
+        "@type" : "cdm.base.staticdata.asset.common.Cash",
+        "identifier" : [ { "identifier" : { "@data" : "GBP" }, "identifierType" : "CurrencyCode" } ],
+        "assetType" : "Cash"
+      }
+    }
+  } ]
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- PQ2: PriceSchedule & derivedQuantity -->
+          <div class="node-detail-card" data-node-content="node-pq2" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C2: <code>PriceSchedule</code> と <code>derivedQuantity</code> の厳密な制約</h3>
+              <p>
+                <code>PriceSchedule</code>（<span class="cite-badge">observable-asset-type.rosetta:L135-L203</span>）は <code>MeasureBase</code> を継承し、価格を「1単位の <code>perUnitOf</code> あたり、いくらの <code>unit</code> か」という比率として表現します。
+              </p>
+              <ul>
+                <li><strong><code>priceType PriceTypeEnum (1..1)</code></strong>：必須。為替レートでは必ず <code>ExchangeRate</code> を指定します。</li>
+                <li><strong><code>condition UnitOfAmountExists</code></strong>：<code>Variance</code> / <code>Volatility</code> / <code>Correlation</code> 以外のすべての価格型では、<strong><code>unit</code> と <code>perUnitOf</code> の両方が必須（<code>exists</code>）</strong>です。</li>
+                <li><strong><code>condition PositiveAssetPrice</code></strong>：<code>ExchangeRate</code> の <code>value</code> は必ず正の数（<code>&gt; 0</code>）でなければなりません。</li>
+                <li><strong><code>condition DerivedQuantityUnit</code></strong>：<code>derivedQuantity</code> と <code>unit</code> が共に存在する場合、<strong><code>derivedQuantity -> unit = unit</code>（通貨の一致）</strong>が強制されます。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>common-domain-model/rosetta-source/src/main/rosetta/observable-asset-type.rosetta (L135-L203)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">PriceSchedule</span> <span class="kw">extends</span> <span class="ty">MeasureBase</span>:
+    perUnitOf <span class="ty">UnitType</span> (0..1)
+    priceType <span class="ty">PriceTypeEnum</span> (1..1)
+    priceSubType <span class="ty">PriceSubTypeEnum</span> (0..1)
+    priceExpression <span class="ty">PriceExpressionEnum</span> (0..1)
+    composite <span class="ty">PriceComposite</span> (0..1)
+    arithmeticOperator <span class="ty">ArithmeticOperationEnum</span> (0..1)
+    premiumType <span class="ty">PremiumTypeEnum</span> (0..1)
+    derivedQuantity <span class="ty">NonNegativeQuantitySchedule</span> (0..1)
+
+    <span class="cd">condition</span> UnitOfAmountExists:
+        <span class="kw">if</span> priceType = <span class="ty">Variance</span> <span class="kw">or</span> priceType = <span class="ty">Volatility</span> <span class="kw">or</span> priceType = <span class="ty">Correlation</span>
+        <span class="kw">then</span> unit <span class="kw">is absent and</span> perUnitOf <span class="kw">is absent</span>
+        <span class="kw">else</span> unit <span class="kw">exists and</span> perUnitOf <span class="kw">exists</span>
+
+    <span class="cd">condition</span> PositiveAssetPrice:
+        <span class="kw">if</span> (priceType = <span class="ty">ExchangeRate</span> <span class="kw">or</span> priceType = <span class="ty">AssetPrice</span>)
+                <span class="kw">and</span> arithmeticOperator <span class="kw">is absent</span>
+        <span class="kw">then</span> value &gt; 0 <span class="kw">or</span> datedValue -> value <span class="kw">all</span> &gt; 0
+
+    <span class="cd">condition</span> DerivedQuantityUnit:
+        <span class="kw">if</span> derivedQuantity <span class="kw">exists and</span> unit <span class="kw">exists</span>
+        <span class="kw">then</span> derivedQuantity -> unit = unit</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>FX Forward（レートあり）vs FX Option（ストライクは OptionPayout 側）の price 比較</span>
+              </div>
+              <pre><code><span class="cm">// ① FX Forward / Spot / NDF (fx-ex07-non-deliverable-forward.json: USD/INR NDF)</span>
+"price" : [ {
+  "@key:scoped" : "price-1",
+  "value" : 43.40,
+  "unit" : { "currency" : { "@data" : "INR" } },
+  "perUnitOf" : { "currency" : { "@data" : "USD" } },
+  "priceType" : "ExchangeRate",
+  "derivedQuantity" : { "value" : 434000000, "unit" : { "currency" : { "@data" : "INR" } } }
+} ]
+
+<span class="cm">// ② FX Vanilla Option (fx-ex09-euro-opt.json: ストライク 0.4920 USD/AUD は OptionPayout -> strike に配置)</span>
+<span class="cm">// TradeLot -> priceQuantity -> price には対価通貨額 derivedQuantity (36,900,000 USD) のみを格納</span>
+"price" : [ {
+  "derivedQuantity" : {
+    "value" : 36900000,
+    "unit" : { "currency" : { "@data" : "USD" } }
+  }
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- PQ3: PriceComposite -->
+          <div class="node-detail-card" data-node-content="node-pq3" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C3: <code>PriceComposite</code>（スポットレート ＋ フォワードポイントの合成）</h3>
+              <p>
+                FXフォワードやNDF、FXスワップでは、約定したフォワードレート（例：<code>0.9175</code>）だけでなく、その内訳である<strong>スポットレート（Spot Rate：<code>0.9130</code>）とフォワードポイント（Forward Points / 直先スプレッド：<code>0.0045</code>）</strong>を契約確認書（Confirmation）に記載することが一般的です。
+              </p>
+              <ul>
+                <li><code>baseValue number (1..1)</code>：アンカーとなる<strong>スポットレート</strong>。<code>condition PositiveSpotRate</code> により <code>&gt; 0</code> が必須。</li>
+                <li><code>operand number (1..1)</code>：加減算する<strong>フォワードポイント</strong>（スワップポイント）。</li>
+                <li><code>arithmeticOperator ArithmeticOperationEnum (1..1)</code>：<code>operandType = ForwardPoint</code> の場合、<code>condition ArithmeticOperator</code> により <strong><code>Add</code> または <code>Subtract</code> のみ</strong>が許可されます。</li>
+                <li><code>operandType PriceOperandEnum (0..1)</code>：<code>ForwardPoint</code> を指定します。<code>condition ForwardPoint</code>（<span class="cite-badge">observable-asset-type.rosetta:L181-L183</span>）により、<code>operandType = ForwardPoint</code> のときは <code>priceType = ExchangeRate</code> が必須となります。</li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>observable-asset-type.rosetta (L123-L134, L156-L160, L181-L183)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">PriceComposite</span>:
+    baseValue <span class="ty">number</span> (1..1) <span class="cm">&lt;"e.g. the clean price (Bond) or the spot rate (FX)."&gt;</span>
+    operand <span class="ty">number</span> (1..1) <span class="cm">&lt;"The 2nd operand..."&gt;</span>
+    arithmeticOperator <span class="ty">ArithmeticOperationEnum</span> (1..1)
+    operandType <span class="ty">PriceOperandEnum</span> (0..1) <span class="cm">&lt;"e.g. accrued or forward point."&gt;</span>
+
+    <span class="cd">condition</span> ArithmeticOperator:
+        <span class="kw">if</span> operandType = <span class="ty">PriceOperandEnum</span> -> <span class="ty">ForwardPoint</span>
+                <span class="kw">or</span> operandType = <span class="ty">PriceOperandEnum</span> -> <span class="ty">AccruedInterest</span>
+        <span class="kw">then</span> arithmeticOperator = <span class="ty">ArithmeticOperationEnum</span> -> <span class="ty">Add</span>
+                <span class="kw">or</span> arithmeticOperator = <span class="ty">ArithmeticOperationEnum</span> -> <span class="ty">Subtract</span>
+
+<span class="cm">// PriceSchedule 側の関連制約</span>
+<span class="cd">condition</span> PositiveSpotRate:
+    <span class="kw">if</span> (priceType = <span class="ty">ExchangeRate</span> <span class="kw">or</span> priceType = <span class="ty">AssetPrice</span>) <span class="kw">and</span> composite -> baseValue <span class="kw">exists</span>
+    <span class="kw">then</span> composite -> baseValue &gt; 0
+
+<span class="cd">condition</span> ForwardPoint:
+    <span class="kw">if</span> composite -> operandType = <span class="ty">ForwardPoint</span>
+    <span class="kw">then</span> priceType = <span class="ty">ExchangeRate</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L59-L65) &amp; fx-ex07-non-deliverable-forward.json (L99-L105)</span>
+              </div>
+              <pre><code><span class="cm">// EUR/USD FX Forward: Spot 0.9130 + ForwardPoint 0.0045 = Forward Rate 0.9175</span>
+"value" : 0.9175,
+"priceType" : "ExchangeRate",
+"composite" : {
+  "baseValue" : 0.9130,
+  "operand" : 0.0045,
+  "arithmeticOperator" : "Add",
+  "operandType" : "ForwardPoint"
+}
+
+<span class="cm">// USD/INR NDF: Spot 43.35 + ForwardPoint 0.05 = Forward Rate 43.40</span>
+"value" : 43.40,
+"priceType" : "ExchangeRate",
+"composite" : {
+  "baseValue" : 43.35,
+  "operand" : 0.05,
+  "arithmeticOperator" : "Add",
+  "operandType" : "ForwardPoint"
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- PQ4: QuantitySchedule & Cash -->
+          <div class="node-detail-card" data-node-content="node-pq4" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C4: <code>NonNegativeQuantitySchedule</code> と <code>Cash</code>（通貨資産）</h3>
+              <p>
+                <code>PriceQuantity -> quantity</code> と <code>observable</code> は、どちらも為替レートの分母（<code>perUnitOf</code>）の通貨を表します。
+              </p>
+              <ul>
+                <li>
+                  <strong><code>NonNegativeQuantitySchedule</code>（<span class="cite-badge">base-math-type.rosetta:L33-L56</span>）</strong>：<br />
+                  親の <code>QuantitySchedule</code> で <code>override unit UnitType (1..1)</code> が指定されているため、<strong><code>unit</code>（通貨 <code>currency</code> 等）は常に必須</strong>です。単一金額の場合は <code>value</code> に正の数値（<code>NonNegativeNumber</code>）を入れ、ステップアップ／アモチゼーション等で期間ごとに金額が変わる場合は <code>datedValue</code> を使います。
+                </li>
+                <li>
+                  <strong><code>Observable -> Asset -> Cash</code>（<span class="cite-badge">base-staticdata-asset-common-type.rosetta:L102-L119</span>）</strong>：<br />
+                  為替取引で受け渡す（または参照する）対象資産は「現金通貨（<code>Cash</code>）」です。<code>Cash</code> 型の4つの <code>condition</code> により、① <code>identifierType = CurrencyCode</code> の識別子がちょうど1つ存在し有効な通貨コードであること、② <code>taxonomy is absent</code>、③ <code>isExchangeListed is absent</code>、④ <code>assetType = Cash</code> が厳密に強制されます。
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>base-math-type.rosetta (L7-L19, L33-L56) &amp; base-staticdata-asset-common-type.rosetta (L102-L119)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">QuantitySchedule</span> <span class="kw">extends</span> <span class="ty">MeasureBase</span>:
+    <span class="kw">override</span> unit <span class="ty">UnitType</span> (1..1) <span class="cm">&lt;"Requires that a unit of amount must be specified for any quantity."&gt;</span>
+    multiplier <span class="ty">NonNegativeMeasure</span> (0..1)
+    frequency <span class="ty">Frequency</span> (0..1)
+    total <span class="ty">Schedule</span> (0..1)
+
+<span class="kw">type</span> <span class="ty">Cash</span> <span class="kw">extends</span> <span class="ty">AssetBase</span>:
+    <span class="cd">condition</span> CurrencyExists:
+        AssetIdentifierByType(identifier, <span class="ty">AssetIdTypeEnum</span> -> <span class="ty">CurrencyCode</span>) <span class="kw">count</span> = 1
+            <span class="kw">and</span> AssetIdentifierByType(identifier, <span class="ty">AssetIdTypeEnum</span> -> <span class="ty">CurrencyCode</span>) -> identifier
+                <span class="kw">first to-enum</span> <span class="ty">CurrencyCodeEnum</span> <span class="kw">exists</span>
+    <span class="cd">condition</span> NoTaxonomy:
+        taxonomy <span class="kw">is absent</span>
+    <span class="cd">condition</span> NoExchange:
+        isExchangeListed <span class="kw">is absent</span>
+    <span class="cd">condition</span> AssetType:
+        assetType = <span class="ty">Cash</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L75-L96) — quantity と observable (Cash) の実データ構造</span>
+              </div>
+              <pre><code>"quantity" : {
+  "@key:scoped" : "quantity-1",
+  "value" : 10000000,
+  "unit" : {
+    "currency" : {
+      "@data" : "EUR"
+    }
+  }
+},
+"observable" : {
+  "@key:scoped" : "observable-1",
+  "@data" : {
+    "@type" : "cdm.base.staticdata.asset.common.Cash",
+    "identifier" : [ {
+      "identifier" : {
+        "@data" : "EUR"
+      },
+      "identifierType" : "CurrencyCode"
+    } ],
+    "assetType" : "Cash"
+  }
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- PQ5: ResolvablePriceQuantity & Scoped Metadata -->
+          <div class="node-detail-card" data-node-content="node-pq5" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C5: <code>ResolvablePriceQuantity</code> と <code>@key:scoped</code> ↔ <code>@ref:scoped</code></h3>
+              <p>
+                <code>SettlementPayout</code> や <code>OptionPayout</code> が継承する <code>PayoutBase</code> は、<code>priceQuantity ResolvablePriceQuantity (0..1)</code> と <code>underlier Underlier (1..1)</code> を持ちます。
+              </p>
+              <ul>
+                <li>
+                  <strong><code>[metadata address "pointsTo"=PriceQuantity->...]</code> の仕組み</strong>：<br />
+                  <code>.rosetta</code> 定義で <code>[metadata address "pointsTo"=PriceQuantity->quantity]</code> と宣言された属性（<code>ResolvablePriceQuantity -> quantitySchedule</code>）は、JSONシリアライズ時に値を持たず <code>{"@ref:scoped": "quantity-1"}</code> というスコープ付きポインタになります。
+                </li>
+                <li>
+                  <strong>複数レッグ（FX Swap）でのスコープ分離</strong>：<br />
+                  FX Swap（<code>fx-ex08-fx-swap.json</code>）のように2つの <code>SettlementPayout</code> と2つの <code>PriceQuantity</code> がある場合、Near Leg は <code>quantity-1</code> / <code>price-1</code> / <code>observable-1</code> を指し、Far Leg は <code>quantity-2</code> / <code>price-2</code> / <code>observable-2</code> を指すことで、どのペイアウトがどのロット価格・数量に対応するかを一意に解決します（次回の Lesson 0004 で詳解）。
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-common-settlement-type.rosetta (L47-L60) &amp; product-template-type.rosetta (L298-L302)</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="ty">ResolvablePriceQuantity</span>:
+    <span class="mt">[metadata key]</span>
+    resolvedQuantity <span class="ty">Quantity</span> (0..1)
+    quantitySchedule <span class="ty">NonNegativeQuantitySchedule</span> (0..1)
+        <span class="mt">[metadata address "pointsTo"=PriceQuantity->quantity]</span>
+    quantityReference <span class="ty">ResolvablePriceQuantity</span> (0..1)
+        <span class="mt">[metadata reference]</span>
+    quantityMultiplier <span class="ty">QuantityMultiplier</span> (0..1)
+    reset <span class="ty">boolean</span> (0..1)
+    futureValueNotional <span class="ty">FutureValueAmount</span> (0..1)
+    priceSchedule <span class="ty">PriceSchedule</span> (0..*)
+        <span class="mt">[metadata address "pointsTo"=PriceQuantity->price]</span>
+
+<span class="kw">choice</span> <span class="ty">Underlier</span>:
+    <span class="ty">Observable</span>
+        <span class="mt">[metadata address "pointsTo"=PriceQuantity->observable]</span>
+    <span class="ty">Product</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>fx-ex03-fx-fwd.json (L18-L41) — SettlementPayout 内の @ref:scoped ポインタ群</span>
+              </div>
+              <pre><code>"payout" : [ {
+  "@type" : "cdm.product.template.SettlementPayout",
+  "payerReceiver" : {
+    "payer" : "Party1",
+    "receiver" : "Party2"
+  },
+  "priceQuantity" : {
+    "quantitySchedule" : {
+      <span class="mt">"@ref:scoped" : "quantity-1"</span>   <span class="cm">// → TradeLot 内の quantity ("@key:scoped": "quantity-1") を参照</span>
+    },
+    "priceSchedule" : [ {
+      <span class="mt">"@ref:scoped" : "price-1"</span>      <span class="cm">// → TradeLot 内の price ("@key:scoped": "price-1") を参照</span>
+    } ]
+  },
+  "settlementTerms" : {
+    "settlementDate" : { "valueDate" : "2001-12-21" }
+  },
+  "underlier" : {
+    "@type" : "cdm.observable.asset.Observable",
+    <span class="mt">"@ref:scoped" : "observable-1"</span>  <span class="cm">// → TradeLot 内の observable ("@key:scoped": "observable-1") を参照</span>
+  }
+} ]</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Docs Discrepancy Warning -->
+    <section>
+      <h2>4. 一次ソース検証で見つかる <code>docs/product-model.md</code> の重大な乖離</h2>
+      <p>
+        <code>PriceQuantity</code> はCDMのバージョンアップで大きなスキーマ変更が行われた領域であり、二次資料 <code>common-domain-model/docs/product-model.md</code> には<strong>現行の <code>.rosetta</code> スキーマと矛盾する古い説明が2箇所残っています</strong>。設計レビュー時は必ず以下の一次ソース仕様を正としてください。
+      </p>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点①：<code>PriceQuantity -> quantity</code> は配列ではなく単数（<code>0..1</code>）</div>
+        <p style="margin-bottom: 0;">
+          二次資料 <code>docs/product-model.md</code>（L853-L862、L1021）には、<em>「<code>price</code> と <code>quantity</code> はどちらも <code>PriceQuantity</code> 内で配列（array）として複数指定でき、2つの数量表現を並べて格納できる」</em>と記述されており、JSON例でも <code>"quantity": [ { ... } ]</code> と配列で書かれています。<br />
+          しかし、現行の一次ソース <span class="cite-badge">observable-asset-type.rosetta:L101</span> では <strong><code>quantity NonNegativeQuantitySchedule (0..1)</code> と単数（スカラー）に変更されています</strong>。為替取引の2つ目の通貨金額を <code>quantity</code> 配列の2要素目に入れようとするとスキーマ違反になるため、必ず <strong><code>price -> derivedQuantity (0..1)</code></strong>（<span class="cite-badge">observable-asset-type.rosetta:L144</span>）に格納してください。
+        </p>
+      </div>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ ※ドキュメントとの差分・注意点②：スポットレートとフォワードポイントは別々の <code>price</code> 要素ではない</div>
+        <p style="margin-bottom: 0;">
+          同じく <code>docs/product-model.md</code>（L858-L860）には、<em>「FXフォワード取引では、スポットレート、フォワードポイント、フォワードレートの3つをそれぞれ <code>price</code> 配列の要素として指定できる」</em>と書かれています。<br />
+          しかし、現行の一次ソース変換関数 <code>MapExchangeRateToPrice</code>（<span class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L1395-L1427</span>）および公式検証済みJSON（<code>fx-ex03-fx-fwd.json</code>）では、<code>price</code> 配列の要素は<strong>1つだけ</strong>であり、その <code>value</code> にフォワードレート、内側の <strong><code>composite</code>（<code>PriceComposite</code>）</strong>に <code>baseValue</code>（スポットレート）と <code>operand</code>（フォワードポイント）を格納するのが正規パターンです。
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 5: Interactive Mapping & Calculation Exercise -->
+    <section>
+      <h2>5. 実践演習①：USD/JPY フォワード取引の <code>PriceQuantity</code> 設計マッピング</h2>
+      <p>
+        以下の実務条件の <strong>USD/JPY 為替フォワード取引</strong> を CDM の <code>TradeLot -> priceQuantity</code> にマッピングする場合を考えます。各問いの正しい設定値・パスを選択して「検証」を押してください。
+      </p>
+      <div class="callout" style="margin-top: 0.5rem; margin-bottom: 1.25rem;">
+        <strong>【例題取引条件】</strong><br />
+        ・交換する金額：<strong>1,000,000 USD</strong> と <strong>150,000,000 JPY</strong><br />
+        ・約定フォワードレート：<strong>150.00 JPY/USD</strong>（クオート基準：<code>1 USD あたり 150.00 JPY</code> ＝ <code>Currency2PerCurrency1</code>）<br />
+        ・レート内訳：スポットレート <strong>152.50</strong>、フォワードポイント <strong>-2.50</strong>（すなわち 152.50 から 2.50 を減算）
+      </div>
+
+      <div class="exercise-box">
+        <!-- Item 1 -->
+        <div
+          class="mapping-item"
+          data-answer="unit = JPY, perUnitOf = USD"
+          data-explanation="「1 USD あたり 150.00 JPY（150.00 JPY per 1 USD）」というレートは、1単位あたりの基準通貨（分母）が <code>perUnitOf = USD</code>、価格を表す対価通貨（分子）が <code>unit = JPY</code> です（<code>observable-asset-type.rosetta:L137-L150</code>）。"
+        >
+          <div class="mapping-prompt">
+            問1. この為替レート（<code>value: 150.00</code>）の <code>PriceSchedule</code> において、<strong><code>unit</code> と <code>perUnitOf</code> の通貨</strong>はどう設定すべきか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 通貨ペアの単位設定を選択 --</option>
+              <option value="unit = USD, perUnitOf = JPY">unit = USD, perUnitOf = JPY</option>
+              <option value="unit = JPY, perUnitOf = USD">unit = JPY, perUnitOf = USD</option>
+              <option value="unit = JPY, perUnitOf = JPY">unit = JPY, perUnitOf = JPY</option>
+              <option value="unit = USD, perUnitOf = (省略)">unit = USD, perUnitOf = (省略)</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 2 -->
+        <div
+          class="mapping-item"
+          data-answer="quantity に 1,000,000 USD、price -> derivedQuantity に 150,000,000 JPY"
+          data-explanation="<code>perUnitOf</code>（基準通貨：USD）の金額 <code>1,000,000 USD</code> を <code>PriceQuantity -> quantity</code>（および <code>observable: Cash[USD]</code>）に格納し、<code>price -> unit</code>（対価通貨：JPY）の金額 <code>150,000,000 JPY</code> を <code>PriceSchedule -> derivedQuantity</code> に格納します。これにより <code>condition DerivedQuantityUnit</code>（<code>derivedQuantity -> unit = price -> unit = JPY</code>）と <code>PriceQuantityTriangulation</code>（<code>150.00 * 1,000,000 = 150,000,000</code>）の両方が満たされます。"
+        >
+          <div class="mapping-prompt">
+            問2. <strong>1,000,000 USD</strong> と <strong>150,000,000 JPY</strong> の2つの金額は、<code>PriceQuantity</code> 内のどこに配置すべきか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 2通貨の配置先を選択 --</option>
+              <option value="quantity 配列の1要素目に 1,000,000 USD、2要素目に 150,000,000 JPY">quantity 配列の1要素目に 1,000,000 USD、2要素目に 150,000,000 JPY</option>
+              <option value="quantity に 150,000,000 JPY、price -> derivedQuantity に 1,000,000 USD">quantity に 150,000,000 JPY、price -> derivedQuantity に 1,000,000 USD</option>
+              <option value="quantity に 1,000,000 USD、price -> derivedQuantity に 150,000,000 JPY">quantity に 1,000,000 USD、price -> derivedQuantity に 150,000,000 JPY</option>
+              <option value="observable に 1,000,000 USD、quantity に 150,000,000 JPY">observable に 1,000,000 USD、quantity に 150,000,000 JPY</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 3 -->
+        <div
+          class="mapping-item"
+          data-answer="baseValue: 152.50, operand: 2.50, arithmeticOperator: Subtract, operandType: ForwardPoint (または operand: -2.50, operator: Add)"
+          data-explanation="<code>PriceComposite</code>（<code>observable-asset-type.rosetta:L123-L134</code>）では、アンカーとなるスポットレートを <code>baseValue</code>（<code>152.50</code> &gt; 0）、フォワードポイントを <code>operand</code>、演算子を <code>Add</code> または <code>Subtract</code>、オペランド種別を <code>operandType: ForwardPoint</code> とします。"
+        >
+          <div class="mapping-prompt">
+            問3. スポットレート <code>152.50</code> とフォワードポイント <code>-2.50</code> の内訳を <code>PriceSchedule -> composite</code> に格納する際、一次ソースの制約に適合する設定はどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- PriceComposite の設定を選択 --</option>
+              <option value="baseValue: -2.50, operand: 152.50, arithmeticOperator: Add, operandType: ForwardPoint">baseValue: -2.50, operand: 152.50, arithmeticOperator: Add, operandType: ForwardPoint</option>
+              <option value="baseValue: 152.50, operand: 2.50, arithmeticOperator: Subtract, operandType: ForwardPoint (または operand: -2.50, operator: Add)">baseValue: 152.50, operand: 2.50, arithmeticOperator: Subtract, operandType: ForwardPoint (または operand: -2.50, operator: Add)</option>
+              <option value="baseValue: 152.50, operand: 150.00, arithmeticOperator: Divide, operandType: ForwardPoint">baseValue: 152.50, operand: 150.00, arithmeticOperator: Divide, operandType: ForwardPoint</option>
+              <option value="baseValue: 152.50, operand: -2.50, arithmeticOperator: Multiply, operandType: AccruedInterest">baseValue: 152.50, operand: -2.50, arithmeticOperator: Multiply, operandType: AccruedInterest</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 4 -->
+        <div
+          class="mapping-item"
+          data-answer="SettlementPayout -> underlier (@ref:scoped = observable-1) ↔ PriceQuantity -> observable (@key:scoped = observable-1)"
+          data-explanation="<code>SettlementPayout -> underlier</code> は <code>choice Underlier</code> であり、その選択肢 <code>Observable</code> には <code>[metadata address &quot;pointsTo&quot;=PriceQuantity->observable]</code>（<code>product-template-type.rosetta:L299-L300</code>）が付与されています。したがって JSON 上では <code>&quot;@ref:scoped&quot;: &quot;observable-1&quot;</code> となり、<code>TradeLot -> priceQuantity -> observable</code> の <code>&quot;@key:scoped&quot;: &quot;observable-1&quot;</code>（<code>Cash: USD</code>）を参照します。"
+        >
+          <div class="mapping-prompt">
+            問4. <code>SettlementPayout</code> から、受け渡し対象となる基準通貨資産（<code>Cash: USD</code>）を参照する際の<strong>正しいスコープ付きメタデータ参照ペア</strong>はどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- スコープ付き参照ペアを選択 --</option>
+              <option value="SettlementPayout -> underlier (@ref:external = party1) ↔ Trade -> party (@key:external = party1)">SettlementPayout -> underlier (@ref:external = party1) ↔ Trade -> party (@key:external = party1)</option>
+              <option value="SettlementPayout -> priceQuantity -> quantitySchedule (@ref:scoped = quantity-1) ↔ PriceQuantity -> price (@key:scoped = price-1)">SettlementPayout -> priceQuantity -> quantitySchedule (@ref:scoped = quantity-1) ↔ PriceQuantity -> price (@key:scoped = price-1)</option>
+              <option value="SettlementPayout -> underlier (@ref:scoped = observable-1) ↔ PriceQuantity -> observable (@key:scoped = observable-1)">SettlementPayout -> underlier (@ref:scoped = observable-1) ↔ PriceQuantity -> observable (@key:scoped = observable-1)</option>
+              <option value="SettlementPayout -> settlementTerms (@ref:scoped = observable-1) ↔ PriceQuantity -> effectiveDate (@key:scoped = observable-1)">SettlementPayout -> settlementTerms (@ref:scoped = observable-1) ↔ PriceQuantity -> effectiveDate (@key:scoped = observable-1)</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Retrieval Practice Quiz -->
+    <section>
+      <h2>6. 実践演習②：記憶定着クイズ（Retrieval Practice）</h2>
+      <p>
+        画面上の解説を見ずに、記憶から引き出して回答してください（選択肢をクリックすると即座に判定されます）。
+      </p>
+
+      <div class="quiz-container">
+        <!-- Q1: Correct = index 1 (All 4 options = 28 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="1"
+          data-explanation="「1 EUR あたり 0.9175 USD」は、1単位あたりの基準通貨（分母）が <code>perUnitOf = EUR</code>、価格の単位（分子）が <code>unit = USD</code> となります（<code>observable-asset-type.rosetta:L137-L150</code>）。"
+        >
+          <div class="quiz-q-title">
+            Q1. 為替レートが「1 EUR = 0.9175 USD」のとき、<code>PriceSchedule</code> の単位属性の正しい組合せはどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">unitに基準通貨EURを置きperUnitOfにUSD</button>
+            <button class="quiz-option-btn">unitに対価通貨USDを置きperUnitOfにEUR</button>
+            <button class="quiz-option-btn">unitに両方通貨ペアを置きperUnitOfは省略する</button>
+            <button class="quiz-option-btn">unitは省略してperUnitOfに対価通貨USD置く</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q2: Correct = index 3 (All 4 options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="3"
+          data-explanation="現行の <code>PriceQuantity</code>（<code>observable-asset-type.rosetta:L101, L144</code>）では <code>quantity</code> は単数（<code>0..1</code>）であり、基準通貨（<code>perUnitOf</code>）の金額を <code>PriceQuantity -> quantity</code> に、対価通貨（<code>price -> unit</code>）の金額を <code>PriceSchedule -> derivedQuantity</code> に格納します。"
+        >
+          <div class="quiz-q-title">
+            Q2. 現行の <code>.rosetta</code> 一次ソースにおいて、為替取引の2通貨の金額はどこに格納されるか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">数量属性の配列に２つの要素として並べて直接格納される</button>
+            <button class="quiz-option-btn">決済条件の内部に２つの通貨別金額として直接格納される</button>
+            <button class="quiz-option-btn">観測対象のキャッシュ資産内部に２通貨金額で格納される</button>
+            <button class="quiz-option-btn">基準通貨は数量属性へ対価通貨は算出数量内に格納される</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q3: Correct = index 0 (All 4 options = 26 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="0"
+          data-explanation="FXフォワード等でスポットレートとフォワードポイントの内訳を保持する際は、<code>PriceSchedule -> composite</code>（<code>PriceComposite</code> 型：<code>observable-asset-type.rosetta:L123-L134</code>）を使用し、<code>baseValue</code> にスポットレート、<code>operand</code> にフォワードポイント、<code>operandType</code> に <code>ForwardPoint</code> を設定します。"
+        >
+          <div class="quiz-q-title">
+            Q3. FXフォワードでスポットレートとフォワードポイントの内訳を保持する構造はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">価格スケジュール内のコンポジット複合価格構造体を使う</button>
+            <button class="quiz-option-btn">価格スケジュールの配列に３つの別価格要素を並べて使う</button>
+            <button class="quiz-option-btn">トレードロットの配列をスポットと先物へ２分割して使う</button>
+            <button class="quiz-option-btn">決済ペイアウトの配列をスポットと先物へ２分割して使う</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q4: Correct = index 2 (All 4 options = 28 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="2"
+          data-explanation="<code>PriceQuantity</code> の <code>price</code> / <code>quantity</code> / <code>observable</code> には <code>[metadata location]</code>（JSONの <code>@key:scoped</code>）が置かれ、<code>Payout</code> 側の <code>ResolvablePriceQuantity</code> および <code>Underlier</code> には <code>[metadata address &quot;pointsTo&quot;=...]</code>（JSONの <code>@ref:scoped</code>）が置かれます。"
+        >
+          <div class="quiz-q-title">
+            Q4. <code>Payout</code> 内の <code>quantitySchedule</code> と <code>TradeLot</code> 内の <code>quantity</code> を結ぶメタデータ指定の組はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">定義側にメタデータキーを置き参照側にメタデータ参照を置く</button>
+            <button class="quiz-option-btn">定義側にスキーマ指定を置き参照側に識別子アイディーを置く</button>
+            <button class="quiz-option-btn">実体側にロケーションを置き参照側にアドレスポインタを置く</button>
+            <button class="quiz-option-btn">実体側にバリデータ条件を置き参照側にチョイス選択型を置く</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer: Primary Source Recommendation & Agent Reminder -->
+    <footer class="lesson-footer">
+      <div class="callout">
+        <div class="callout-title">📚 今回の推奨一次ソース（ぜひ直接開いて確認してください）</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong><code>PriceQuantity</code> / <code>PriceSchedule</code> / <code>PriceComposite</code> 定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/observable-asset-type.rosetta</code>（L97-L208）および <code>observable-common-func.rosetta</code>（L18-L38 の <code>PriceQuantityTriangulation</code>）
+          </li>
+          <li>
+            <strong>FpML 為替レート・数量変換ロジック</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/ingest-fpml-confirmation-pricequantity-func.rosetta</code>（L574-L625 の <code>MapFxCoreDetailsModelQuantityWithLocation</code>、および L1365-L1427 の <code>MapExchangeRateToPrice</code>）
+          </li>
+          <li>
+            <strong>検証済み実データJSON</strong>：<code>common-domain-model/rosetta-source/src/main/resources/ingest/output/fpml-confirmation-to-trade-state/fpml-5-13-products-fx-derivatives/fx-ex03-fx-fwd.json</code>（L18-L98 の <code>@ref:scoped</code> と <code>@key:scoped</code> の対応）
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout callout-mission">
+        <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
+        <p style="margin-bottom: 0;">
+          これで <strong>Phase 2（<code>Trade</code>・当事者抽象化・<code>PriceQuantity</code> と <code>@key:scoped</code> 参照）</strong>が完了し、あらゆる為替デリバティブ商品を読み解く共通土台が揃いました！<br />
+          疑問点があれば何でも質問してください。準備ができたら <strong>Phase 3（為替系デリバティブ各論）</strong>の最初となる <strong>Lesson 0004（FX Spot / FX Forward / FX Swap：<code>SettlementPayout</code> × 1または2、物理受渡決済、Near/Farレッグと製品判定関数 <code>Qualify_ForeignExchange_*</code>）</strong>へ進みましょう！
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+</html>
+

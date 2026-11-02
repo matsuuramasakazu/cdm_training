@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rune DSL (.rosetta) 読解チートシート | CDM Reference</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="../lessons/0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="../lessons/0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
+        <a href="../lessons/0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
+        <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003: PriceQuantityと為替レート</a>
+        <a href="./rosetta-reading-guide.html" class="active">Reference: .rosetta 読解ガイド</a>
+        <a href="./glossary.html">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Reference Document · Cheat Sheet</div>
+      <h1>Rune DSL（<code>.rosetta</code>）読解チートシート</h1>
+      <p class="lesson-subtitle">
+        一次ソース（<code>common-domain-model/rosetta-source/src/main/rosetta/*.rosetta</code>）を正確に読み解き、データマッピングや設計レビューを行うための構文リファレンスです。
+      </p>
+    </header>
+
+    <section>
+      <h2>1. 3つの基本データ構造：<code>type</code> / <code>choice</code> / <code>enum</code></h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 18%;">キーワード</th>
+            <th style="width: 34%;">意味・役割</th>
+            <th>一次ソースでの実例（為替関連）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>type A extends B:</code></td>
+            <td>
+              <strong>複合データ型（クラス／構造体）</strong>。<br />
+              <code>extends B</code> がある場合、親型 <code>B</code> のすべての属性と制約（<code>condition</code>）をそのまま引き継ぎ（継承し）、自身の属性を追加する。
+            </td>
+            <td>
+              <code>type Trade extends TradableProduct:</code><br />
+              <span class="cite-badge">event-common-type.rosetta:L295</span><br />
+              <code>Trade</code> は自身の <code>tradeDate</code> や <code>tradeIdentifier</code> に加え、親である <code>TradableProduct</code> の <code>product</code>, <code>tradeLot</code>, <code>counterparty</code> もすべて保持する。
+            </td>
+          </tr>
+          <tr>
+            <td><code>choice C:</code></td>
+            <td>
+              <strong>排他的選択型（Union / One-of）</strong>。<br />
+              列挙された候補型のうち、<strong>どれか1つの型だけ</strong>を選んで格納する（複数同時には持てない）。
+            </td>
+            <td>
+              <code>choice Payout:</code><br />
+              <span class="cite-badge">product-template-type.rosetta:L287-L296</span><br />
+              <code>SettlementPayout</code>（FX Spot/Fwd/Swap/NDF）または <code>OptionPayout</code>（FX Option）など8種のPayoutから1つを選ぶ。
+            </td>
+          </tr>
+          <tr>
+            <td><code>enum E:</code></td>
+            <td>
+              <strong>列挙型（コード値リスト）</strong>。<br />
+              取り得る固定の選択肢（識別コード）を定義する。
+            </td>
+            <td>
+              <code>enum CounterpartyRoleEnum: Party1, Party2</code><br />
+              <code>enum PutCallEnum: Put, Call</code>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. カーディナリティ（多重度：必須／任意／リスト）の読み方</h2>
+      <p>
+        <code>.rosetta</code> のすべての属性定義は <code>属性名 型名 (最小数..最大数) &lt;"説明"&gt;</code> の形式で書かれます。マッピング設計で「NULL許容か」「配列か」「固定長か」を判断する最重要指標です。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 16%;">表記</th>
+            <th style="width: 24%;">マッピング上の意味</th>
+            <th>実務での注意点と一次ソース例</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>(1..1)</code></td>
+            <td><strong>必須・単一値</strong>（Required Scalar）</td>
+            <td>省略不可。例：<code>Trade -> tradeDate date (1..1)</code>（約定日は必ず1つ存在する）。</td>
+          </tr>
+          <tr>
+            <td><code>(0..1)</code></td>
+            <td><strong>任意・単一値</strong>（Optional Scalar）</td>
+            <td>省略可能だが、特定の商品では後述の <code>condition</code> によって必須化または禁止されることが多い。</td>
+          </tr>
+          <tr>
+            <td><code>(0..*)</code></td>
+            <td><strong>任意・複数リスト</strong>（0個以上の配列）</td>
+            <td>例：<code>TradeState -> resetHistory Reset (0..*)</code>（Fixing履歴は0件以上）。</td>
+          </tr>
+          <tr>
+            <td><code>(1..*)</code></td>
+            <td><strong>必須・複数リスト</strong>（1個以上の配列）</td>
+            <td>最低1要素が必須の配列。例：<code>EconomicTerms -> payout Payout (1..*)</code>（FX Forwardは1要素、FX Swapは2要素、シンセティック・マルチフォワードは複数要素）。</td>
+          </tr>
+          <tr>
+            <td><code>(2..2)</code></td>
+            <td><strong>要素数2個固定のリスト</strong></td>
+            <td>例：<code>TradableProduct -> counterparty Counterparty (2..2)</code>（取引当事者は必ず <code>Party1</code> と <code>Party2</code> の2者ちょうど）。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. 制約条件（<code>condition</code>）とパス演算子の読み方</h2>
+      <p>
+        CDMでは、属性のカーディナリティ自体は <code>(0..1)</code> と緩めに定義しておき、商品の種類や状態に応じた厳密なルールを型末尾の <code>condition</code> ブロックで強制します。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 26%;">構文・演算子</th>
+            <th style="width: 34%;">意味</th>
+            <th>一次ソースでの実例</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>A -> B -> C</code></td>
+            <td><strong>階層ナビゲーション</strong>（Aの中のBの中のC）</td>
+            <td><code>settlementTerms -> cashSettlementTerms</code></td>
+          </tr>
+          <tr>
+            <td><code>A ->> B</code></td>
+            <td><strong>choice型を跨ぐナビゲーション</strong></td>
+            <td><code>underlier as Product ->> economicTerms</code></td>
+          </tr>
+          <tr>
+            <td><code>X as SomeType</code></td>
+            <td><strong>choice型の型絞り込み（キャスト）</strong></td>
+            <td><code>economicTerms -> payout as SettlementPayout</code>（Payout選択型のうち <code>SettlementPayout</code> である要素を取り出す）</td>
+          </tr>
+          <tr>
+            <td><code>exists</code> / <code>is absent</code></td>
+            <td><strong>値が存在する ／ 存在しない（空）</strong></td>
+            <td>
+              FX Spot/Forward では <code>cashSettlementTerms is absent</code>（物理受渡）、NDFでは <code>cashSettlementTerms exists</code>（差金決済）。
+            </td>
+          </tr>
+          <tr>
+            <td><code>only-element</code> / <code>count = N</code></td>
+            <td><strong>要素が1つだけ ／ 要素数がN個</strong></td>
+            <td>
+              FX Spot/Forward は <code>payout only-element as SettlementPayout exists</code>（1個のみ）、FX Swap は <code>count = 2</code>（Near/Farの2個）。
+            </td>
+          </tr>
+          <tr>
+            <td><code>required choice A, B</code><br /><code>one-of</code></td>
+            <td><strong>AとBのうち必ずどちらか1つだけが存在する</strong></td>
+            <td>
+              <code>OptionStrike</code> の <code>one-of</code>：通常の <code>strikePrice</code> と平均ストライク <code>averagingStrikeFeature</code> は同時に指定できない。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. メタデータ参照（<code>[metadata ...]</code> と JSON の <code>@key</code> / <code>@ref</code>）</h2>
+      <p>
+        CDMのJSONデータを初めて読む人が最もつまずきやすいのが、<strong>同じデータを2回書かずにID参照で結ぶ仕組み</strong>です。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%;"><code>.rosetta</code> 定義上の記述</th>
+            <th style="width: 28%;">JSON 実データ上の表記</th>
+            <th>仕組みと為替データでの役割</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>[metadata key]</code>（定義側）<br />
+              <code>[metadata reference]</code>（参照側）
+            </td>
+            <td>
+              定義側：<code>"@key:external": "party1"</code><br />
+              参照側：<code>"@ref:external": "party1"</code>
+            </td>
+            <td>
+              <strong>外部／オブジェクト間参照</strong>。<br />
+              取引当事者の実体（LEI等の <code>Party</code>）は <code>Trade -> party</code> に1度だけ定義し、<code>counterparty</code> 等からは <code>@ref:external</code> で参照する。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>[metadata address "pointsTo"=PriceQuantity->quantity]</code>
+            </td>
+            <td>
+              実体側（<code>TradeLot</code>内）：<br />
+              <code>"@key:scoped": "quantity-1"</code><br />
+              参照側（<code>Payout</code>内）：<br />
+              <code>"@ref:scoped": "quantity-1"</code>
+            </td>
+            <td>
+              <strong>スコープ付きアドレス参照（ProductとTradeLotの分離）</strong>。<br />
+              <code>Product</code>（商品の契約テンプレート）内の <code>SettlementPayout</code> や <code>OptionPayout</code> には具体的な金額・レートを直接書かず、<code>"@ref:scoped": "quantity-1"</code> というポインタを置き、実際の金額（10,000,000 EURなど）は <code>TradeLot -> priceQuantity</code> 側の <code>"@key:scoped": "quantity-1"</code> に格納する。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+</html>

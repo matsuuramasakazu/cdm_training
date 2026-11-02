@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>金融・CDM用語集 (Glossary) | CDM Reference</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="../lessons/0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="../lessons/0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
+        <a href="../lessons/0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
+        <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003: PriceQuantityと為替レート</a>
+        <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
+        <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Reference Document · Living Glossary</div>
+      <h1>為替デリバティブ・CDM 対照用語集（Glossary）</h1>
+      <p class="lesson-subtitle">
+        金融実務用語（日・英）と CDM 一次ソース（<code>rosetta-source</code>）の型名・定義箇所の対応表です。すべてのレッスンでこの用語定義に準拠します。
+      </p>
+    </header>
+
+    <div style="margin: 1.5rem 0;">
+      <input
+        type="text"
+        id="glossary-search"
+        class="mapping-select"
+        style="width: 100%; padding: 0.7rem 1rem; font-size: 0.95rem;"
+        placeholder="🔍 用語・CDM型名・ファイル名で絞り込み（例: TradeState, NDF, OptionPayout, バリア...）"
+      />
+    </div>
+
+    <table id="glossary-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">金融・実務用語（日 / 英）</th>
+          <th style="width: 22%;">CDM 型名 / 属性名</th>
+          <th style="width: 34%;">実務上の意味とCDMでの役割</th>
+          <th style="width: 22%;">一次ソース定義箇所</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ワークフローステップ</strong><br />Workflow Step</td>
+          <td><code>WorkflowStep</code></td>
+          <td>取引ライフサイクル上のメッセージや承認プロセス（提案・承認・却下・成立）を包む最上位（<code>[rootType]</code>）の封筒。承認・成立すると内側に <code>businessEvent</code> を持つ。</td>
+          <td><span class="cite-badge">event-workflow-type.rosetta:L37-L67</span></td>
+        </tr>
+        <tr>
+          <td><strong>ビジネスイベント（取引ライフサイクルイベント）</strong><br />Business Event</td>
+          <td><code>BusinessEvent</code></td>
+          <td>新規約定（Execution）、権利行使（Exercise）、一部解約（PartialTermination）、更改（Novation）など、取引の状態を変化させるライフサイクル上の出来事。命令（<code>instruction</code>）と結果（<code>after</code>）を持つ。</td>
+          <td><span class="cite-badge">event-common-type.rosetta:L60-L69</span></td>
+        </tr>
+        <tr>
+          <td><strong>イベント命令 / プリミティブ命令</strong><br />Instruction / PrimitiveInstruction</td>
+          <td><code>Instruction</code><br /><code>PrimitiveInstruction</code></td>
+          <td>「変更前の状態（<code>before</code>）」に対し、「どの基本操作（<code>execution</code>, <code>quantityChange</code>, <code>partyChange</code>, <code>exercise</code>, <code>reset</code>, <code>transfer</code> 等）を実行するか」を指定する指示書。新規約定時は <code>before</code> が空（absent）となる。</td>
+          <td><span class="cite-badge">event-common-type.rosetta:L31-L59</span></td>
+        </tr>
+        <tr>
+          <td><strong>取引状態（トレード・ステート）</strong><br />Trade State</td>
+          <td><code>TradeState</code></td>
+          <td>ある時点における取引のスナップショット。取引本体（<code>trade</code>）に加え、ステータス（<code>state</code>：Executed/Closed等）や、リセット履歴（<code>resetHistory</code>）、決済履歴（<code>transferHistory</code>）、観測履歴（<code>observationHistory</code>）、評価履歴（<code>valuationHistory</code>）の計6属性を保持する。</td>
+          <td><span class="cite-badge">event-common-type.rosetta:L198-L206</span></td>
+        </tr>
+        <tr>
+          <td><strong>取引（トレード）</strong><br />Trade</td>
+          <td><code>Trade</code><br />(<code>extends TradableProduct</code>)</td>
+          <td>当事者間で合意された取引そのもの。<code>TradableProduct</code> を継承し、そこに約定日（<code>tradeDate</code>）、取引ID（<code>tradeIdentifier</code>：UTI/USIや社内ID）、取引当事者実体（<code>party</code>）、契約詳細（<code>contractDetails</code>）、担保（<code>collateral</code>）を付加したもの。</td>
+          <td><span class="cite-badge">event-common-type.rosetta:L295-L309</span></td>
+        </tr>
+        <tr>
+          <td><strong>取引可能プロダクト &amp; トレードロット</strong><br />Tradable Product &amp; Trade Lot</td>
+          <td><code>TradableProduct</code><br /><code>TradeLot</code></td>
+          <td>商品の契約条件テンプレート（<code>product</code>）と、具体的な取引数量・価格（<code>tradeLot -> priceQuantity</code>）、および2者のロール対応（<code>counterparty</code>）を束ねた構造。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L317-L330</span></td>
+        </tr>
+        <tr>
+          <td><strong>取引当事者（パーティー）と取引識別子</strong><br />Party &amp; Trade Identifier</td>
+          <td><code>Party</code><br /><code>PartyIdentifier</code><br /><code>TradeIdentifier</code></td>
+          <td>取引に関与する法人・個人の実体（20桁のLEIやBIC等を保持し、JSON上で <code>@key:external</code> を持つ）と、各当事者の社内取引番号やUTI/USIを表す識別子（<code>issuerReference</code> または <code>issuer</code> が必須）。</td>
+          <td><span class="cite-badge">base-staticdata-party-type.rosetta:L137-L154</span><br /><span class="cite-badge">event-common-type.rosetta:L276-L278</span></td>
+        </tr>
+        <tr>
+          <td><strong>カウンターパーティ（抽象ロール対応）と付随当事者</strong><br />Counterparty &amp; Ancillary Party</td>
+          <td><code>Counterparty</code><br /><code>CounterpartyRoleEnum</code><br /><code>AncillaryParty</code></td>
+          <td><code>Product</code> 内の抽象ロール（<code>Party1</code> / <code>Party2</code> や計算代理人・行使通知受取先等の <code>AncillaryRoleEnum</code>）を、外側の <code>Party</code> 実体（<code>@ref:external</code>）へ結びつけるブリッジ。ノベーション時に <code>Product</code> を不変に保つ鍵となる。</td>
+          <td><span class="cite-badge">base-staticdata-party-type.rosetta:L7-L16</span><br /><span class="cite-badge">base-staticdata-party-enum.rosetta:L6-L8</span></td>
+        </tr>
+        <tr>
+          <td><strong>支払・受取方向と買手・売手（3種の方向指定型）</strong><br />Payer/Receiver &amp; Buyer/Seller</td>
+          <td><code>PayerReceiver</code><br /><code>BuyerSeller</code><br /><code>PartyReferencePayerReceiver</code></td>
+          <td><code>Product</code> 内の各 <code>PayoutBase</code> は <code>PayerReceiver</code>（<code>Party1</code>/<code>Party2</code>）、<code>OptionPayout</code> はさらに <code>BuyerSeller</code>（<code>Party1</code>/<code>Party2</code>）を使う。一方、<code>Product</code> 外の決済履歴（<code>TransferBase</code>）では <code>Party</code> を直接参照する <code>PartyReferencePayerReceiver</code> を使う。</td>
+          <td><span class="cite-badge">base-staticdata-party-type.rosetta:L18-L46</span></td>
+        </tr>
+        <tr>
+          <td><strong>価格・数量・観測対象バンドルと三角整合性</strong><br />PriceQuantity &amp; Triangulation</td>
+          <td><code>PriceQuantity</code><br /><code>PriceQuantityTriangulation</code></td>
+          <td><code>TradeLot</code> 内で1つのレッグの価格（<code>price</code>）、基準通貨数量（<code>quantity</code>：単数 <code>0..1</code>）、対象資産（<code>observable</code>：<code>Cash</code>等）を束ねる型。それぞれ <code>@key:scoped</code> を持ち、<code>price.value * quantity.value = price.derivedQuantity.value</code> の三角整合性が検証される。</td>
+          <td><span class="cite-badge">observable-asset-type.rosetta:L97-L122</span><br /><span class="cite-badge">observable-common-func.rosetta:L18-L38</span></td>
+        </tr>
+        <tr>
+          <td><strong>価格スケジュールと算出数量（対価通貨金額）</strong><br />Price Schedule &amp; Derived Quantity</td>
+          <td><code>PriceSchedule</code><br /><code>derivedQuantity</code></td>
+          <td>為替レート（<code>priceType: ExchangeRate</code>）を「1単位の基準通貨（<code>perUnitOf</code>）あたりいくらの対価通貨（<code>unit</code>）か」で表す型。為替取引における2つ目の通貨（<code>unit</code> 側）の金額は <code>derivedQuantity</code> に格納される。</td>
+          <td><span class="cite-badge">observable-asset-type.rosetta:L135-L203</span></td>
+        </tr>
+        <tr>
+          <td><strong>複合価格（スポットレート＋フォワードポイント）</strong><br />Price Composite (Spot + Forward Points)</td>
+          <td><code>PriceComposite</code><br /><code>PriceOperandEnum -> ForwardPoint</code></td>
+          <td>アウトライト・フォワードレートの内訳として、アンカーとなるスポットレート（<code>baseValue</code>）とフォワードポイント（<code>operand</code>, <code>operandType: ForwardPoint</code>）、加減算演算子（<code>Add</code> / <code>Subtract</code>）を保持する構造体。</td>
+          <td><span class="cite-badge">observable-asset-type.rosetta:L123-L134</span></td>
+        </tr>
+        <tr>
+          <td><strong>解決可能価格数量（スコープ付き参照ポインタ）</strong><br />Resolvable Price Quantity</td>
+          <td><code>ResolvablePriceQuantity</code><br /><code>[metadata address]</code></td>
+          <td><code>PayoutBase</code> 内に置かれ、<code>@ref:scoped</code>（<code>[metadata address "pointsTo"=PriceQuantity->...]</code>）によって外側の <code>TradeLot -> priceQuantity</code> 内の実体値を参照するポインタ構造。</td>
+          <td><span class="cite-badge">product-common-settlement-type.rosetta:L47-L64</span></td>
+        </tr>
+        <tr>
+          <td><strong>譲渡不可プロダクト（双務契約型商品）</strong><br />Non-Transferable Product</td>
+          <td><code>NonTransferableProduct</code></td>
+          <td>証券（債券や株式）のように第三者へ自由譲渡できる資産（<code>TransferableProduct</code>）とは異なり、2当事者間の相対契約として成立するデリバティブ等の商品定義。<code>taxonomy</code> と <code>economicTerms</code> を持つ。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L307-L315</span></td>
+        </tr>
+        <tr>
+          <td><strong>経済条件（エコノミック・タームズ）</strong><br />Economic Terms</td>
+          <td><code>EconomicTerms</code></td>
+          <td>商品の価格形成に関わる契約条件の本体。発効日（<code>effectiveDate</code>）、終了日（<code>terminationDate</code>）、営業日調整、そして1つ以上のペイアウト（<code>payout Payout (1..*)</code>）を格納する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L30-L50</span></td>
+        </tr>
+        <tr>
+          <td><strong>決済ペイアウト（為替スポット／フォワード／スワップ／NDF）</strong><br />Settlement Payout</td>
+          <td><code>SettlementPayout</code></td>
+          <td>将来または直近の決済日に原資産（為替では通貨 <code>Cash</code>）を受け渡す、あるいは差金決済するペイアウト。FX Spot/Forward/NDFは1個、FX Swap/NDSはNear/Farの2個の <code>SettlementPayout</code> で表現される。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L406-L411</span><br /><span class="cite-badge">product-qualification-func.rosetta:L1639-L1694</span></td>
+        </tr>
+        <tr>
+          <td><strong>オプション・ペイアウト（為替オプション各種）</strong><br />Option Payout</td>
+          <td><code>OptionPayout</code></td>
+          <td>コール／プットの権利行使条件（<code>exerciseTerms</code>）、ストライク（<code>strike</code>）、オプション特性（<code>feature</code>：バリア・アジアン等）を定義するペイアウト。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L126-L144</span></td>
+        </tr>
+        <tr>
+          <td><strong>アベレージレート vs アベレージストライク</strong><br />Average Rate vs Average Strike</td>
+          <td><code>AveragingFeature</code><br /><code>AveragingStrikeFeature</code></td>
+          <td>平均レートを最終決済価格に使うのが <code>OptionPayout -> feature -> averagingFeature</code>、平均レートをストライク価格自体にするのが <code>OptionPayout -> strike -> averagingStrikeFeature</code>。両者は <code>condition</code> で排他制御されている。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L137-L143</span><br /><span class="cite-badge">product-template-type.rosetta:L620-L634</span></td>
+        </tr>
+        <tr>
+          <td><strong>バリア条件 / トリガーイベント</strong><br />Barrier / Trigger Event</td>
+          <td><code>Barrier</code><br /><code>TriggerEvent</code> / <code>Trigger</code></td>
+          <td>ノックイン（<code>knockIn</code>）・ノックアウト（<code>knockOut</code>）のトリガー水準（<code>level</code>）、判定方法（<code>triggerType</code>）、リベート支払（<code>featurePayment</code>）を定義する。バリアオプションやギャップオプションの表現に使用する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L635-L638</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29</span></td>
+        </tr>
+        <tr>
+          <td><strong>法的契約・担保規定</strong><br />Legal Agreement &amp; Collateral</td>
+          <td><code>LegalAgreement</code><br /><code>Collateral</code><br /><code>EligibleCollateralCriteria</code></td>
+          <td>ISDA Master Agreement や CSA（Credit Support Annex）等の契約文書、および適格担保条件・担保管理条件を表すモデル群。</td>
+          <td><span class="cite-badge">legaldocumentation-common-type.rosetta</span><br /><span class="cite-badge">product-collateral-type.rosetta</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+</html>
