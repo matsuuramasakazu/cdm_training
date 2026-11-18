@@ -14,6 +14,7 @@
         <a href="../lessons/0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
         <a href="../lessons/0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
         <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003: PriceQuantityと為替レート</a>
+        <a href="../lessons/0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004: FX Spot / Forward / Swap</a>
         <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
       </div>
@@ -139,9 +140,27 @@
         </tr>
         <tr>
           <td><strong>決済ペイアウト（為替スポット／フォワード／スワップ／NDF）</strong><br />Settlement Payout</td>
-          <td><code>SettlementPayout</code></td>
+          <td><code>SettlementPayout</code><br />(<code>extends PayoutBase</code>)</td>
           <td>将来または直近の決済日に原資産（為替では通貨 <code>Cash</code>）を受け渡す、あるいは差金決済するペイアウト。FX Spot/Forward/NDFは1個、FX Swap/NDSはNear/Farの2個の <code>SettlementPayout</code> で表現される。</td>
-          <td><span class="cite-badge">product-template-type.rosetta:L406-L411</span><br /><span class="cite-badge">product-qualification-func.rosetta:L1639-L1694</span></td>
+          <td><span class="cite-badge">product-template-type.rosetta:L406-L460</span><br /><span class="cite-badge">product-qualification-func.rosetta:L1639-L1694</span></td>
+        </tr>
+        <tr>
+          <td><strong>決済条件・受渡日・PvP決済</strong><br />Settlement Terms, Value Date &amp; PvP</td>
+          <td><code>SettlementTerms</code><br /><code>SettlementDate -> valueDate</code><br /><code>TransferSettlementEnum -> PaymentVersusPayment</code></td>
+          <td><code>PayoutBase</code> に属し、受渡日（<code>valueDate</code>）や決済方式（物理受渡 <code>Physical</code> / 差金決済 <code>Cash</code>、2通貨同時決済 <code>PaymentVersusPayment</code>）を定義する。物理受渡のFXでは <code>cashSettlementTerms</code> を空（<code>absent</code>）にする。</td>
+          <td><span class="cite-badge">product-common-settlement-type.rosetta:L249-L303, L365-L389</span><br /><span class="cite-badge">product-common-settlement-enum.rosetta:L39-L50</span></td>
+        </tr>
+        <tr>
+          <td><strong>為替スワップのニアレッグ（期近）とファーレッグ（期先）</strong><br />FX Swap Near Leg &amp; Far Leg</td>
+          <td><code>SettlementPayout</code> × 2<br /><code>PriceQuantity</code> × 2</td>
+          <td>期近の受渡日に2通貨を交換し、期先の受渡日に逆方向（<code>payerReceiver</code> 反転）で同通貨を再交換する構造。単一の <code>TradeLot</code> 内に2つの <code>PriceQuantity</code>（<code>*-1</code> と <code>*-2</code>）を並べて参照する。</td>
+          <td><span class="cite-badge">ingest-fpml-confirmation-product-fxswap-func.rosetta:L58-L107</span><br /><span class="cite-badge">fx-ex08-fx-swap.json</span></td>
+        </tr>
+        <tr>
+          <td><strong>為替プロダクト自動判定関数</strong><br />FX Product Qualification Functions</td>
+          <td><code>Qualify_AssetClass_ForeignExchange</code><br /><code>Qualify_ForeignExchange_Spot_Forward</code><br /><code>Qualify_ForeignExchange_Swap</code></td>
+          <td><code>EconomicTerms</code> のみを入力として商品分類（ISDA Taxonomy）を自動推論する関数。<code>SettlementPayout</code> が1個かつ <code>cashSettlementTerms is absent</code> なら Spot/Forward、2個なら Swap と判定される。</td>
+          <td><span class="cite-badge">product-qualification-func.rosetta:L143-L177, L1639-L1667</span></td>
         </tr>
         <tr>
           <td><strong>オプション・ペイアウト（為替オプション各種）</strong><br />Option Payout</td>
