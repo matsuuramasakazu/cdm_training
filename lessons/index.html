@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,12 +10,14 @@
     .phase-section {
       margin-top: 2.5rem;
     }
+
     .lesson-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 1.25rem;
       margin: 1.25rem 0 2rem;
     }
+
     .lesson-card {
       display: flex;
       flex-direction: column;
@@ -28,18 +31,21 @@
       color: var(--text-main);
       transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     }
+
     a.lesson-card:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(27, 79, 114, 0.1);
       border-color: var(--accent-secondary);
       border-top-color: var(--accent-secondary);
     }
+
     .lesson-card.upcoming {
       background: var(--bg-subtle);
       border-color: var(--border-light);
       border-top-color: var(--border-strong);
       color: var(--text-muted);
     }
+
     .card-header-row {
       display: flex;
       justify-content: space-between;
@@ -47,6 +53,7 @@
       gap: 0.5rem;
       margin-bottom: 0.55rem;
     }
+
     .card-num {
       font-family: var(--font-mono);
       font-size: 0.8rem;
@@ -54,9 +61,11 @@
       color: var(--accent-primary);
       letter-spacing: 0.04em;
     }
+
     .lesson-card.upcoming .card-num {
       color: var(--text-muted);
     }
+
     .status-pill {
       font-size: 0.72rem;
       font-weight: 700;
@@ -64,16 +73,19 @@
       border-radius: 999px;
       letter-spacing: 0.03em;
     }
+
     .status-pill.ready {
       background: var(--bg-success-soft);
       color: var(--accent-success);
       border: 1px solid #b7dfc2;
     }
+
     .status-pill.planned {
       background: var(--bg-card);
       color: var(--text-muted);
       border: 1px solid var(--border-strong);
     }
+
     .card-title {
       font-family: var(--font-serif);
       font-size: 1.12rem;
@@ -82,15 +94,18 @@
       margin: 0 0 0.6rem;
       color: var(--text-main);
     }
+
     .lesson-card.upcoming .card-title {
       color: var(--text-muted);
     }
+
     .card-desc {
       font-size: 0.9rem;
       line-height: 1.65;
       margin: 0 0 0.9rem;
       color: var(--text-muted);
     }
+
     .card-tags {
       display: flex;
       flex-wrap: wrap;
@@ -99,11 +114,13 @@
       padding-top: 0.75rem;
       border-top: 1px solid var(--border-light);
     }
+
     .card-tags code {
       font-size: 0.76rem;
     }
   </style>
 </head>
+
 <body>
   <div class="page-wrapper">
     <nav class="workspace-nav">
@@ -115,6 +132,7 @@
         <a href="./0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>
         <a href="./0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
         <a href="./0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
         <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
       </div>
@@ -131,7 +149,9 @@
     <div class="callout callout-mission">
       <div class="callout-title">🎯 学習方針と一次ソース厳守ルール</div>
       <p style="margin-bottom: 0;">
-        すべてのレッスンは <strong>トップダウン順序</strong>（イベント／ワークフローの鳥瞰 → 取引と価格数量 → 為替各論 → ライフサイクル命令 → 法的契約・担保）で構成され、解説・演習はすべて <code>common-domain-model/rosetta-source/src/main/rosetta/*.rosetta</code> および検証済みテストデータ <code>src/main/resources/</code> を絶対的な一次ソースとして裏付けています。
+        すべてのレッスンは <strong>トップダウン順序</strong>（イベント／ワークフローの鳥瞰 → 取引と価格数量 → 為替各論 → ライフサイクル命令 → 法的契約・担保）で構成され、解説・演習はすべて
+        <code>common-domain-model/rosetta-source/src/main/rosetta/*.rosetta</code> および検証済みテストデータ
+        <code>src/main/resources/</code> を絶対的な一次ソースとして裏付けています。
       </p>
     </div>
 
@@ -147,7 +167,8 @@
             </div>
             <h3 class="card-title">Rune DSL（<code>.rosetta</code>）読解チートシート</h3>
             <p class="card-desc">
-              <code>type</code> / <code>choice</code> / <code>enum</code> / カーディナリティ / <code>condition</code> / <code>[metadata key|reference|location|address]</code> の最小文法とJSON対応をまとめたリファレンス。
+              <code>type</code> / <code>choice</code> / <code>enum</code> / カーディナリティ / <code>condition</code> /
+              <code>[metadata key|reference|location|address]</code> の最小文法とJSON対応をまとめたリファレンス。
             </p>
           </div>
           <div class="card-tags">
@@ -191,7 +212,9 @@
             </div>
             <h3 class="card-title">為替取引で掴むCDMの全体鳥瞰図と <code>.rosetta</code> 読解の基礎</h3>
             <p class="card-desc">
-              FX Forward 1件の約定〜状態保持を題材に、CDMの6階層（<code>WorkflowStep</code> → <code>BusinessEvent</code> → <code>Instruction</code> → <code>TradeState</code> → <code>Trade</code> → <code>Product</code>）の役割分担と <code>.rosetta</code> 構文の基礎を習得。
+              FX Forward 1件の約定〜状態保持を題材に、CDMの6階層（<code>WorkflowStep</code> → <code>BusinessEvent</code> →
+              <code>Instruction</code> → <code>TradeState</code> → <code>Trade</code> → <code>Product</code>）の役割分担と
+              <code>.rosetta</code> 構文の基礎を習得。
             </p>
           </div>
           <div class="card-tags">
@@ -214,9 +237,11 @@
               <span class="card-num">LESSON 0002</span>
               <span class="status-pill ready">公開中</span>
             </div>
-            <h3 class="card-title"><code>Trade</code> / <code>TradableProduct</code> / <code>TradeLot</code> と当事者抽象化メカニズム</h3>
+            <h3 class="card-title"><code>Trade</code> / <code>TradableProduct</code> / <code>TradeLot</code>
+              と当事者抽象化メカニズム</h3>
             <p class="card-desc">
-              具体的な銀行名（LEI）を <code>Product</code> 内に直書きせず、<code>Party1</code> / <code>Party2</code> と <code>Counterparty</code>（<code>@ref:external</code>）で抽象化する設計理由と追跡方法を習得。
+              具体的な銀行名（LEI）を <code>Product</code> 内に直書きせず、<code>Party1</code> / <code>Party2</code> と
+              <code>Counterparty</code>（<code>@ref:external</code>）で抽象化する設計理由と追跡方法を習得。
             </p>
           </div>
           <div class="card-tags">
@@ -235,7 +260,9 @@
             </div>
             <h3 class="card-title">為替の2通貨数量とレートを結ぶ <code>PriceQuantity</code>・<code>Observable</code>・スコープ参照</h3>
             <p class="card-desc">
-              単数（<code>0..1</code>）の <code>quantity</code> と <code>derivedQuantity</code> による2通貨表現、<code>PriceComposite</code>（Spot＋Forward Point）、三角整合性制約、<code>@key:scoped</code> ↔ <code>@ref:scoped</code> を解明。
+              単数（<code>0..1</code>）の <code>quantity</code> と <code>derivedQuantity</code>
+              による2通貨表現、<code>PriceComposite</code>（Spot＋Forward Point）、三角整合性制約、<code>@key:scoped</code> ↔
+              <code>@ref:scoped</code> を解明。
             </p>
           </div>
           <div class="card-tags">
@@ -250,7 +277,7 @@
 
     <!-- Phase 3 -->
     <section class="phase-section">
-      <h2>Phase 3: 為替系（FX）デリバティブ各論（Payout パターンの完全理解）</h2>
+      <h2>Phase 3: 為替系（FX）デリバティブ各論（Payout パターンの理解）</h2>
       <div class="lesson-grid">
         <a class="lesson-card" href="./0004-fx-spot-forward-swap-settlementpayout.html">
           <div>
@@ -260,7 +287,8 @@
             </div>
             <h3 class="card-title">FX Spot / FX Forward / FX Swap（<code>SettlementPayout</code> × 1または2）</h3>
             <p class="card-desc">
-              物理受渡を伴う Spot / Forward / Swap の <code>SettlementPayout</code> と <code>SettlementTerms</code>、FX Swap の Near/Far 反転構造、および <code>Qualify_ForeignExchange_*</code> 判定条件を解説。
+              物理受渡を伴う Spot / Forward / Swap の <code>SettlementPayout</code> と <code>SettlementTerms</code>、FX Swap の
+              Near/Far 反転構造、および <code>Qualify_ForeignExchange_*</code> 判定条件を解説。
             </p>
           </div>
           <div class="card-tags">
@@ -279,7 +307,9 @@
             </div>
             <h3 class="card-title">NDF / NDS（<code>SettlementPayout</code> + <code>cashSettlementTerms</code>）</h3>
             <p class="card-desc">
-              非受渡先渡・スワップにおける参照通貨の Fixing 観測（<code>FxFixingDate</code>・<code>FxSpotRateSource</code>・<code>SettlementRateOption</code>）と、決済通貨での差金決済（<code>CashSettlementTerms</code>）および <code>priceQuantity</code> のマッピング。
+              非受渡先渡・スワップにおける参照通貨の Fixing
+              観測（<code>FxFixingDate</code>・<code>FxSpotRateSource</code>・<code>SettlementRateOption</code>）と、決済通貨での差金決済（<code>CashSettlementTerms</code>）および
+              <code>priceQuantity</code> のマッピング。
             </p>
           </div>
           <div class="card-tags">
@@ -289,15 +319,16 @@
           </div>
         </a>
 
-        <div class="lesson-card upcoming">
+        <a class="lesson-card" href="./0006-fx-vanilla-option-ndo-optionpayout.html">
           <div>
             <div class="card-header-row">
               <span class="card-num">LESSON 0006</span>
-              <span class="status-pill planned">予定</span>
+              <span class="status-pill ready">公開中</span>
             </div>
             <h3 class="card-title">為替オプション① 基本構造（FX Vanilla Option / NDO）</h3>
             <p class="card-desc">
-              <code>OptionPayout</code> を軸に、<code>BuyerSeller</code>、<code>OptionTypeEnum</code>（Call/Put）、行使条件（<code>ExerciseTerms</code>：European/American）、<code>OptionStrike</code>、プレミアムの表現を習得。
+              <code>OptionPayout</code> を軸に、<code>BuyerSeller</code> vs
+              <code>PayerReceiver</code>（Put行使時の反転）、<code>OptionTypeEnum</code>（Call/Put）、行使条件（<code>ExerciseTerms</code>：European/American）、<code>OptionStrike</code>、プレミアムの表現を習得。
             </p>
           </div>
           <div class="card-tags">
@@ -306,7 +337,7 @@
             <code>ExerciseTerms</code>
             <code>OptionStrike</code>
           </div>
-        </div>
+        </a>
 
         <div class="lesson-card upcoming">
           <div>
@@ -316,7 +347,9 @@
             </div>
             <h3 class="card-title">為替オプション② アジアン・バリア・ギャップ</h3>
             <p class="card-desc">
-              <code>AveragingFeature</code> と <code>AveragingStrikeFeature</code> の排他制約、<code>Barrier</code> / <code>TriggerEvent</code>、およびギャップオプションのトリガー <code>K<sub>2</sub></code> vs ストライク <code>K<sub>1</sub></code> 表現を一次ソースから導出。
+              <code>AveragingFeature</code> と <code>AveragingStrikeFeature</code> の排他制約、<code>Barrier</code> /
+              <code>TriggerEvent</code>、およびギャップオプションのトリガー <code>K<sub>2</sub></code> vs ストライク <code>K<sub>1</sub></code>
+              表現を一次ソースから導出。
             </p>
           </div>
           <div class="card-tags">
@@ -334,7 +367,8 @@
             </div>
             <h3 class="card-title">シンセティック・マルチフォワードの複合マッピング設計</h3>
             <p class="card-desc">
-              Call＋Put の合成フォワード × 複数期日について、<code>CalculationSchedule</code> や複数 <code>OptionPayout</code> を用いた設計比較と Qualification 関数の挙動を検証。
+              Call＋Put の合成フォワード × 複数期日について、<code>CalculationSchedule</code> や複数 <code>OptionPayout</code> を用いた設計比較と
+              Qualification 関数の挙動を検証。
             </p>
           </div>
           <div class="card-tags">
@@ -358,7 +392,8 @@
             </div>
             <h3 class="card-title">プリミティブ命令による為替ライフサイクル状態遷移</h3>
             <p class="card-desc">
-              <code>Execution</code>、<code>Exercise</code>、<code>QuantityChange</code>（一部解約・増額）、<code>PartyChange</code>（ノベーション）、<code>Reset</code>（NDF Fixing）、<code>Transfer</code> による <code>TradeState</code> 遷移を追跡。
+              <code>Execution</code>、<code>Exercise</code>、<code>QuantityChange</code>（一部解約・増額）、<code>PartyChange</code>（ノベーション）、<code>Reset</code>（NDF
+              Fixing）、<code>Transfer</code> による <code>TradeState</code> 遷移を追跡。
             </p>
           </div>
           <div class="card-tags">
@@ -383,7 +418,8 @@
             </div>
             <h3 class="card-title">ISDA Master Agreement / CSA・適格担保・担保プロセス</h3>
             <p class="card-desc">
-              <code>LegalAgreement</code>（ISDA / CSA）、<code>EligibleCollateralCriteria</code>（適格担保基準・ヘアカット）、および <code>Collateral</code> モデルとFX取引との接続構造を習得。
+              <code>LegalAgreement</code>（ISDA / CSA）、<code>EligibleCollateralCriteria</code>（適格担保基準・ヘアカット）、および
+              <code>Collateral</code> モデルとFX取引との接続構造を習得。
             </p>
           </div>
           <div class="card-tags">
@@ -399,10 +435,12 @@
       <div class="callout callout-mission">
         <div class="callout-title">💬 学習の進め方</div>
         <p style="margin-bottom: 0;">
-          各レッスンの疑問点や実務データのマッピング相談は、いつでも講師（エージェント）に質問してください。次のレッスンへ進むときはチャットで <code>/teach レッスン0005に進もう</code> のように話しかけてください。
+          各レッスンの疑問点や実務データのマッピング相談は、いつでも講師（エージェント）に質問してください。次のレッスンへ進むときはチャットで <code>/teach レッスン0005に進もう</code>
+          のように話しかけてください。
         </p>
       </div>
     </footer>
   </div>
 </body>
+
 </html>

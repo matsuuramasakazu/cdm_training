@@ -17,6 +17,7 @@
         <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>
         <a href="../lessons/0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
         <a href="../lessons/0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
+        <a href="../lessons/0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
         <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
       </div>
@@ -190,9 +191,33 @@
         </tr>
         <tr>
           <td><strong>オプション・ペイアウト（為替オプション各種）</strong><br />Option Payout</td>
-          <td><code>OptionPayout</code></td>
-          <td>コール／プットの権利行使条件（<code>exerciseTerms</code>）、ストライク（<code>strike</code>）、オプション特性（<code>feature</code>：バリア・アジアン等）を定義するペイアウト。</td>
-          <td><span class="cite-badge">product-template-type.rosetta:L126-L144</span></td>
+          <td><code>OptionPayout</code><br />(<code>extends PayoutBase</code>)</td>
+          <td>コール／プットの権利の買手・売手（<code>buyerSeller</code>）、原資産の支払・受取方向（<code>payerReceiver</code>）、行使条件（<code>exerciseTerms</code>）、ストライク（<code>strike</code>）、オプション特性（<code>feature</code>：バリア・アジアン等）を定義するペイアウト。<code>settlementTerms -> cashSettlementTerms</code> が空ならバニラ為替オプション、存在（かつ <code>European</code>）なら NDO と自動判定される。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L126-L194</span><br /><span class="cite-badge">product-qualification-func.rosetta:L1754-L1785</span></td>
+        </tr>
+        <tr>
+          <td><strong>オプション種別（コール／プット／ストラドル）</strong><br />Option Type (Call / Put / Straddle)</td>
+          <td><code>OptionTypeEnum</code><br />(<code>extends PutCallEnum</code>)</td>
+          <td>為替オプションでは、ストライクレートの分母通貨（基準通貨 <code>perUnitOf</code> ＝ <code>underlier</code> &amp; <code>quantity</code>）を買手（<code>buyer</code>）が受け取る権利なら <code>Call</code>、基準通貨を買手が支払う権利なら <code>Put</code> と設定される。<code>Put</code> 行使時は <code>Create_Exercise</code> 内の <code>Update_ProductDirection</code> により決済取引の <code>payerReceiver</code> が反転される。</td>
+          <td><span class="cite-badge">product-template-enum.rosetta:L11-L15</span><br /><span class="cite-badge">ingest-fpml-confirmation-other-func.rosetta:L2300-L2305</span><br /><span class="cite-badge">event-common-func.rosetta:L520-L527</span></td>
+        </tr>
+        <tr>
+          <td><strong>権利行使条件（ヨーロピアン／アメリカン／バミューダ）</strong><br />Exercise Terms &amp; Style</td>
+          <td><code>ExerciseTerms</code><br /><code>OptionExerciseStyleEnum</code><br /><code>ExpirationTimeTypeEnum</code></td>
+          <td>オプションの行使スタイル（<code>style</code>：<code>European</code> / <code>American</code> / <code>Bermuda</code>）、満期日（<code>expirationDate</code>）、カットオフ時刻（<code>expirationTime</code> ＋ <code>expirationTimeType: SpecificTime</code>）、部分行使・複数行使条件を定義する。<code>condition EuropeanExercise</code> によりヨーロピアンでは <code>commencementDate</code> が禁止され、<code>condition AmericanExercise</code> によりアメリカンでは <code>commencementDate</code> が必須となる。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L720-L771</span><br /><span class="cite-badge">product-template-enum.rosetta:L16-L20, L38-L45</span></td>
+        </tr>
+        <tr>
+          <td><strong>オプション・ストライク（権利行使価格・レート）</strong><br />Option Strike</td>
+          <td><code>OptionStrike</code><br /><code>strikePrice: Price</code></td>
+          <td>4属性（<code>strikePrice</code>, <code>strikeReference</code>, <code>referenceSwapCurve</code>, <code>averagingStrikeFeature</code>）の <code>one-of</code> 制約を持つ型。バニラFXオプションおよびNDOでは <code>strikePrice</code>（<code>priceType: ExchangeRate</code>, <code>perUnitOf</code>, <code>unit</code>）を使用する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L684-L694</span><br /><span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L205-L249</span></td>
+        </tr>
+        <tr>
+          <td><strong>オプション・プレミアム（オプション料）</strong><br />Option Premium</td>
+          <td><code>UnscheduledTransfer</code><br />(<code>transferType: Premium</code>)<br /><code>PriceTypeEnum -> CashPrice</code></td>
+          <td>オプション買手から売手へ支払われる対価。一次ソースのFpML変換および検証済みJSON（<code>fx-ex09</code>〜<code>fx-ex11</code>）では、決済キャッシュフローが <code>TradeState -> transferHistory</code> の <code>UnscheduledTransfer</code>（<code>transferType: "Premium"</code>）に格納される。単価・料率として保持する場合は <code>PriceQuantity -> price</code>（<code>priceType: CashPrice</code>）を用いる。</td>
+          <td><span class="cite-badge">ingest-fpml-confirmation-payment-func.rosetta:L106-L107, L412-L421</span><br /><span class="cite-badge">product-common-settlement-enum.rosetta:L29</span></td>
         </tr>
         <tr>
           <td><strong>アベレージレート vs アベレージストライク</strong><br />Average Rate vs Average Strike</td>

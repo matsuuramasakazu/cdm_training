@@ -19,6 +19,7 @@
         <a href="./0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>
         <a href="./0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
         <a href="./0005-ndf-nds-cashsettlementterms-fixing.html" class="active">Lesson 0005: NDF / NDS</a>
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
         <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
       </div>
@@ -43,7 +44,9 @@
         Currency）のフィキシング観測条件（<code>ValuationMethod -> ValuationSource</code>：<code>FxSpotRateSource</code> /
         <code>SettlementRateOption</code> および
         <code>ValuationDate -> FxFixingDate</code>）と決済通貨（<code>settlementCurrency</code>）での差金決済条件（<code>CashSettlementTerms</code>）、<code>tradeLot -> priceQuantity</code>
-        における2通貨名目元本の保持（基準通貨 <code>perUnitOf</code> が常に <code>quantity</code> に配置される不変原則と、決済通貨／参照通貨の当てはまり方）、<code>PayerReceiver</code>（支払・受取）と <code>BuyerSeller</code>（買手・売手）の厳密な区分、さらにフィキシング確定（<code>Reset</code>）から差金決済（<code>Transfer</code>）までの状態遷移を一次ソースに基づいて設計・検証できるようになります。
+        における2通貨名目元本の保持（基準通貨 <code>perUnitOf</code> が常に <code>quantity</code>
+        に配置される不変原則と、決済通貨／参照通貨の当てはまり方）、<code>PayerReceiver</code>（支払・受取）と
+        <code>BuyerSeller</code>（買手・売手）の厳密な区分、さらにフィキシング確定（<code>Reset</code>）から差金決済（<code>Transfer</code>）までの状態遷移を一次ソースに基づいて設計・検証できるようになります。
       </p>
     </div>
 
@@ -123,7 +126,7 @@
             </td>
             <td>
               <code>PriceQuantity</code> × <strong>1個</strong><br />
-              ※物理受渡と同様に<strong>2通貨両方の名目元本（<code>quantity</code> と <code>derivedQuantity</code>）および約定レート</strong>を保持！
+              ※物理受渡と同様に<strong>2通貨両方の名目元本（<code>quantity</code> と <code>derivedQuantity</code>）および約定レート</strong>を保持
             </td>
             <td>
               <code>PriceQuantity</code> × <strong>2個</strong><br />
@@ -131,7 +134,7 @@
             </td>
           </tr>
           <tr>
-            <td><strong><code>settlementTerms</code> の違い（判定の分岐点！）</strong></td>
+            <td><strong><code>settlementTerms</code> の違い（判定の分岐点）</strong></td>
             <td>
               <code>settlementDate -> valueDate</code> のみ。<br />
               <strong><code>cashSettlementTerms</code> は空（<code>absent</code>）</strong>
@@ -205,7 +208,7 @@
         "settlementType" : <span class="st">"Cash"</span>,                          <span class="cm">// ① 差金決済（Cash）</span>
         "settlementCurrency" : { "@data" : <span class="st">"USD"</span> },         <span class="cm">// ② 実際に授受する決済通貨（USD）</span>
         "settlementDate" : { "valueDate" : <span class="st">"2002-04-11"</span> },  <span class="cm">// ③ 差金決済の受渡日（Value Date）</span>
-        "cashSettlementTerms" : [ {                         <span class="cm">// ④ この配列が存在することで NDF と判定される！</span>
+        "cashSettlementTerms" : [ {                         <span class="cm">// ④ この配列が存在することで NDF と判定される。</span>
           "valuationMethod" : {
             "valuationSource" : {
               "quotedCurrencyPair" : {
@@ -299,14 +302,16 @@
           <ul>
             <li><strong>パターンA（画面ページ指定：<code>informationSource</code>）</strong>：<code>quotedCurrencyPair</code> と
               <code>informationSource</code>（<code>FxSpotRateSource -> primarySource: InformationSource</code>、例：<code>sourceProvider: "Reuters", sourcePage: "RBIB"</code>）を指定（<code>fx-ex07</code>
-              の方式）。</li>
+              の方式）。
+            </li>
             <li><strong>パターンB（ISDA/EMTA標準コード指定：<code>settlementRateOption</code>）</strong>：1998 ISDA FX and Currency
               Option Definitions Annex A で標準化された <code>SettlementRateOptionEnum</code>（<span
                 class="cite-badge">observable-asset-enum.rosetta:L170-L299</span>：例 <code>BRL_PTAX_BRL09</code>［表示名
               <code>"BRL.PTAX/BRL09"</code>］、<code>CNY_SAEC_CNY01</code>［表示名
               <code>"CNY.SAEC/CNY01"</code>］、<code>INR_RBIB_INR01</code> 等）と、価格ソース混乱時のフォールバック規定
               <code>priceSourceDisruption -> fallbackReferencePrice</code>（<code>ValuationPostponement</code> /
-              <code>fallBackSettlementRateOption</code> / <code>calculationAgentDetermination</code>）を指定する方式。</li>
+              <code>fallBackSettlementRateOption</code> / <code>calculationAgentDetermination</code>）を指定する方式。
+            </li>
           </ul>
         </li>
         <li>
@@ -322,7 +327,7 @@
 
     <!-- Section 3: Deep Dive into tradeLot -> priceQuantity for NDF / NDS -->
     <section>
-      <h2>3. <code>tradeLot -> priceQuantity</code> の徹底解剖：2通貨名目元本の保持・クオート基準・Fixingと差金決済のライフサイクル</h2>
+      <h2>3. <code>tradeLot -> priceQuantity</code> の解説：2通貨名目元本の保持・クオート基準・Fixingと差金決済のライフサイクル</h2>
       <p>
         実務システムからCDMへNDF/NDSをマッピングする際、最も質問が多いのが <strong>「NDFは参照通貨を受け渡さないのに、<code>tradeLot -> priceQuantity</code>
           には何を入れるのか？」「フィキシング日にレートが決まったら <code>priceQuantity</code> を書き換えるのか？」</strong> という点です。一次ソースから3つの鉄則を確認しましょう。
@@ -332,20 +337,30 @@
       <p>
         NDFをFpMLからCDMへ変換する一次ソース関数 <code>MapFxSingleLegPriceQuantityList</code>（<span
           class="cite-badge">ingest-fpml-confirmation-product-fxsingleleg-func.rosetta:L132-L144</span>）は、物理受渡の FX
-        Forward と<strong>完全に同一の関数 <code>MapFxCoreDetailsModelPriceQuantity</code></strong>（<span
+        Forward と<strong>同一の関数 <code>MapFxCoreDetailsModelPriceQuantity</code></strong>（<span
           class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L1292-L1427</span>）を呼び出します。
       </p>
       <p>
-        したがって、NDFであっても <code>tradeLot -> priceQuantity</code> の配置ルール自体は物理受渡と<strong>一切変わらず（何も入れ替わらず）、クオート基準がどちらであっても常に以下の不変ルール</strong>に従います：
+        したがって、NDFであっても <code>tradeLot -> priceQuantity</code>
+        の配置ルール自体は物理受渡と<strong>一切変わらず（何も入れ替わらず）、クオート基準がどちらであっても常に以下の不変ルール</strong>に従います：
       </p>
       <ul>
-        <li><strong>不変ルール①：為替レートの分母通貨（基準通貨：<code>perUnitOf</code>）の金額 ＝ 常に <code>priceQuantity -> quantity</code>（および <code>observable</code> / <code>underlier</code>）に配置される</strong></li>
-        <li><strong>不変ルール②：為替レートの分子通貨（対価通貨：<code>unit</code>）の金額 ＝ 常に <code>price -> derivedQuantity</code> に配置される</strong></li>
+        <li><strong>不変ルール①：為替レートの分母通貨（基準通貨：<code>perUnitOf</code>）の金額 ＝ 常に <code>priceQuantity -> quantity</code>（および
+            <code>observable</code> / <code>underlier</code>）に配置される</strong></li>
+        <li><strong>不変ルール②：為替レートの分子通貨（対価通貨：<code>unit</code>）の金額 ＝ 常に <code>price -> derivedQuantity</code>
+            に配置される</strong></li>
       </ul>
       <p>
         では、実務のNDFデータマッピングで何に気をつける必要があるのでしょうか？<br />
-        NDFには<strong>「決済通貨（<code>settlementCurrency</code>：実際に差金決済で授受される通貨、例 <code>USD</code>）」と「参照通貨（Reference Currency：受渡されない規制通貨、例 <code>INR</code> や <code>BRL</code>）」という役割区分</strong>があるため、「NDFでは <code>quantity</code>（あるいは <code>underlier</code>）に常に決済通貨（<code>USD</code>）を入れる決まりなのか、それとも常に参照通貨（<code>INR</code> / <code>BRL</code>）を入れる決まりなのか？」と疑問を持たれることがよくあります。<br />
-        一次ソースの答えは、<strong>「決済通貨か参照通貨か」を基準に配置先を決めるのではなく、あくまで上記不変ルールどおり「為替レートの分母（基準通貨 <code>perUnitOf</code>）が常に <code>quantity</code> に配置される」</strong>ということです。その結果として、通貨ペアのクオート慣行で<strong>「決済通貨と参照通貨のどちらが基準通貨（分母 <code>perUnitOf</code>）に選ばれているか」</strong>によって、<code>quantity</code> に来るのが決済通貨になるか参照通貨になるかが決まります（<code>fx-ex07</code> と <code>fx-ex28</code> の比較）。
+        NDFには<strong>「決済通貨（<code>settlementCurrency</code>：実際に差金決済で授受される通貨、例 <code>USD</code>）」と「参照通貨（Reference
+          Currency：受渡されない規制通貨、例 <code>INR</code> や <code>BRL</code>）」という役割区分</strong>があるため、「NDFでは
+        <code>quantity</code>（あるいは
+        <code>underlier</code>）に常に決済通貨（<code>USD</code>）を入れる決まりなのか、それとも常に参照通貨（<code>INR</code> /
+        <code>BRL</code>）を入れる決まりなのか？」と疑問を持たれることがよくあります。<br />
+        一次ソースの答えは、<strong>「決済通貨か参照通貨か」を基準に配置先を決めるのではなく、あくまで上記不変ルールどおり「為替レートの分母（基準通貨 <code>perUnitOf</code>）が常に
+          <code>quantity</code> に配置される」</strong>ということです。その結果として、通貨ペアのクオート慣行で<strong>「決済通貨と参照通貨のどちらが基準通貨（分母
+          <code>perUnitOf</code>）に選ばれているか」</strong>によって、<code>quantity</code>
+        に来るのが決済通貨になるか参照通貨になるかが決まります（<code>fx-ex07</code> と <code>fx-ex28</code> の比較）。
       </p>
 
       <table>
@@ -397,24 +412,32 @@
           <tr>
             <td><strong>対価通貨（<code>unit</code>）の名目元本<br />＝ 常に <code>price -> derivedQuantity</code></strong></td>
             <td>
-              <strong><code>434,000,000 INR</code></strong>（対価通貨である <code>INR</code> が <code>derivedQuantity</code> に配置）<br />
+              <strong><code>434,000,000 INR</code></strong>（対価通貨である <code>INR</code> が <code>derivedQuantity</code>
+              に配置）<br />
               （<code>43.40 * 10,000,000 = 434,000,000</code>）
             </td>
             <td>
-              <strong><code>2,307,000 USD</code></strong>（対価通貨である <code>USD</code> が <code>derivedQuantity</code> に配置）<br />
+              <strong><code>2,307,000 USD</code></strong>（対価通貨である <code>USD</code> が <code>derivedQuantity</code>
+              に配置）<br />
               （<code>0.7690 * 3,000,000 = 2,307,000</code>）
             </td>
           </tr>
           <tr>
-            <td><strong><code>SettlementPayout -> payerReceiver</code> の意味（常に基準通貨 <code>underlier</code> の支払・受取方向）</strong></td>
+            <td><strong><code>SettlementPayout -> payerReceiver</code> の意味（常に基準通貨 <code>underlier</code>
+                の支払・受取方向）</strong></td>
             <td>
-              <code>payer: Party1, receiver: Party2</code> は基準通貨 <code>underlier</code>（<code>USD</code>）の支払・受取方向を表す → 計算上
-              <strong><code>Party1</code> が <code>10,000,000 USD</code> を支払い（<code>payer</code>）、対価通貨 <code>434,000,000 INR</code>
-                を受け取る</strong>（<code>Party2</code> は <code>10,000,000 USD</code> を受け取り、<code>434,000,000 INR</code> を支払う）方向
+              <code>payer: Party1, receiver: Party2</code> は基準通貨 <code>underlier</code>（<code>USD</code>）の支払・受取方向を表す →
+              計算上
+              <strong><code>Party1</code> が <code>10,000,000 USD</code> を支払い（<code>payer</code>）、対価通貨
+                <code>434,000,000 INR</code>
+                を受け取る</strong>（<code>Party2</code> は <code>10,000,000 USD</code> を受け取り、<code>434,000,000 INR</code>
+              を支払う）方向
             </td>
             <td>
-              <code>payer: Party1, receiver: Party2</code> は基準通貨 <code>underlier</code>（<code>BRL</code>）の支払・受取方向を表す → 計算上
-              <strong><code>Party1</code> が <code>3,000,000 BRL</code> を支払い（<code>payer</code>）、対価通貨 <code>2,307,000 USD</code>
+              <code>payer: Party1, receiver: Party2</code> は基準通貨 <code>underlier</code>（<code>BRL</code>）の支払・受取方向を表す →
+              計算上
+              <strong><code>Party1</code> が <code>3,000,000 BRL</code> を支払い（<code>payer</code>）、対価通貨
+                <code>2,307,000 USD</code>
                 を受け取る</strong>（<code>Party2</code> は <code>3,000,000 BRL</code> を受け取り、<code>2,307,000 USD</code> を支払う）方向
             </td>
           </tr>
@@ -422,20 +445,43 @@
       </table>
 
       <div class="callout">
-        <div class="callout-title">🔍 重要整理：CDM における <code>PayerReceiver</code>（支払い・受け取り）と <code>BuyerSeller</code>（買い・売り）の厳密な使い分け</div>
+        <div class="callout-title">🔍 重要整理：CDM における <code>PayerReceiver</code>（支払い・受け取り）と
+          <code>BuyerSeller</code>（買い・売り）の厳密な使い分け
+        </div>
         <p>
-          為替のフロント実務では便宜上「USDの支払い」を「USDの売り」と言い換えることがありますが、CDM（<code>.rosetta</code> 一次ソース）では <strong><code>PayerReceiver</code>（<code>payer</code> / <code>receiver</code>）</strong> と <strong><code>BuyerSeller</code>（<code>buyer</code> / <code>seller</code>）</strong> を明確に別々の型として定義・分離しています（<span class="cite-badge">base-staticdata-party-type.rosetta:L19-L36</span>）。<code>payerReceiver</code> の説明に「売り・買い」を使うと <code>buyerSeller</code> と混同するため、両者の役割の違いを一次ソースで押さえておきましょう。
+          為替のフロント実務では便宜上「USDの支払い」を「USDの売り」と言い換えることがありますが、CDM（<code>.rosetta</code> 一次ソース）では
+          <strong><code>PayerReceiver</code>（<code>payer</code> / <code>receiver</code>）</strong> と
+          <strong><code>BuyerSeller</code>（<code>buyer</code> / <code>seller</code>）</strong>
+          を明確に別々の型として定義・分離しています（<span
+            class="cite-badge">base-staticdata-party-type.rosetta:L19-L36</span>）。<code>payerReceiver</code>
+          の説明に「売り・買い」を使うと <code>buyerSeller</code> と混同するため、両者の役割の違いを一次ソースで押さえておきましょう。
         </p>
         <ul style="margin-bottom: 0;">
           <li>
-            <strong>① <code>PayerReceiver</code>（<code>PayoutBase -> payerReceiver</code>：<span class="cite-badge">product-common-settlement-type.rosetta:L68</span>）</strong>：<br />
-            すべてのペイアウト（<code>SettlementPayout</code>、<code>InterestRatePayout</code>、<code>OptionPayout</code> 等）が基底型 <code>PayoutBase</code> から継承する必須属性であり、<strong>「そのペイアウトの対象キャッシュフローまたは原資産（<code>underlier</code>＝基準通貨）を誰が支払い（<code>payer</code>）、誰が受け取るか（<code>receiver</code>）」</strong>という資金・資産移動の方向のみを表します。<code>SettlementPayout</code> には <code>buyerSeller</code> 属性は存在しません。
+            <strong>① <code>PayerReceiver</code>（<code>PayoutBase -> payerReceiver</code>：<span
+                class="cite-badge">product-common-settlement-type.rosetta:L68</span>）</strong>：<br />
+            すべてのペイアウト（<code>SettlementPayout</code>、<code>InterestRatePayout</code>、<code>OptionPayout</code> 等）が基底型
+            <code>PayoutBase</code>
+            から継承する必須属性であり、<strong>「そのペイアウトの対象キャッシュフローまたは原資産（<code>underlier</code>＝基準通貨）を誰が支払い（<code>payer</code>）、誰が受け取るか（<code>receiver</code>）」</strong>という資金・資産移動の方向のみを表します。<code>SettlementPayout</code>
+            には <code>buyerSeller</code> 属性は存在しません。
           </li>
           <li>
-            <strong>② <code>BuyerSeller</code>（<code>OptionPayout -> buyerSeller</code> 等：<span class="cite-badge">product-template-type.rosetta:L127, L478, L546</span>）</strong>：<br />
-            一次ソースの定義コメントに <em>"The party that buys this instrument, i.e. pays for this instrument and receives the rights defined by it."</em> と明記されているとおり、個別の通貨の支払・受取ではなく、<strong>「オプション等の金融商品（権利）そのものを誰が買い（<code>buyer</code>）、誰が売ったか（<code>seller</code>）」</strong>を表します。<br />
-            次回 Lesson 0006 で学ぶ <code>OptionPayout</code> は、<strong><code>buyerSeller</code>（オプションの権利自体の買手・売手）と、<code>PayoutBase</code> から継承した <code>payerReceiver</code>（権利行使された際に原資産 <code>underlier</code> を支払う・引き渡す側 <code>payer</code> と受け取る側 <code>receiver</code>）の「両方」を同時に持ちます</strong>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</span>）。したがって、<code>payerReceiver</code> は常に「支払い（<code>payer</code>）・受け取り（<code>receiver</code>）」として一貫して扱う必要があります。<br />
-            <span style="font-size: 0.88rem; color: var(--text-muted);">※なお、<code>Product</code> の外側にある <code>Trade -> partyRole</code>（<span class="cite-badge">event-common-type.rosetta:L305, L310-L315</span>）には規制報告等のために取引全体の <code>PartyRoleEnum -> Buyer / Seller</code> を記録する制約（<code>condition SettlementPayout</code>）がありますが、これも <code>PayoutBase -> payerReceiver</code> とは別階層の属性です。</span>
+            <strong>② <code>BuyerSeller</code>（<code>OptionPayout -> buyerSeller</code> 等：<span
+                class="cite-badge">product-template-type.rosetta:L127, L478, L546</span>）</strong>：<br />
+            一次ソースの定義コメントに <em>"The party that buys this instrument, i.e. pays for this instrument and receives the
+              rights defined by it."</em>
+            と明記されているとおり、個別の通貨の支払・受取ではなく、<strong>「オプション等の金融商品（権利）を誰が買い（<code>buyer</code>）、誰が売ったか（<code>seller</code>）」</strong>を表します。<br />
+            次回 Lesson 0006 で学ぶ <code>OptionPayout</code>
+            は、<strong><code>buyerSeller</code>（オプションの権利自体の買手・売手）と、<code>PayoutBase</code> から継承した
+              <code>payerReceiver</code>（権利行使された際に原資産 <code>underlier</code> を支払う・引き渡す側 <code>payer</code> と受け取る側
+              <code>receiver</code>）の「両方」を同時に持ちます</strong>（<span
+              class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</span>）。したがって、<code>payerReceiver</code>
+            は常に「支払い（<code>payer</code>）・受け取り（<code>receiver</code>）」として一貫して扱う必要があります。<br />
+            <span style="font-size: 0.88rem; color: var(--text-muted);">※なお、<code>Product</code> の外側にある
+              <code>Trade -> partyRole</code>（<span class="cite-badge">event-common-type.rosetta:L305,
+                L310-L315</span>）には規制報告等のために取引全体の <code>PartyRoleEnum -> Buyer / Seller</code>
+              を記録する制約（<code>condition SettlementPayout</code>）がありますが、これも <code>PayoutBase -> payerReceiver</code>
+              とは別階層の属性です。</span>
           </li>
         </ul>
       </div>
@@ -465,19 +511,24 @@
       <ul>
         <li>
           <strong>約定時の計算上の支払・受取義務の整理（<code>fx-ex07</code>）</strong>：<br />
-          ・基準通貨（<code>perUnitOf = USD</code>）名目元本 $N_{\text{USD}} = 10,000,000\text{ USD}$（<code>quantity-1</code>）<br />
+          ・基準通貨（<code>perUnitOf = USD</code>）名目元本 $N_{\text{USD}} = 10,000,000\text{
+          USD}$（<code>quantity-1</code>）<br />
           ・約定フォワードレート $F = 43.40\text{ INR/USD}$（<code>price-1 -> value</code>）<br />
           ・対価通貨（<code>unit = INR</code>）名目元本 $N_{\text{INR}} = N_{\text{USD}} \times F = 434,000,000\text{
           INR}$（<code>price-1 -> derivedQuantity</code>）<br />
           ・方向（<code>payerReceiver</code>）：<code>underlier</code> は基準通貨 <code>Cash: USD</code>
           であり、<code>payer = Party1, receiver = Party2</code> です。つまり、満期における計算上のグロス支払・受取義務は：
           <ul>
-            <li><strong><code>Party1</code>（基準通貨 <code>USD</code> の <code>payer</code>）</strong>：計算上 <code>10,000,000 USD</code>
+            <li><strong><code>Party1</code>（基準通貨 <code>USD</code> の <code>payer</code>）</strong>：計算上
+              <code>10,000,000 USD</code>
               を支払う義務を負い、対価通貨 <code>434,000,000 INR</code>（＝フィキシングレート $S_{\text{fix}}$ で米ドル換算すると
-              $\dfrac{434,000,000}{S_{\text{fix}}}\text{ USD}$）を受け取る権利を持つ立場。</li>
-            <li><strong><code>Party2</code>（基準通貨 <code>USD</code> の <code>receiver</code>）</strong>：計算上 <code>10,000,000 USD</code>
+              $\dfrac{434,000,000}{S_{\text{fix}}}\text{ USD}$）を受け取る権利を持つ立場。
+            </li>
+            <li><strong><code>Party2</code>（基準通貨 <code>USD</code> の <code>receiver</code>）</strong>：計算上
+              <code>10,000,000 USD</code>
               を受け取る権利を持ち、対価通貨 <code>434,000,000 INR</code>（＝米ドル換算で $\dfrac{434,000,000}{S_{\text{fix}}}\text{
-              USD}$）を支払う義務を負う立場。</li>
+              USD}$）を支払う義務を負う立場。
+            </li>
           </ul>
         </li>
         <li>
@@ -498,7 +549,8 @@
       </ul>
 
       <h3>3-3. ライフサイクル（① 一部解約 → ② Fixing / Reset → ③ 差金決済 Transfer）での <code>priceQuantity</code> と
-        <code>TradeState</code> の変化</h3>
+        <code>TradeState</code> の変化
+      </h3>
       <p>
         NDFが約定してから決済されるまでの3つのライフサイクルイベントにおいて、<code>tradeLot -> priceQuantity</code> と <code>TradeState</code>
         の履歴属性（<code>resetHistory</code> / <code>transferHistory</code>）がどう変化するかを整理しましょう。
@@ -527,7 +579,7 @@
               <code>43.40</code> は不変。
             </td>
             <td>
-              <strong>一切変化しない！</strong><br />
+              <strong>一切変化しない</strong><br />
               ⚠️ フィキシング日に市場レート <code>44.00 INR/USD</code> が観測されても、<code>tradeLot -> priceQuantity -> price</code>
               の約定レート（<code>43.40</code>）や
               <code>derivedQuantity</code>（<code>434,000,000 INR</code>）を<strong>観測レートで上書きしてはいけません</strong>。
@@ -557,12 +609,17 @@
               解約清算金（USD建てのTermination Fee）があれば <code>UnscheduledTransfer</code> を追記（解約で減った名目元本自体は移動しないため入らない）。
             </td>
             <td>
-              <strong>【重要】フィキシング時点で確定した差金決済額（<code>136,363.64 USD</code>）もこの <code>transferHistory</code> に記録できる！</strong><br />
-              <code>PrimitiveInstruction</code> に <code>reset</code> と <code>transfer</code> を両方含めることで、フィキシング日の <code>after</code> に<strong>受渡日 <code>settlementDate: "2002-04-11"</code>・ステータス <code>transferStatus: "Pending"</code>（指図待ち）または <code>"Instructed"</code>（指図済）の <code>TransferState</code>（<code>136,363.64 USD</code>）</strong>を即座に追記できる（下の詳細コラム参照）。
+              <strong>【重要】フィキシング時点で確定した差金決済額（<code>136,363.64 USD</code>）もこの <code>transferHistory</code>
+                に記録できる。</strong><br />
+              <code>PrimitiveInstruction</code> に <code>reset</code> と <code>transfer</code> を両方含めることで、フィキシング日の
+              <code>after</code> に<strong>受渡日 <code>settlementDate: "2002-04-11"</code>・ステータス
+                <code>transferStatus: "Pending"</code>（指図待ち）または <code>"Instructed"</code>（指図済）の
+                <code>TransferState</code>（<code>136,363.64 USD</code>）</strong>を即座に追記できる（下の詳細コラム参照）。
             </td>
             <td>
               <strong>決済通貨（<code>USD</code>）1本のみのネット差金（<code>136,363.64 USD</code>）</strong>が
-              <code>transferStatus: "Settled"</code>（決済完了）となる。<strong>参照通貨（<code>INR</code>）の <code>Transfer</code> は絶対に生成されない</strong>。
+              <code>transferStatus: "Settled"</code>（決済完了）となる。<strong>参照通貨（<code>INR</code>）の <code>Transfer</code>
+                は絶対に生成されない</strong>。
             </td>
           </tr>
         </tbody>
@@ -576,20 +633,44 @@
         <ol style="margin-bottom: 0;">
           <li>
             <strong><code>Reset</code> 型（<code>resetHistory</code>）の中には「レート」だけが入り、「差金金額」の項目はない</strong>：<br />
-            <code>Reset</code> 型（<span class="cite-badge">event-common-type.rosetta:L223-L234</span>）が持つのは <code>resetValue Price (1..1)</code>（確定レート <code>44.00 INR/USD</code>）・<code>resetDate</code>・<code>observations</code> だけであり、キャッシュフロー金額（<code>Money</code> / <code>Quantity</code>）を格納する属性はありません。
+            <code>Reset</code> 型（<span class="cite-badge">event-common-type.rosetta:L223-L234</span>）が持つのは
+            <code>resetValue Price (1..1)</code>（確定レート
+            <code>44.00 INR/USD</code>）・<code>resetDate</code>・<code>observations</code>
+            だけであり、キャッシュフロー金額（<code>Money</code> / <code>Quantity</code>）を格納する属性はありません。
           </li>
           <li>
-            <strong>⚠️ <code>Product -> ... -> cashSettlementTerms -> cashSettlementAmount</code> を書き換えてはいけない！</strong>：<br />
-            <code>CashSettlementTerms</code> には <code>cashSettlementAmount Money (0..1)</code> 属性（<span class="cite-badge">product-common-settlement-type.rosetta:L115</span>）がありますが、これは契約締結（約定）時点であらかじめ固定決済額が合意されている特殊な契約条件用の項目です。もしフィキシング日にここを上書きすると <code>Trade -> product</code>（契約条件）を変更したことになり、<strong><code>Qualify_Reset</code> の必須条件 <code>beforeTradeState -> trade = afterTradeState -> trade</code>（<span class="cite-badge">event-qualification-func.rosetta:L670</span>：リセット前後で <code>Trade</code> 本体は完全に同一・不変であること）に違反</strong>してしまいます。
+            <strong>⚠️ <code>Product -> ... -> cashSettlementTerms -> cashSettlementAmount</code>
+              を書き換えてはいけない。</strong>：<br />
+            <code>CashSettlementTerms</code> には <code>cashSettlementAmount Money (0..1)</code> 属性（<span
+              class="cite-badge">product-common-settlement-type.rosetta:L115</span>）がありますが、これは契約締結（約定）時点であらかじめ固定決済額が合意されている特殊な契約条件用の項目です。もしフィキシング日にここを上書きすると
+            <code>Trade -> product</code>（契約条件）を変更したことになり、<strong><code>Qualify_Reset</code> の必須条件
+              <code>beforeTradeState -> trade = afterTradeState -> trade</code>（<span
+                class="cite-badge">event-qualification-func.rosetta:L670</span>：リセット前後で <code>Trade</code>
+              本体は同一・不変であること）に違反</strong>してしまいます。
           </li>
           <li>
-            <strong>✅ 正解：差金金額はフィキシング日の <code>TradeState -> transferHistory</code> に「未決済ステータス（<code>Pending</code> / <code>Instructed</code>）＋将来受渡日（<code>2002-04-11</code>）」の <code>TransferState</code> として追記する</strong>：<br />
-            CDMの <code>Create_TradeState</code>（<span class="cite-badge">event-common-func.rosetta:L2198-L2207</span>）は、1つの <code>PrimitiveInstruction</code> の中に <strong><code>reset</code>（<code>ResetInstruction</code>）と <code>transfer</code>（<code>TransferInstruction</code>）を同時に組み合わせて実行（Composite Primitive）</strong>できるよう設計されています。しかも <code>Qualify_Reset</code>（<span class="cite-badge">event-qualification-func.rosetta:L659-L672</span>）の判定式は：
+            <strong>✅ 正解：差金金額はフィキシング日の <code>TradeState -> transferHistory</code> に「未決済ステータス（<code>Pending</code> /
+              <code>Instructed</code>）＋将来受渡日（<code>2002-04-11</code>）」の <code>TransferState</code>
+              として追記する</strong>：<br />
+            CDMの <code>Create_TradeState</code>（<span
+              class="cite-badge">event-common-func.rosetta:L2198-L2207</span>）は、1つの <code>PrimitiveInstruction</code>
+            の中に <strong><code>reset</code>（<code>ResetInstruction</code>）と
+              <code>transfer</code>（<code>TransferInstruction</code>）を同時に組み合わせて実行（Composite
+              Primitive）</strong>できるよう設計されています。しかも <code>Qualify_Reset</code>（<span
+              class="cite-badge">event-qualification-func.rosetta:L659-L672</span>）の判定式は：
             <pre style="margin: 0.5rem 0;"><code>businessEvent -> after count = 1
     and beforeTradeState -> trade = afterTradeState -> trade
     and beforeTradeState -> resetHistory count + 1 = afterTradeState -> resetHistory count</code></pre>
-            となっているため、<strong>フィキシング日のイベントで <code>resetHistory</code>（確定レート <code>44.00</code>）と一緒に <code>transferHistory</code>（確定差金金額 <code>136,363.64 USD</code>、<code>settlementDate: "2002-04-11"</code>、<code>transferStatus: "Pending"</code>［指図待ち］または <code>"Instructed"</code>［指図済］：<span class="cite-badge">event-common-enum.rosetta:L66-L72</span>）を追記しても、問題なく <code>Reset</code> イベントとして成立</strong>します。<br />
-            （なお、システム設計によっては「①フィキシング日は <code>resetHistory</code> のみ追記し、②受渡日または決済指図時に <code>CalculateTransfer</code> / <code>Create_Transfer</code> で <code>transferHistory</code> を追記する」という2段階分離もCDM上は許容されていますが、フィキシング時点で確定キャッシュフロー額を保持したい場合は、フィキシング日の <code>after -> transferHistory</code> に <code>transferStatus: Pending / Instructed</code> として追記するのが正規の方法です。）
+            となっているため、<strong>フィキシング日のイベントで <code>resetHistory</code>（確定レート <code>44.00</code>）と一緒に
+              <code>transferHistory</code>（確定差金金額
+              <code>136,363.64 USD</code>、<code>settlementDate: "2002-04-11"</code>、<code>transferStatus: "Pending"</code>［指図待ち］または
+              <code>"Instructed"</code>［指図済］：<span
+                class="cite-badge">event-common-enum.rosetta:L66-L72</span>）を追記しても、問題なく <code>Reset</code>
+              イベントとして成立</strong>します。<br />
+            （なお、システム設計によっては「①フィキシング日は <code>resetHistory</code> のみ追記し、②受渡日または決済指図時に <code>CalculateTransfer</code> /
+            <code>Create_Transfer</code> で <code>transferHistory</code>
+            を追記する」という2段階分離もCDM上は許容されていますが、フィキシング時点で確定キャッシュフロー額を保持したい場合は、フィキシング日の <code>after -> transferHistory</code> に
+            <code>transferStatus: Pending / Instructed</code> として追記するのが正規の方法です。）
           </li>
         </ol>
       </div>
@@ -684,7 +765,8 @@
                     <li><code>Qualify_AssetClass_ForeignExchange(economicTerms) = True</code></li>
                     <li><code>SettlementPayoutOnlyExists(economicTerms -> payout)</code></li>
                     <li><code>economicTerms -> payout as SettlementPayout count = 2</code>（Near Leg と Far Leg の2個の
-                      <code>SettlementPayout</code>）</li>
+                      <code>SettlementPayout</code>）
+                    </li>
                     <li>
                       <strong><code>economicTerms -> payout as SettlementPayout -> settlementTerms -> cashSettlementTerms exists</code></strong>
                     </li>
@@ -770,10 +852,12 @@
                   <strong><code>SettlementBase</code> 側の3属性（<span class="cite-badge">L365-L375</span>）</strong>：
                   <ul>
                     <li><code>settlementType</code>：<code>SettlementTypeEnum -> Cash</code>（必須
-                      <code>1..1</code>。<code>condition CashSettlementTerms</code> により <code>Physical</code> は不可）。</li>
+                      <code>1..1</code>。<code>condition CashSettlementTerms</code> により <code>Physical</code> は不可）。
+                    </li>
                     <li><code>settlementCurrency</code>：差金決済を授受する通貨コード（例：<code>"USD"</code>）。</li>
                     <li><code>settlementDate</code>：差金決済の受渡日（<code>valueDate</code> または
-                      <code>adjustableOrRelativeDate</code>）。</li>
+                      <code>adjustableOrRelativeDate</code>）。
+                    </li>
                   </ul>
                 </li>
                 <li>
@@ -781,14 +865,17 @@
                   <ul>
                     <li>
                       <code>valuationMethod ValuationMethod (0..1)</code>：フィキシングレートの取得ソース（<code>valuationSource</code>）やクオート種別（<code>Bid</code>
-                      / <code>Ask</code> / <code>Mid</code>）。</li>
+                      / <code>Ask</code> / <code>Mid</code>）。
+                    </li>
                     <li><code>valuationDate ValuationDate (0..1)</code>：フィキシング日（<code>fxFixingDate</code> または
-                      <code>fxFixingSchedule</code>）。</li>
+                      <code>fxFixingSchedule</code>）。
+                    </li>
                     <li>
                       <code>valuationTime BusinessCenterTime (0..1)</code>：フィキシング観測時刻とタイムゾーン営業日センター（例：<code>hourMinuteTime: "14:30:00", businessCenter: "INMU"</code>）。
                     </li>
                     <li><code>cashSettlementAmount Money (0..1)</code>：あらかじめ固定金額が定まっている場合用（通常のNDFでは約定時は未知のため
-                      <code>absent</code>）。</li>
+                      <code>absent</code>）。
+                    </li>
                   </ul>
                 </li>
               </ul>
@@ -847,7 +934,8 @@
           <div class="node-detail-card" data-node-content="node-ndf3" style="display: none;">
             <div class="detail-pane active" data-pane="tab-meaning">
               <h3>C3: <code>ValuationSource</code>（画面情報源 <code>FxSpotRateSource</code> vs ISDA標準
-                <code>SettlementRateOption</code>）</h3>
+                <code>SettlementRateOption</code>）
+              </h3>
               <p>
                 <code>ValuationMethod -> valuationSource</code>（<span
                   class="cite-badge">observable-asset-type.rosetta:L437-L446</span>）は、どの為替指標レートでフィキシングするかを定義します。<code>condition InformationSource</code>
@@ -1047,25 +1135,32 @@
               <p>
                 <code>MapFxCoreDetailsModelPriceQuantity</code>（<span
                   class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L1292-L1427</span>）により、NDF /
-                NDS でも「決済通貨か参照通貨か」ではなく、<strong>物理受渡と同じく為替レートの分母通貨（基準通貨 <code>perUnitOf</code>）と分子通貨（対価通貨 <code>unit</code>）に従って <code>quantity</code> と
-                <code>derivedQuantity</code> が一意に構築されます</strong>。
+                NDS でも「決済通貨か参照通貨か」ではなく、<strong>物理受渡と同じく為替レートの分母通貨（基準通貨 <code>perUnitOf</code>）と分子通貨（対価通貨
+                  <code>unit</code>）に従って <code>quantity</code> と
+                  <code>derivedQuantity</code> が一意に構築されます</strong>。
               </p>
               <ul>
                 <li>
                   <strong>不変ルール①：<code>perUnitOf</code>（分母＝基準通貨）＝ 常に <code>priceQuantity -> quantity</code> ＝
                     <code>observable (Cash)</code> ＝ <code>SettlementPayout -> underlier</code></strong><br />
-                  <code>fx-ex07</code>（<code>43.40 INR per USD</code>）では基準通貨（<code>perUnitOf</code>）が決済通貨の <code>USD</code> なので <code>quantity</code> が
-                  <code>10,000,000 USD</code> になります。一方、<code>fx-ex28</code>（<code>0.7690 USD per BRL</code>）では基準通貨（<code>perUnitOf</code>）が参照通貨の
+                  <code>fx-ex07</code>（<code>43.40 INR per USD</code>）では基準通貨（<code>perUnitOf</code>）が決済通貨の
+                  <code>USD</code> なので <code>quantity</code> が
+                  <code>10,000,000 USD</code>
+                  になります。一方、<code>fx-ex28</code>（<code>0.7690 USD per BRL</code>）では基準通貨（<code>perUnitOf</code>）が参照通貨の
                   <code>BRL</code> なので <code>quantity</code> が <code>3,000,000 BRL</code> になります。
                 </li>
                 <li>
                   <strong>不変ルール②：<code>unit</code>（分子＝対価通貨）＝ 常に <code>price -> derivedQuantity</code></strong><br />
-                  <code>fx-ex07</code> では対価通貨（<code>unit</code>）が参照通貨の <code>INR</code> なので <code>derivedQuantity</code> が
-                  <code>434,000,000 INR</code> になり、<code>fx-ex28</code> では対価通貨（<code>unit</code>）が決済通貨の <code>USD</code> なので
+                  <code>fx-ex07</code> では対価通貨（<code>unit</code>）が参照通貨の <code>INR</code> なので <code>derivedQuantity</code>
+                  が
+                  <code>434,000,000 INR</code> になり、<code>fx-ex28</code> では対価通貨（<code>unit</code>）が決済通貨の <code>USD</code>
+                  なので
                   <code>derivedQuantity</code> が <code>2,307,000 USD</code> になります。
                 </li>
                 <li>
-                  <strong>不変ルール③：<code>SettlementPayout -> payerReceiver</code> は常に基準通貨（<code>underlier = perUnitOf</code>）の支払（<code>payer</code>）・受取（<code>receiver</code>）を表し、<code>settlementCurrency</code> に実際の差金決済通貨（<code>USD</code>）を指定する</strong>
+                  <strong>不変ルール③：<code>SettlementPayout -> payerReceiver</code>
+                    は常に基準通貨（<code>underlier = perUnitOf</code>）の支払（<code>payer</code>）・受取（<code>receiver</code>）を表し、<code>settlementCurrency</code>
+                    に実際の差金決済通貨（<code>USD</code>）を指定する</strong>
                 </li>
               </ul>
             </div>
@@ -1164,9 +1259,15 @@
                 </li>
                 <li>
                   <strong>Step 3：確定差金金額の記録と決済（<code>TransferState</code>：<span
-                      class="cite-badge">event-common-type.rosetta:L243-L275</span> / <code>TransferStatusEnum</code>：<span
+                      class="cite-badge">event-common-type.rosetta:L243-L275</span> /
+                    <code>TransferStatusEnum</code>：<span
                       class="cite-badge">event-common-enum.rosetta:L66-L72</span>）</strong><br />
-                  フィキシングで算出された決済通貨（<code>USD</code>）建ての差額 <code>136,363.64 USD</code> は、<code>Trade -> product</code> 内の <code>cashSettlementAmount</code> を書き換えるのではなく、<strong><code>TradeState -> transferHistory</code></strong> に <code>ScheduledTransfer</code>（<code>settlementDate: "2002-04-11"</code>）として記録します。フィキシング日（<code>2002-04-09</code>）時点で複合プリミティブ（<code>reset</code> + <code>transfer</code>）として同時追記する場合は <code>transferStatus: "Pending"</code>（指図待ち）または <code>"Instructed"</code>（指図済）とし、受渡日（<code>2002-04-11</code>）の決済完了時に <code>"Settled"</code> とします。
+                  フィキシングで算出された決済通貨（<code>USD</code>）建ての差額 <code>136,363.64 USD</code> は、<code>Trade -> product</code> 内の
+                  <code>cashSettlementAmount</code>
+                  を書き換えるのではなく、<strong><code>TradeState -> transferHistory</code></strong> に
+                  <code>ScheduledTransfer</code>（<code>settlementDate: "2002-04-11"</code>）として記録します。フィキシング日（<code>2002-04-09</code>）時点で複合プリミティブ（<code>reset</code>
+                  + <code>transfer</code>）として同時追記する場合は <code>transferStatus: "Pending"</code>（指図待ち）または
+                  <code>"Instructed"</code>（指図済）とし、受渡日（<code>2002-04-11</code>）の決済完了時に <code>"Settled"</code> とします。
                 </li>
               </ul>
             </div>
@@ -1203,7 +1304,7 @@
               <pre><code>{
   "@type" : "cdm.event.common.TradeState",
   "trade" : {
-    <span class="cm">// ⚠️ trade (product および tradeLot -> priceQuantity: 10M USD / 434M INR @ 43.40) は約定時のまま一切変更しない！</span>
+    <span class="cm">// ⚠️ trade (product および tradeLot -> priceQuantity: 10M USD / 434M INR @ 43.40) は約定時のまま一切変更しない。</span>
     ...
   },
   <span class="cm">// ① フィキシング日 (2002-04-09) に確定したレート 44.00 INR/USD を resetHistory に記録</span>
@@ -1266,7 +1367,8 @@
 
       <div class="callout callout-discrepancy">
         <div class="callout-title">⚠️ 注意点①：なぜ <code>fx-ex28-non-deliverable-w-disruption.json</code> は NDF ではなく
-          <code>ForeignExchange_Spot_Forward</code> と誤判定されているのか？</div>
+          <code>ForeignExchange_Spot_Forward</code> と誤判定されているのか？
+        </div>
         <p>
           <code>rosetta-source/src/main/resources/ingest/output/.../fx-ex28-non-deliverable-w-disruption.json</code>（L8-L16）を開くと、ファイル名が
           <code>non-deliverable-w-disruption</code>（価格ソース混乱条項付き BRL/USD NDF）であるにもかかわらず、<code>taxonomy</code> が
