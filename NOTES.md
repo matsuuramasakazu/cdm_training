@@ -10,22 +10,26 @@
 - すべての解説・図解・演習には根拠となる `.rosetta` ファイル名・型名・行番号を明記する。
 - `common-domain-model/docs/` 等の二次資料を参照する際は必ず `.rosetta` で裏付けを取り、もし `docs/` 側に古い記述や不整合があれば **「※ドキュメントとの差分・注意点」** として明示する。
 
-## 3. カリキュラム全体マップ（全5フェーズ）
+## 3. カリキュラム全体マップ（全5フェーズ・14レッスン）
 - **Phase 1: 全体鳥瞰と `.rosetta` 読解の基礎（コア構造：Event & TradeState）**
   - Lesson 0001: 為替取引で掴むCDMの全体鳥瞰図（`WorkflowStep` → `BusinessEvent` → `TradeState` → `Trade` → `Product`）と `.rosetta` 最小文法
 - **Phase 2: 為替取引で紐解く `Trade` と `PriceQuantity` の仕組み（Base & Observable）**
   - Lesson 0002: `Trade` / `TradableProduct` / `TradeLot` の構造と、当事者（`Party` ↔ `Counterparty`）の抽象化メカニズム
   - Lesson 0003: 為替の2通貨数量とレートを結ぶ `PriceQuantity`・`Observable`・メタデータ参照（`@key:scoped` / `@ref:scoped`）
-- **Phase 3: 為替系（FX）デリバティブ各論（Payout パターンの完全理解）**
+- **Phase 3: 為替系（FX）デリバティブ各論（Payout パターンの理解）**
   - Lesson 0004: FX Spot / FX Forward / FX Swap（`SettlementPayout` × 1または2、物理受渡決済、Near/Farレッグ）
   - Lesson 0005: NDF / NDS（`SettlementPayout` + `cashSettlementTerms`、参照通貨のFixing観測と決済通貨での差金決済）
   - Lesson 0006: 為替オプション① 基本構造（FX Vanilla Option / NDO：`OptionPayout`, `BuyerSeller`, `OptionTypeEnum`, `ExerciseTerms`, `OptionStrike`）
   - Lesson 0007: 為替オプション② アジアン・バリア・ギャップ（アベレージレート `AveragingFeature` vs アベレージストライク `AveragingStrikeFeature` の排他制約、バリア `Barrier` / `TriggerEvent`、ギャップオプションのトリガー $K_2$ vs ストライク $K_1$ 表現）
   - Lesson 0008: シンセティック・マルチフォワードの複合マッピング設計（Call＋Putの合成フォワード × 複数期日 `CalculationSchedule` / 複数 `OptionPayout` の設計とQualification関数の挙動）
 - **Phase 4: 為替取引のライフサイクルイベント詳細（Instruction & PrimitiveInstruction）**
-  - Lesson 0009: プリミティブ命令（`Execution`, `Exercise`, `QuantityChange`, `PartyChange`, `Reset`, `Transfer`）による為替ライフサイクル状態遷移
+  - Lesson 0009: ライフサイクルイベント共通基盤と横断イベント（`BusinessEvent` / `Instruction` / `PrimitiveInstruction` / `Create_TradeState` の実行順序、約定 `Execution` + `ContractFormation`、増額・一部解約・全解約 `QuantityChange`、更改・分割・清算 `Split` + `PartyChange` と `Qualify_*` 関数）
+  - Lesson 0010: FX Spot / Forward / Swap のライフサイクル（2通貨の物理受渡決済 `Transfer` / `transferHistory`、期日延長 `Create_RollPrimitiveInstruction`、受取分割 `Create_ShapingInstruction`、FX Swap Near/Far レッグの決済状態管理）
+  - Lesson 0011: NDF / NDS のライフサイクル（Fixing観測 `Observation` と `ResetInstruction` / `Create_Reset` による `resetHistory` 記録、約定レートと `resetValue` からの差金決済額算出および決済通貨単一の `TransferInstruction` 生成）
+  - Lesson 0012: 為替オプション① Vanilla / NDO のライフサイクル（`ExerciseInstruction` と `Create_Exercise` / `Qualify_Exercise`、現物決済オプション行使時の Replacement Trade 生成と Put 行使時の方向反転 `Update_ProductDirection`、NDO差金決済行使の `QuantityChange` + `Transfer`、権利消滅 Expiry）
+  - Lesson 0013: 為替オプション② アジアン・バリア・マルチフォワードのライフサイクル（アジアンの複数回観測 `observations` と `averagingMethodology` による `Reset`、バリア到達時の Knock-out / Knock-in 状態遷移、マルチフォワードの期日別一部行使 Partial Exercise）
 - **Phase 5: 担保管理・法的契約（LegalAgreement & Collateral）**
-  - Lesson 0010: ISDA Master Agreement / CSA（`LegalAgreement`）と適格担保（`EligibleCollateralCriteria`）・担保プロセス（`Collateral`）
+  - Lesson 0014: ISDA Master Agreement / CSA（`LegalAgreement`）と適格担保（`EligibleCollateralCriteria`）・担保プロセス（`Collateral`）
 
 ## 4. インタラクティブ教材の設計規約
 - `./assets/style.css` と `./assets/cdm-learning.js` を全レッスン・リファレンスで共有する。

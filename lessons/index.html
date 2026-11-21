@@ -140,9 +140,9 @@
 
     <header class="lesson-header">
       <div class="lesson-meta">Course Index · FINOS CDM FX Derivatives &amp; Collateral</div>
-      <h1>FINOS CDM 為替系取引・担保データ設計カリキュラム</h1>
+      <h1>FINOS CDM 為替系取引データ設計カリキュラム</h1>
       <p class="lesson-subtitle">
-        金融取引・契約の実務データ（為替デリバティブおよびISDA/CSA・担保）を、CDMの一次ソース（<code>common-domain-model/rosetta-source</code>）の型・属性・制約（<code>condition</code>）に基づいて正確に読み解き、データマッピング・設計・レビューを独力で遂行するためのトップダウン学習コース（全5フェーズ・10レッスン）です。
+        金融取引・契約の実務データ（為替デリバティブおよびISDA/CSA・担保）を、CDMの一次ソース（<code>common-domain-model/rosetta-source</code>）の型・属性・制約（<code>condition</code>）に基づいて正確に読み解き、データマッピング・設計・レビューを独力で遂行するためのトップダウン学習コース（全5フェーズ・14レッスン）です。
       </p>
     </header>
 
@@ -390,17 +390,100 @@
               <span class="card-num">LESSON 0009</span>
               <span class="status-pill planned">予定</span>
             </div>
-            <h3 class="card-title">プリミティブ命令による為替ライフサイクル状態遷移</h3>
+            <h3 class="card-title">ライフサイクルイベント共通基盤と横断イベント（約定・解約・Novation）</h3>
             <p class="card-desc">
-              <code>Execution</code>、<code>Exercise</code>、<code>QuantityChange</code>（一部解約・増額）、<code>PartyChange</code>（ノベーション）、<code>Reset</code>（NDF
-              Fixing）、<code>Transfer</code> による <code>TradeState</code> 遷移を追跡。
+              <code>Create_BusinessEvent</code> / <code>Create_TradeState</code>
+              のプリミティブ適用順序と、全商品共通の約定（<code>Execution</code> +
+              <code>ContractFormation</code>）、増額・一部/全解約（<code>QuantityChange</code>）、更改・分割（<code>Split</code> +
+              <code>PartyChange</code>）を追跡。
             </p>
           </div>
           <div class="card-tags">
             <code>PrimitiveInstruction</code>
-            <code>Exercise</code>
-            <code>Reset</code>
-            <code>Transfer</code>
+            <code>Create_TradeState</code>
+            <code>QuantityChange</code>
+            <code>Split / PartyChange</code>
+          </div>
+        </div>
+
+        <div class="lesson-card upcoming">
+          <div>
+            <div class="card-header-row">
+              <span class="card-num">LESSON 0010</span>
+              <span class="status-pill planned">予定</span>
+            </div>
+            <h3 class="card-title">FX Spot / Forward / Swap のライフサイクル（物理受渡・Roll・Shaping）</h3>
+            <p class="card-desc">
+              2通貨の物理受渡決済（<code>TransferInstruction</code> /
+              <code>transferHistory</code>）、期日延長（<code>Create_RollPrimitiveInstruction</code>）、分割受渡（<code>Create_ShapingInstruction</code>）、および
+              FX Swap の Near/Far 決済状態遷移を解説。
+            </p>
+          </div>
+          <div class="card-tags">
+            <code>TransferInstruction</code>
+            <code>Roll</code>
+            <code>Shaping</code>
+            <code>TermsChange</code>
+          </div>
+        </div>
+
+        <div class="lesson-card upcoming">
+          <div>
+            <div class="card-header-row">
+              <span class="card-num">LESSON 0011</span>
+              <span class="status-pill planned">予定</span>
+            </div>
+            <h3 class="card-title">NDF / NDS のライフサイクル（Fixing観測・Reset・差金決済）</h3>
+            <p class="card-desc">
+              Fixing日における市場レート観測（<code>Observation</code>）と <code>ResetInstruction</code>（<code>Create_Reset</code> による
+              <code>resetHistory</code> 記録）、および約定レートと <code>resetValue</code> の差額による決済通貨単一の <code>Transfer</code> 生成を習得。
+            </p>
+          </div>
+          <div class="card-tags">
+            <code>Observation</code>
+            <code>ResetInstruction</code>
+            <code>resetHistory</code>
+            <code>Cash Transfer</code>
+          </div>
+        </div>
+
+        <div class="lesson-card upcoming">
+          <div>
+            <div class="card-header-row">
+              <span class="card-num">LESSON 0012</span>
+              <span class="status-pill planned">予定</span>
+            </div>
+            <h3 class="card-title">為替オプション① Vanilla / NDO のライフサイクル（現物行使 vs 現金行使・Expiry）</h3>
+            <p class="card-desc">
+              <code>ExerciseInstruction</code> と <code>Create_Exercise</code>
+              による現物決済オプション行使（元取引クローズ＋<code>underlier</code> からの Replacement Trade
+              生成・Putの方向反転）と、NDOの差金決済行使（<code>QuantityChange</code> + <code>Transfer</code>）・満期消滅（Expiry）を比較。
+            </p>
+          </div>
+          <div class="card-tags">
+            <code>ExerciseInstruction</code>
+            <code>Create_Exercise</code>
+            <code>Replacement Trade</code>
+            <code>Qualify_Exercise</code>
+          </div>
+        </div>
+
+        <div class="lesson-card upcoming">
+          <div>
+            <div class="card-header-row">
+              <span class="card-num">LESSON 0013</span>
+              <span class="status-pill planned">予定</span>
+            </div>
+            <h3 class="card-title">為替オプション② アジアン・バリア・マルチフォワードのライフサイクル</h3>
+            <p class="card-desc">
+              アジアンの複数回観測（<code>observations</code> と <code>averagingMethodology</code> による <code>Reset</code>）、バリア到達時の
+              Knock-out / Knock-in 遷移、およびマルチフォワードの期日別一部行使（Partial Exercise）の状態変化を検証。
+            </p>
+          </div>
+          <div class="card-tags">
+            <code>averagingMethodology</code>
+            <code>Trigger / Barrier</code>
+            <code>Partial Exercise</code>
           </div>
         </div>
       </div>
@@ -413,7 +496,7 @@
         <div class="lesson-card upcoming">
           <div>
             <div class="card-header-row">
-              <span class="card-num">LESSON 0010</span>
+              <span class="card-num">LESSON 0014</span>
               <span class="status-pill planned">予定</span>
             </div>
             <h3 class="card-title">ISDA Master Agreement / CSA・適格担保・担保プロセス</h3>
