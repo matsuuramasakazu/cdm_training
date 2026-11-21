@@ -9,12 +9,14 @@
 <body>
   <div class="page-wrapper">
     <nav class="workspace-nav">
-      <a class="brand" href="../lessons/0001-cdm-top-down-overview.html">FINOS CDM FX Training</a>
+      <a class="brand" href="../lessons/index.html">FINOS CDM FX Training</a>
       <div class="nav-links">
-        <a href="../lessons/0001-cdm-top-down-overview.html">Lesson 0001: 全体鳥瞰</a>
-        <a href="../lessons/0002-trade-tradableproduct-party.html">Lesson 0002: Tradeと当事者抽象化</a>
-        <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003: PriceQuantityと為替レート</a>
-        <a href="../lessons/0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004: FX Spot / Forward / Swap</a>
+        <a href="../lessons/index.html">カリキュラム一覧</a>
+        <a href="../lessons/0001-cdm-top-down-overview.html">Lesson 0001</a>
+        <a href="../lessons/0002-trade-tradableproduct-party.html">Lesson 0002</a>
+        <a href="../lessons/0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>
+        <a href="../lessons/0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
+        <a href="../lessons/0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
         <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
       </div>
@@ -158,9 +160,33 @@
         </tr>
         <tr>
           <td><strong>為替プロダクト自動判定関数</strong><br />FX Product Qualification Functions</td>
-          <td><code>Qualify_AssetClass_ForeignExchange</code><br /><code>Qualify_ForeignExchange_Spot_Forward</code><br /><code>Qualify_ForeignExchange_Swap</code></td>
-          <td><code>EconomicTerms</code> のみを入力として商品分類（ISDA Taxonomy）を自動推論する関数。<code>SettlementPayout</code> が1個かつ <code>cashSettlementTerms is absent</code> なら Spot/Forward、2個なら Swap と判定される。</td>
-          <td><span class="cite-badge">product-qualification-func.rosetta:L143-L177, L1639-L1667</span></td>
+          <td><code>Qualify_AssetClass_ForeignExchange</code><br /><code>Qualify_ForeignExchange_Spot_Forward</code><br /><code>Qualify_ForeignExchange_Swap</code><br /><code>Qualify_ForeignExchange_NDF</code><br /><code>Qualify_ForeignExchange_NDS</code></td>
+          <td><code>EconomicTerms</code> のみを入力として商品分類（ISDA Taxonomy）を自動推論する関数。<code>SettlementPayout</code> が1個かつ <code>cashSettlementTerms is absent</code> なら Spot/Forward、2個なら Swap、<code>cashSettlementTerms exists</code> なら1個で NDF、2個で NDS と判定される。</td>
+          <td><span class="cite-badge">product-qualification-func.rosetta:L143-L177, L1639-L1694</span></td>
+        </tr>
+        <tr>
+          <td><strong>差金決済条件（NDF / NDS / NDO）</strong><br />Cash Settlement Terms</td>
+          <td><code>CashSettlementTerms</code><br /><code>SettlementTerms -> settlementCurrency</code></td>
+          <td>NDF・NDS・NDO等の非受渡（Non-Deliverable）取引において、参照通貨をフィキシング（<code>valuationMethod</code> / <code>valuationDate</code> / <code>valuationTime</code>）し、決済通貨（<code>settlementCurrency</code>）で差金決済する手順を定義する型。</td>
+          <td><span class="cite-badge">product-common-settlement-type.rosetta:L108-L151, L287-L303</span></td>
+        </tr>
+        <tr>
+          <td><strong>フィキシング評価ソース（画面レート vs ISDA決済レートオプション）</strong><br />Valuation Source, Spot Rate Source &amp; Settlement Rate Option</td>
+          <td><code>ValuationMethod -> ValuationSource</code><br /><code>FxSpotRateSource</code><br /><code>SettlementRateOption</code><br /><code>PriceSourceDisruption</code></td>
+          <td>NDF等のフィキシングレート取得元。<code>QuotedCurrencyPair</code> とともに、Reuters/Bloomberg等の画面（<code>informationSource: FxSpotRateSource</code>）または1998 ISDA FX定義 Annex A の標準コード（<code>settlementRateOption: SettlementRateOptionEnum</code>、例 <code>BRL_PTAX_BRL09</code>）および価格ソース混乱時の代替規定（<code>priceSourceDisruption</code>）を指定する。</td>
+          <td><span class="cite-badge">observable-asset-type.rosetta:L235-L256, L306-L335, L417-L457</span><br /><span class="cite-badge">observable-asset-enum.rosetta:L170-L299</span></td>
+        </tr>
+        <tr>
+          <td><strong>フィキシング日（為替評価日）</strong><br />Valuation Date &amp; FX Fixing Date</td>
+          <td><code>ValuationDate -> fxFixingDate</code><br /><code>FxFixingDate</code> (<code>extends Offset</code>)</td>
+          <td>NDFやNDOにおいて参照通貨のスポットレートを観測・確定する日。明示的な確定日付（<code>fxFixingDate -> adjustableDate -> adjustedDate</code>）または決済日等からの相対営業日オフセット（例：<code>-2 BusinessDays</code>）として指定する。</td>
+          <td><span class="cite-badge">product-common-settlement-type.rosetta:L97-L107, L270-L286</span></td>
+        </tr>
+        <tr>
+          <td><strong>市場観測とリセット（Fixing確定履歴）</strong><br />Observation &amp; Reset</td>
+          <td><code>Observation</code><br /><code>Reset</code><br /><code>TradeState -> resetHistory</code></td>
+          <td>フィキシング日に観測された市場レート（<code>Observation -> observedValue</code>）と、それに基づき契約上で確定したフィキシング値（<code>Reset -> resetValue</code>）。NDFでは約定時の <code>tradeLot -> priceQuantity</code> を上書きせず、<code>TradeState -> resetHistory</code> に追記する。</td>
+          <td><span class="cite-badge">observable-event-type.rosetta:L102-L114</span><br /><span class="cite-badge">event-common-type.rosetta:L203, L223-L234</span></td>
         </tr>
         <tr>
           <td><strong>オプション・ペイアウト（為替オプション各種）</strong><br />Option Payout</td>
