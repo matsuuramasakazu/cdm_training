@@ -206,16 +206,192 @@
         </li>
         <li>
           <strong>Near Leg / Far Leg で別々の USI / UTI が付与される場合（<code>fx-ex26</code> / <code>fx-ex29</code>）</strong>：<br />
-          規制報告（CFTC / EMIR 等）の実務では、FX Swap の Near Leg と Far Leg に別々の取引識別子（USI/UTI）が採番されるケースがあります。CDMでは <code>Trade -> tradeIdentifier (1..*)</code> が複数カーディナリティを持つため、1つの <code>Trade</code> の中に2つの <code>UniqueTransactionIdentifier</code> を並べて格納できます（下のインタラクティブ探索 C5 参照）。
+          規制報告（CFTC / EMIR 等）の実務では、FX Swap の Near Leg と Far Leg に別々の取引識別子（USI/UTI）が採番されるケースがあります。CDMでは <code>Trade -> tradeIdentifier (1..*)</code> が複数カーディナリティを持つため、1つの <code>Trade</code> の中に2つの <code>UniqueTransactionIdentifier</code> を並べて格納できます（下のインタラクティブ探索 C6 参照）。
         </li>
       </ol>
     </section>
 
-    <!-- Section 3: Interactive Hierarchy Explorer -->
+    <!-- Section 3: Deep Dive into tradeLot -> priceQuantity for FX Spot / Forward / Swap -->
     <section>
-      <h2>3. インタラクティブ探索：<code>SettlementPayout</code> と為替判定ロジックの5大構成要素</h2>
+      <h2>3. <code>tradeLot -> priceQuantity</code> の徹底解剖：3商品の違い・対顧客マージン・ライフサイクル変化</h2>
       <p>
-        左側の5つのコンポーネントをクリックし、右側のタブ（<strong>① 実務での役割と設計ルール</strong> ／ <strong>② <code>.rosetta</code> 一次ソース定義</strong> ／ <strong>③ 実データJSON抜粋</strong>）を切り替えて、一次ソースの定義と制約を確認してください。
+        <code>SettlementPayout</code> が「いつ・誰から誰へ受け渡すか（契約の箱）」を定義するのに対し、<strong>実際に交換される2通貨の金額・為替レートの内訳・対顧客マージン・一部解約時の残存元本はすべて <code>tradeLot -> priceQuantity</code> 側</strong>が担います。ここで実務設計に直結する3つの重要論点を一次ソースから完全に押さえましょう。
+      </p>
+
+      <h3>3-1. FX Spot / Forward / Swap における <code>priceQuantity</code> の違いとスコープキー生成</h3>
+      <p>
+        一次ソースの変換関数 <code>MapFxCoreDetailsModelPriceQuantity</code>（<span class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L1292-L1427</span>）は、単一レッグ（Spot/Forward）でも2レッグ（FX Swap）でも共通して呼び出され、引数 <code>fpmlLeg</code>（単一レッグ時は <code>empty</code>、FX Swap 時は <code>nearLeg</code> / <code>farLeg</code>）に応じてスコープキー（<code>*-1</code>, <code>*-2</code>）を採番します。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 20%;"><code>priceQuantity</code> 内の要素</th>
+            <th style="width: 26%;">FX Spot（<code>fx-ex01</code>）</th>
+            <th style="width: 27%;">FX Forward（<code>fx-ex03</code>）</th>
+            <th style="width: 27%;">FX Swap（<code>fx-ex08</code>）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>要素数とキー採番</strong><br /><code>TradeLot -> priceQuantity (1..*)</code></td>
+            <td><strong>1要素</strong>（<code>price-1</code>, <code>quantity-1</code>, <code>observable-1</code>）</td>
+            <td><strong>1要素</strong>（<code>price-1</code>, <code>quantity-1</code>, <code>observable-1</code>）</td>
+            <td><strong>2要素</strong>（<code>priceQuantity[0]</code> に Near 用 <code>*-1</code>、<code>priceQuantity[1]</code> に Far 用 <code>*-2</code>）</td>
+          </tr>
+          <tr>
+            <td><strong>為替レートと内訳</strong><br /><code>price -> value</code> &amp; <code>composite</code></td>
+            <td>
+              <code>value</code> にスポットレートのみ。<br />
+              <code>composite</code> は <strong><code>absent</code></strong>
+            </td>
+            <td>
+              <code>value</code> にフォワードレート。<br />
+              <code>composite</code> に <code>baseValue</code>（Spot）と <code>operand</code>（<code>ForwardPoint</code>）を格納可能
+            </td>
+            <td>
+              <code>price-1</code> の <code>value</code> に期近レート（例：<code>1.48</code>）、<code>price-2</code> の <code>value</code> に期先レート（例：<code>1.50</code>）。Far 側には <code>composite</code> で直先スプレッドも格納可能
+            </td>
+          </tr>
+          <tr>
+            <td><strong>基準通貨数量と対価通貨数量</strong><br /><code>quantity</code> vs <code>derivedQuantity</code></td>
+            <td colspan="2">
+              分母通貨（<code>perUnitOf</code>）の金額を <code>quantity</code>（単数 <code>0..1</code>）、分子通貨（<code>unit</code>）の金額を <code>price -> derivedQuantity</code> に格納（<code>value * quantity.value = derivedQuantity.value</code>）
+            </td>
+            <td>
+              <strong>Even Swap（同額スワップ）</strong>では <code>quantity-1</code> と <code>quantity-2</code> が同額（例：<code>10,000,000 GBP</code>）になり、レート差の分だけ <code>price-1.derivedQuantity</code>（<code>14.8M USD</code>）と <code>price-2.derivedQuantity</code>（<code>15.0M USD</code>）が異なる
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3-2. 対顧客マージン（Sales Margin / Spread）を載せたり外したりする表現と <code>.rosetta</code> 制約</h3>
+      <p>
+        対顧客のFXフォワード取引では、市場フォワードレート（インターバンクレート：例 <code>150.00 JPY/USD</code>）に対顧客マージン（例 <code>+0.50</code> または <code>-0.50</code>）を加減算して最終受渡レート（例 <code>150.50 JPY/USD</code>）を決定したり、マージン込／マージン抜の両方を管理したいケースがあります。このとき、<strong><code>PriceSchedule</code> の2つの制約（<code>condition</code>）</strong>に注意が必要です。
+      </p>
+      <ul>
+        <li>
+          <strong>⚠️ NG表現（<code>condition SpreadPrice</code> 違反）</strong>：<br />
+          金利スワップのスプレッドのように <code>PriceSchedule</code> 直下の <code>arithmeticOperator: "Add"</code> を使ってマージンを別要素で置こうとすると、一次ソースの <strong><code>condition SpreadPrice: if arithmeticOperator = Add then priceType = AssetPrice or priceType = InterestRate</code></strong>（<span class="cite-badge">observable-asset-type.rosetta:L177-L179</span>）に違反します（<code>priceType = ExchangeRate</code> では直下の <code>arithmeticOperator = Add</code> は禁止）。
+        </li>
+        <li>
+          <strong>✅ 正規パターン①：<code>PriceComposite</code>（<code>operandType: "Commission"</code>）でマージン抜ベースレート ± マージンを表す</strong><br />
+          <code>PriceOperandEnum</code>（<span class="cite-badge">observable-asset-enum.rosetta:L301-L304</span>）には <code>ForwardPoint</code>・<code>AccruedInterest</code> に加えて <strong><code>Commission</code>（手数料・マージン）</strong>が定義されています。<code>price -> value</code> に最終受渡レート（<code>150.50</code>）、<code>composite -> baseValue</code> にマージン抜レート（<code>150.00</code>）、<code>operand</code> にマージン幅（<code>0.50</code>）、<code>arithmeticOperator</code> に <code>"Add"</code>（外す・差し引くなら <code>"Subtract"</code>）、<code>operandType</code> に <code>"Commission"</code>（または省略）を設定します。
+        </li>
+        <li>
+          <strong>✅ 正規パターン②：<code>price (0..*)</code> 配列に「マージン込レート」と「マージン抜レート（Spot＋ForwardPoint内訳付）」の2要素を並べる</strong><br />
+          <code>PriceComposite</code> は単一階層（2数値の演算）のため、1つの <code>PriceSchedule</code> 内で「Spot ＋ ForwardPoint ＋ 対顧客マージン」の3要素を同時に分解することはできません。3要素すべてを保持したい場合は、<code>PriceQuantity -> price (0..*)</code> 配列に<strong>2つの <code>PriceSchedule</code></strong> を並べます。このとき <code>condition PriceQuantityTriangulation</code>（<span class="cite-badge">observable-common-func.rosetta:L18-L38</span>）は <code>price</code> 配列の各要素ごとに <code>value * quantity.value = derivedQuantity.value</code> を検証するため、2つ目の <code>price</code>（マージン抜 <code>150.00</code>）の <code>derivedQuantity</code> には<strong>マージン抜の理論対価額（<code>150,000,000 JPY</code>）を入れるか、<code>derivedQuantity</code> を省略（<code>absent</code>）</strong>します。
+        </li>
+      </ul>
+
+      <div class="code-header">
+        <span>対顧客マージン込レート（price-1）とマージン抜市場レート（price-interbank）を並置する正規JSON構造（1,000,000 USD の例）</span>
+      </div>
+      <pre><code>"priceQuantity" : [ {
+  "price" : [
+    <span class="cm">// ① SettlementPayout から @ref:scoped ("price-1") で参照される最終受渡レート（マージン込：150.50 JPY/USD）</span>
+    {
+      <span class="mt">"@key:scoped" : "price-1"</span>,
+      "value" : <span class="st">150.50</span>,
+      "unit" : { "currency" : { "@data" : "JPY" } },
+      "perUnitOf" : { "currency" : { "@data" : "USD" } },
+      "priceType" : "ExchangeRate",
+      "composite" : {
+        "baseValue" : <span class="st">150.00</span>,                <span class="cm">// マージン抜フォワードレート</span>
+        "operand" : <span class="st">0.50</span>,                    <span class="cm">// 対顧客マージン幅</span>
+        "arithmeticOperator" : <span class="st">"Add"</span>,        <span class="cm">// 載せるなら Add、差し引くなら Subtract</span>
+        "operandType" : <span class="st">"Commission"</span>         <span class="cm">// PriceOperandEnum -> Commission（または省略）</span>
+      },
+      "derivedQuantity" : {
+        "value" : <span class="st">150500000</span>,                 <span class="cm">// 150.50 * 1,000,000 = 150,500,000 JPY（実受渡金額）</span>
+        "unit" : { "currency" : { "@data" : "JPY" } }
+      }
+    },
+    <span class="cm">// ② 市場フォワードレート（マージン抜：150.00 = Spot 152.50 - ForwardPoint 2.50）</span>
+    {
+      <span class="mt">"@key:scoped" : "price-interbank"</span>,
+      "value" : <span class="st">150.00</span>,
+      "unit" : { "currency" : { "@data" : "JPY" } },
+      "perUnitOf" : { "currency" : { "@data" : "USD" } },
+      "priceType" : "ExchangeRate",
+      "composite" : {
+        "baseValue" : <span class="st">152.50</span>,                <span class="cm">// スポットレート</span>
+        "operand" : <span class="st">2.50</span>,                    <span class="cm">// フォワードポイント</span>
+        "arithmeticOperator" : <span class="st">"Subtract"</span>,
+        "operandType" : <span class="st">"ForwardPoint"</span>
+      },
+      "derivedQuantity" : {
+        "value" : <span class="st">150000000</span>,                 <span class="cm">// 150.00 * 1,000,000 = 150,000,000 JPY（または derivedQuantity 自体を省略）</span>
+        "unit" : { "currency" : { "@data" : "JPY" } }
+      }
+    }
+  ],
+  "quantity" : {
+    <span class="mt">"@key:scoped" : "quantity-1"</span>,
+    "value" : <span class="st">1000000</span>,
+    "unit" : { "currency" : { "@data" : "USD" } }
+  },
+  "observable" : { <span class="mt">"@key:scoped" : "observable-1"</span>, "@data" : { "@type" : "...Cash", "identifier" : [{"identifier":{"@data":"USD"},"identifierType":"CurrencyCode"}], "assetType" : "Cash" } }
+} ]</code></pre>
+
+      <h3>3-3. ライフサイクルイベント（一部解約 vs 満期受渡決済）で <code>tradeLot -> priceQuantity</code> はどう変化するか？</h3>
+      <p>
+        FX Forward が約定した後、<strong>① 途中で一部解約（Partial Termination）された場合</strong>と、<strong>② 受渡日（<code>valueDate</code>）に満期受渡決済（Settlement / Transfer）された場合</strong>とでは、<code>TradeState</code> 内の <code>tradeLot -> priceQuantity</code> の振る舞いが明確に異なります（Phase 4・Lesson 0009 の先取りポイント）。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 20%;">比較項目</th>
+            <th style="width: 40%;">① 一部解約後（Partial Termination）<br /><span class="cite-badge">event-common-func.rosetta:L964-L1020</span><br /><span class="cite-badge">msg-partial-termination-xccy-func-output.json</span></th>
+            <th style="width: 40%;">② 満期受渡決済後（Settlement / Transfer）<br /><span class="cite-badge">event-common-func.rosetta:L651-L673</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>使用するプリミティブ命令</strong></td>
+            <td><code>QuantityChangeInstruction</code>（＋解約清算金があれば <code>TransferInstruction</code>）</td>
+            <td><code>TransferInstruction</code>（<code>Create_Transfer</code> 関数）</td>
+          </tr>
+          <tr>
+            <td><strong><code>tradeLot -> priceQuantity -> quantity</code></strong></td>
+            <td>
+              <strong>残存数量へ減少する</strong>（例：<code>20,000,000 EUR</code> から <code>5,000,000 EUR</code> 一部解約すると <code>value: 15000000</code> に更新される。全解約でない限り <code>0</code> にはならない）。
+            </td>
+            <td>
+              <strong>一切変化しない（<code>0</code> にはならない）</strong>。<br />
+              CDMでは <code>tradeLot -> priceQuantity</code> は「契約上いくらの元本・レートで約定したか」の記録としてそのまま保持される。
+            </td>
+          </tr>
+          <tr>
+            <td><strong><code>price -> value</code> と <code>derivedQuantity</code></strong></td>
+            <td>
+              <code>price -> value</code>（約定レート）は維持される。<br />
+              <strong>⚠️ 重要注意点</strong>：対価通貨額 <code>derivedQuantity</code> も残存数量に合わせて再計算（例：<code>0.9 * 15,000,000 = 13,500,000 USD</code>）すべきだが、現行CDMの標準関数 <code>UpdatePriceAmountForEachMatchingQuantity</code>（<span class="cite-badge">product-common-settlement-func.rosetta:L58-L110</span>）は <code>derivedQuantity</code> を自動更新しない実装ギャップがあるため、実務では明示的に更新して三角整合性を保つ必要がある。
+            </td>
+            <td>
+              <strong>一切変化しない</strong>（約定時の為替レートと対価通貨額をそのまま保持）。
+            </td>
+          </tr>
+          <tr>
+            <td><strong><code>TradeState -> transferHistory</code> と <code>state</code></strong></td>
+            <td>
+              解約清算金（Termination Fee：時価差額の精算金）があれば <code>transferHistory</code> に <code>UnscheduledTransfer</code>（<code>transferType: Termination</code> / <code>PartialTermination</code>）を追記。<br />
+              <strong>※なぜ解約で減った元本金額自体は <code>transferHistory</code> に入らないのか？</strong>：FX Forward は受渡日（<code>valueDate</code>）前にはまだ元本を交換していないため、解約で減った元本（例：<code>5,000,000 EUR</code>）は「将来の受渡義務（<code>priceQuantity</code>）が減額されただけ」であり、解約時点で現物資金が移動するのは解約清算金のみだからです（<span class="cite-badge">msg-partial-termination-xccy.xml:L167-L194</span>）。残存数量 <code>&gt; 0</code> の間は <code>closedState</code> は空（オープン継続）。
+            </td>
+            <td>
+              <strong><code>TradeState -> transferHistory</code></strong> に2通貨分の決済キャッシュフロー（<code>TransferState</code>, <code>transferStatus: Settled</code>）が追記される。満期終了として <code>state -> positionState = Closed</code>（<code>closedState: Matured</code>）等へ遷移させる。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 4: Interactive Hierarchy Explorer -->
+    <section>
+      <h2>4. インタラクティブ探索：<code>SettlementPayout</code>・<code>priceQuantity</code>・為替判定ロジックの6大構成要素</h2>
+      <p>
+        左側の6つのコンポーネントをクリックし、右側のタブ（<strong>① 実務での役割と設計ルール</strong> ／ <strong>② <code>.rosetta</code> 一次ソース定義</strong> ／ <strong>③ 実データJSON抜粋</strong>）を切り替えて、<code>SettlementPayout</code> と <code>tradeLot -> priceQuantity</code> の双方の一次ソース定義を確認してください。
       </p>
 
       <div class="hierarchy-explorer" data-component="hierarchy-explorer">
@@ -233,24 +409,31 @@
             <span class="node-name">SettlementTerms &amp; SettlementDate</span>
             <span class="node-ja">受渡日(valueDate)と決済方式</span>
           </button>
+          <div class="tree-arrow">↔ @ref:scoped で TradeLot を参照</div>
+
+          <button class="tree-node-btn" data-node="node-sp6">
+            <span class="node-level">Component 3 · TradeLot PriceQuantity</span>
+            <span class="node-name">FX PriceQuantity &amp; Lifecycle</span>
+            <span class="node-ja">Spot/Fwd/Swapの価格数量・マージン・解約</span>
+          </button>
           <div class="tree-arrow">↓ EconomicTerms から自動判定</div>
 
           <button class="tree-node-btn" data-node="node-sp3">
-            <span class="node-level">Component 3 · Spot &amp; Forward Qualification</span>
+            <span class="node-level">Component 4 · Spot &amp; Forward Qualification</span>
             <span class="node-name">Qualify_ForeignExchange_Spot_Forward</span>
             <span class="node-ja">為替資産判定とSpot/Forward判定</span>
           </button>
           <div class="tree-arrow">↓ 2レッグへの拡張</div>
 
           <button class="tree-node-btn" data-node="node-sp4">
-            <span class="node-level">Component 4 · FX Swap Qualification</span>
+            <span class="node-level">Component 5 · FX Swap Qualification</span>
             <span class="node-name">Qualify_ForeignExchange_Swap</span>
             <span class="node-ja">FX Swap判定とFpML変換関数</span>
           </button>
           <div class="tree-arrow">↓ 実務の複数ID・複数期日</div>
 
           <button class="tree-node-btn" data-node="node-sp5">
-            <span class="node-level">Component 5 · Multi-USI &amp; Schedule</span>
+            <span class="node-level">Component 6 · Multi-USI &amp; Schedule</span>
             <span class="node-name">Multiple Identifiers &amp; Schedule</span>
             <span class="node-ja">2つのUSI/UTIとCalculationSchedule</span>
           </button>
@@ -448,10 +631,90 @@
             </div>
           </div>
 
+          <!-- SP6: TradeLot PriceQuantity & Lifecycle -->
+          <div class="node-detail-card" data-node-content="node-sp6" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-meaning">
+              <h3>C3: <code>tradeLot -> priceQuantity</code>（Spot/Fwd/Swap の変換関数・対顧客マージン・一部解約）</h3>
+              <p>
+                <code>MapFxCoreDetailsModelPriceQuantity</code>（<span class="cite-badge">ingest-fpml-confirmation-pricequantity-func.rosetta:L1292-L1427</span>）は、為替の1レッグ分の <code>price</code>・<code>quantity</code>・<code>observable</code> をセットで構築します。
+              </p>
+              <ul>
+                <li>
+                  <strong>FX Spot / Forward / Swap での呼び出し単位</strong>：<br />
+                  FX Spot / Forward（<code>ingest-fpml-confirmation-product-fxsingleleg-func.rosetta:L132-L144</code>）では <code>fpmlLeg = empty</code> として1回呼び出し、<code>priceQuantity</code> 1要素を生成します。FX Swap（<code>ingest-fpml-confirmation-product-fxswap-func.rosetta:L87-L107</code>）では <code>nearLeg</code> と <code>farLeg</code> を渡して2回呼び出し、1つの <code>TradeLot</code> 内に2つの <code>PriceQuantity</code> を並べます。
+                </li>
+                <li>
+                  <strong>対顧客マージン（<code>PriceComposite</code> &amp; <code>PriceOperandEnum -> Commission</code>）</strong>：<br />
+                  <code>PriceSchedule</code> 直下の <code>arithmeticOperator = Add</code> は <code>condition SpreadPrice</code>（<span class="cite-badge">observable-asset-type.rosetta:L177-L179</span>）により <code>ExchangeRate</code> では禁止されています。対顧客マージンの加減算は <code>composite</code>（<code>baseValue</code>: マージン抜レート、<code>operand</code>: マージン幅、<code>operandType: Commission</code>）で表すか、<code>price (0..*)</code> 配列にマージン込とマージン抜の2要素を並べます。
+                </li>
+                <li>
+                  <strong>一部解約（<code>Create_QuantityChange</code>）と満期決済（<code>Create_Transfer</code>）での変化</strong>：<br />
+                  一部解約時は <code>UpdateAmountForEachMatchingQuantity</code>（<span class="cite-badge">product-common-settlement-func.rosetta:L8-L147</span>）により <code>quantity -> value</code> が残存数量へ減少します（三角整合性維持のため <code>derivedQuantity</code> も更新が必要）。一方、満期受渡決済時は <code>tradeLot -> priceQuantity</code> は変化せず、<code>TradeState -> transferHistory</code> に決済実績が追記されます。
+                </li>
+              </ul>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>ingest-fpml-confirmation-pricequantity-func.rosetta (L1292-L1329) &amp; product-common-settlement-func.rosetta (L8-L38)</span>
+              </div>
+              <pre><code><span class="kw">func</span> <span class="ty">MapFxCoreDetailsModelPriceQuantity</span>:
+    <span class="kw">inputs</span>:
+        fpmlExchangeRate <span class="ty">fpml.ExchangeRate</span> (0..1)
+        fpmlExchangedCurrency1 <span class="ty">fpml.Payment</span> (0..1)
+        fpmlExchangedCurrency2 <span class="ty">fpml.Payment</span> (0..1)
+        fpmlLeg <span class="ty">fpml.Leg</span> (0..1)
+    <span class="kw">output</span>:
+        priceQuantity <span class="ty">PriceQuantity</span> (0..1)
+    <span class="kw">alias</span> exchangedCurrency:
+        GetFpmlExchangedCurrency(fpmlExchangeRate, fpmlExchangedCurrency1, fpmlExchangedCurrency2)
+    <span class="kw">set</span> priceQuantity:
+        <span class="ty">PriceQuantity</span> {
+            price: [ MapFxCoreDetailsModelPriceWithLocation(fpmlExchangeRate, fpmlExchangedCurrency1, fpmlExchangedCurrency2, fpmlLeg) ],
+            quantity: MapFxCoreDetailsModelQuantityWithLocation(fpmlExchangeRate, fpmlExchangedCurrency1, fpmlExchangedCurrency2, fpmlLeg),
+            observable: MapCurrencyToObservableCashWithLocation(exchangedCurrency -> paymentAmount -> currency, fpmlLeg),
+            ...
+        }
+
+<span class="cm">// 一部解約（QuantityChange）時の PriceQuantity 更新関数</span>
+<span class="kw">func</span> <span class="ty">UpdateAmountForEachMatchingQuantity</span>:
+    <span class="kw">inputs</span>:
+        priceQuantityList <span class="ty">PriceQuantity</span> (1..*)
+        change <span class="ty">PriceQuantity</span> (1..*)
+        direction <span class="ty">QuantityChangeDirectionEnum</span> (1..1)
+    <span class="kw">output</span>:
+        updatedPriceQuantity <span class="ty">PriceQuantity</span> (1..*)</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>msg-partial-termination-xccy-func-output.json (L115-L162, L333-L381) — FX Forward 一部解約前後の tradeLot</span>
+              </div>
+              <pre><code><span class="cm">// 【一部解約前 (before)】 20,000,000 EUR @ 0.90 USD/EUR (derivedQuantity: 18,000,000 USD)</span>
+"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ { "@key:scoped" : "price-1", "value" : 0.9, "unit" : {"currency":{"@data":"USD"}}, "perUnitOf" : {"currency":{"@data":"EUR"}},
+                  "priceType" : "ExchangeRate", "derivedQuantity" : { "value" : 18000000, "unit" : {"currency":{"@data":"USD"}} } } ],
+    "quantity" : { "@key:scoped" : "quantity-1", "value" : <span class="st">20000000</span>, "unit" : {"currency":{"@data":"EUR"}} },
+    "observable" : { "@key:scoped" : "observable-1", "@data" : { "@type" : "...Cash", "identifier" : [{"identifier":{"@data":"EUR"},"identifierType":"CurrencyCode"}], "assetType" : "Cash" } }
+  } ]
+} ]
+
+<span class="cm">// 【一部解約後 (after)】 5,000,000 EUR 解約 → quantity.value が 15,000,000 EUR に減少</span>
+<span class="cm">// ※実務では PriceQuantityTriangulation (0.9 * 15,000,000 = 13,500,000) のため derivedQuantity も 13,500,000 に更新する</span>
+"tradeLot" : [ {
+  "priceQuantity" : [ {
+    "price" : [ { "@key:scoped" : "price-1", "value" : 0.9, "unit" : {"currency":{"@data":"USD"}}, "perUnitOf" : {"currency":{"@data":"EUR"}},
+                  "priceType" : "ExchangeRate", "derivedQuantity" : { "value" : <span class="st">13500000</span>, "unit" : {"currency":{"@data":"USD"}} } } ],
+    "quantity" : { "@key:scoped" : "quantity-1", "value" : <span class="st">15000000</span>, "unit" : {"currency":{"@data":"EUR"}} },
+    "observable" : { "@key:scoped" : "observable-1", "@data" : { "@type" : "...Cash", "identifier" : [{"identifier":{"@data":"EUR"},"identifierType":"CurrencyCode"}], "assetType" : "Cash" } }
+  } ]
+} ]</code></pre>
+            </div>
+          </div>
+
           <!-- SP3: Qualify_ForeignExchange_Spot_Forward -->
           <div class="node-detail-card" data-node-content="node-sp3" style="display: none;">
             <div class="detail-pane active" data-pane="tab-meaning">
-              <h3>C3: <code>Qualify_AssetClass_ForeignExchange</code> と <code>Qualify_ForeignExchange_Spot_Forward</code></h3>
+              <h3>C4: <code>Qualify_AssetClass_ForeignExchange</code> と <code>Qualify_ForeignExchange_Spot_Forward</code></h3>
               <p>
                 CDMでは「商品名ラベル」を人手でハードコードするのではなく、<code>EconomicTerms</code> を入力とする <code>[qualification Product]</code> 関数（<span class="cite-badge">product-qualification-func.rosetta</span>）によって製品分類（ISDA Product Taxonomy）を自動推論します。
               </p>
@@ -524,7 +787,7 @@
           <!-- SP4: Qualify_ForeignExchange_Swap -->
           <div class="node-detail-card" data-node-content="node-sp4" style="display: none;">
             <div class="detail-pane active" data-pane="tab-meaning">
-              <h3>C4: <code>Qualify_ForeignExchange_Swap</code> と FpML <code>FxSwap</code> マッピング関数</h3>
+              <h3>C5: <code>Qualify_ForeignExchange_Swap</code> と FpML <code>FxSwap</code> マッピング関数</h3>
               <p>
                 FX Swap の製品判定関数 <code>Qualify_ForeignExchange_Swap</code>（<span class="cite-badge">product-qualification-func.rosetta:L1656-L1667</span>）は、以下の4条件すべてが満たされたときに <code>True</code> を返します。
               </p>
@@ -601,7 +864,7 @@
           <!-- SP5: Multi-USI & CalculationSchedule -->
           <div class="node-detail-card" data-node-content="node-sp5" style="display: none;">
             <div class="detail-pane active" data-pane="tab-meaning">
-              <h3>C5: 複数取引識別子（Multi-USI/UTI）と <code>CalculationSchedule</code></h3>
+              <h3>C6: 複数取引識別子（Multi-USI/UTI）と <code>CalculationSchedule</code></h3>
               <p>
                 実務のFX取引データをマッピングする際によく登場する2つの応用パターンを押さえておきましょう。
               </p>
@@ -661,9 +924,9 @@
       </div>
     </section>
 
-    <!-- Section 4: Docs Discrepancy Warning -->
+    <!-- Section 5: Docs Discrepancy Warning -->
     <section>
-      <h2>4. 一次ソース検証で見つかる <code>docs/product-model.md</code> の重大な乖離</h2>
+      <h2>5. 一次ソース検証で見つかる <code>docs/product-model.md</code> の重大な乖離</h2>
       <p>
         為替の決済条件と商品スコープに関しても、二次資料 <code>common-domain-model/docs/product-model.md</code> には<strong>現行の <code>.rosetta</code> 一次ソースと完全に食い違う古い記述</strong>が残っています。マッピング設計・レビュー時には以下の2点に必ず注意してください。
       </p>
@@ -686,9 +949,9 @@
       </div>
     </section>
 
-    <!-- Section 5: Interactive Mapping Exercise -->
+    <!-- Section 6: Interactive Mapping Exercise -->
     <section>
-      <h2>5. 実践演習①：USD/JPY 為替スワップ（FX Swap）の Near / Far レッグ設計マッピング</h2>
+      <h2>6. 実践演習①：USD/JPY 為替スワップ（FX Swap）の Near / Far レッグ＆<code>priceQuantity</code> 設計マッピング</h2>
       <p>
         以下の実務条件の <strong>USD/JPY FX Swap（為替スワップ）取引</strong> を CDM にマッピングします。各問いの正しいパス・設定値を選択して「検証」を押してください。
       </p>
@@ -788,12 +1051,56 @@
           </div>
           <div class="feedback-msg"></div>
         </div>
+
+        <!-- Item 5 -->
+        <div
+          class="mapping-item"
+          data-answer="value: 149.40、composite -> baseValue: 149.00, operand: 0.40, arithmeticOperator: Add, operandType: Commission"
+          data-explanation="<code>PriceSchedule</code> 直下の <code>arithmeticOperator = Add</code> は <code>condition SpreadPrice</code>（<code>observable-asset-type.rosetta:L177-L179</code>）により <code>ExchangeRate</code> では使えません。<code>composite</code>（<code>PriceComposite</code>）を使い、<code>baseValue</code> にマージン抜レート <code>149.00</code>、<code>operand</code> にマージン幅 <code>0.40</code>、<code>arithmeticOperator: Add</code>、<code>operandType: Commission</code>（または省略）を設定します。"
+        >
+          <div class="mapping-prompt">
+            問5. Far Leg のレート <code>149.40</code> が「市場フォワードレート（マージン抜）<code>149.00</code> ＋ 対顧客マージン <code>0.40</code>」である場合、<code>priceQuantity[1] -> price[0]</code> 内で内訳を表現する正しい設定はどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 対顧客マージン内訳の設定を選択 --</option>
+              <option value="price[0] 直下に value: 0.40, priceType: ExchangeRate, arithmeticOperator: Add を設定">price[0] 直下に value: 0.40, priceType: ExchangeRate, arithmeticOperator: Add を設定</option>
+              <option value="value: 149.40、composite -> baseValue: 149.00, operand: 0.40, arithmeticOperator: Add, operandType: Commission">value: 149.40、composite -> baseValue: 149.00, operand: 0.40, arithmeticOperator: Add, operandType: Commission</option>
+              <option value="value: 149.00、derivedQuantity -> multiplier -> value: 0.40 を設定">value: 149.00、derivedQuantity -> multiplier -> value: 0.40 を設定</option>
+              <option value="value: 149.40、composite -> baseValue: 0.40, operand: 149.00, arithmeticOperator: Multiply, operandType: AccruedInterest">value: 149.40、composite -> baseValue: 0.40, operand: 149.00, arithmeticOperator: Multiply, operandType: AccruedInterest</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 6 -->
+        <div
+          class="mapping-item"
+          data-answer="quantity-2 の value を 6,000,000 USD、price-2 の derivedQuantity -> value を 896,400,000 JPY に更新（満期受渡決済時は両方とも変化させず transferHistory に記録）"
+          data-explanation="一部解約（<code>QuantityChange</code>）では <code>tradeLot -> priceQuantity</code> の残存数量を更新し、<code>PriceQuantityTriangulation</code>（<code>149.40 * 6,000,000 = 896,400,000</code>）を満たすよう <code>derivedQuantity</code> も更新します。一方、満期受渡決済（<code>Transfer</code>）では <code>tradeLot -> priceQuantity</code> は一切変化させず、<code>TradeState -> transferHistory</code> に決済実績を追加します。"
+        >
+          <div class="mapping-prompt">
+            問6. 期前に Far Leg のうち <strong>4,000,000 USD 分を一部解約（残存 6,000,000 USD）</strong>した場合と、その後<strong>満期日に受渡決済</strong>した場合で、Far Leg の <code>priceQuantity[1]</code> はどうなるか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 一部解約時と満期受渡時の priceQuantity[1] の変化を選択 --</option>
+              <option value="一部解約時は priceQuantity[1] は変化せず、満期受渡決済時に quantity-2 と derivedQuantity を 0 に更新">一部解約時は priceQuantity[1] は変化せず、満期受渡決済時に quantity-2 と derivedQuantity を 0 に更新</option>
+              <option value="quantity-2 の value を 6,000,000 USD、price-2 の derivedQuantity -> value を 896,400,000 JPY に更新（満期受渡決済時は両方とも変化させず transferHistory に記録）">quantity-2 の value を 6,000,000 USD、price-2 の derivedQuantity -> value を 896,400,000 JPY に更新（満期受渡決済時は両方とも変化させず transferHistory に記録）</option>
+              <option value="quantity-2 の value のみ 6,000,000 USD に更新し、derivedQuantity は 1,494,000,000 JPY のまま固定、満期受渡決済時に 0 に更新">quantity-2 の value のみ 6,000,000 USD に更新し、derivedQuantity は 1,494,000,000 JPY のまま固定、満期受渡決済時に 0 に更新</option>
+              <option value="新しい TradeLot を追加して -4,000,000 USD の負の quantity を格納">新しい TradeLot を追加して -4,000,000 USD の負の quantity を格納</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
       </div>
     </section>
 
-    <!-- Section 6: Retrieval Practice Quiz -->
+    <!-- Section 7: Retrieval Practice Quiz -->
     <section>
-      <h2>6. 実践演習②：記憶定着クイズ（Retrieval Practice）</h2>
+      <h2>7. 実践演習②：記憶定着クイズ（Retrieval Practice）</h2>
       <p>
         画面上の解説を見ずに、記憶から引き出して回答してください（選択肢をクリックすると即座に判定されます）。
       </p>
@@ -867,6 +1174,42 @@
             <button class="quiz-option-btn">決済ペイアウトが継承する基底型の決済条件と支払受取に置く</button>
             <button class="quiz-option-btn">経済条件の直下に置かれた終了日属性と計算代理人属性に置く</button>
             <button class="quiz-option-btn">観測対象キャッシュ資産が持つ決済日属性と当事者役割に置く</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q5: Correct = index 0 (All 4 options = 28 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="0"
+          data-explanation="<code>PriceSchedule</code> 直下の <code>arithmeticOperator = Add</code> は <code>condition SpreadPrice</code>（<code>observable-asset-type.rosetta:L177-L179</code>）により <code>ExchangeRate</code> では禁止されています。<code>PriceComposite</code>（<code>composite</code>）に <code>baseValue</code>（マージン抜レート）と <code>operand</code>（<code>operandType: Commission</code>）を設定します。"
+        >
+          <div class="quiz-q-title">
+            Q5. FX Forwardで対顧客マージンとベースレートの内訳を1つの <code>PriceSchedule</code> で表す方法はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">複合価格構造体へベース値とコミッションの加算値を設定する</button>
+            <button class="quiz-option-btn">価格スケジュール直下の算術演算子に加算と値を直接設定する</button>
+            <button class="quiz-option-btn">算出数量の乗数属性にマージン比率と通貨単位を直接設定する</button>
+            <button class="quiz-option-btn">決済ペイアウト内の決済条件に顧客マージン額を直接設定する</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q6: Correct = index 2 (All 4 options = 28 chars) -->
+        <div
+          class="quiz-question-card"
+          data-correct-index="2"
+          data-explanation="一部解約（<code>Create_QuantityChange</code>：<code>event-common-func.rosetta:L964-L1020</code>）では <code>tradeLot -> priceQuantity -> quantity</code>（および三角整合性を保つための <code>derivedQuantity</code>）が残存数量に減少しますが、満期受渡決済（<code>Create_Transfer</code>：<code>L651-L673</code>）では <code>priceQuantity</code> は変化せず <code>transferHistory</code> に決済実績が追加されます。"
+        >
+          <div class="quiz-q-title">
+            Q6. FX Forwardの一部解約後と満期受渡決済後における <code>tradeLot -> priceQuantity</code> の変化はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">一部解約後も満期決済後も数量と算出数量はともにゼロになる</button>
+            <button class="quiz-option-btn">一部解約後は数量が維持され満期決済後は数量がゼロへと減る</button>
+            <button class="quiz-option-btn">一部解約後は残存数量に減り満期決済後は変化せず維持される</button>
+            <button class="quiz-option-btn">一部解約後も満期決済後も数量は変化せず決済履歴のみ増える</button>
           </div>
           <div class="feedback-msg"></div>
         </div>

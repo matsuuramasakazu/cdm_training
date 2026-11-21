@@ -29,6 +29,7 @@
 
 ## 4. インタラクティブ教材の設計規約
 - `./assets/style.css` と `./assets/cdm-learning.js` を全レッスン・リファレンスで共有する。
+- **Phase 3（各論）でのバランス方針**: `Product -> economicTerms -> payout`（`SettlementPayout` や `OptionPayout`）の解説だけでなく、それと対になる **`tradeLot -> priceQuantity`**（商品ごとのレート・数量表現、対顧客マージン／複合価格などの実務バリエーション、一部解約や決済などライフサイクル上の `priceQuantity` 変化）も同等の深さで詳しく解説する。
 - 各レッスンには以下を組み込む：
   1. トップダウン型階層＆ `.rosetta` 一次ソース対比ビューア
   2. 実務データ項目 ↔ `.rosetta` パスのインタラクティブ・マッピング演習（即時フィードバック付き）
