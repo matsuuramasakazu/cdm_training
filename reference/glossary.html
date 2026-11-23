@@ -18,6 +18,7 @@
         <a href="../lessons/0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
         <a href="../lessons/0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
         <a href="../lessons/0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
+        <a href="../lessons/0007-fx-asian-barrier-gap-options.html">Lesson 0007</a>
         <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
       </div>
@@ -220,16 +221,22 @@
           <td><span class="cite-badge">ingest-fpml-confirmation-payment-func.rosetta:L106-L107, L412-L421</span><br /><span class="cite-badge">product-common-settlement-enum.rosetta:L29</span></td>
         </tr>
         <tr>
-          <td><strong>アベレージレート vs アベレージストライク</strong><br />Average Rate vs Average Strike</td>
-          <td><code>AveragingFeature</code><br /><code>AveragingStrikeFeature</code></td>
-          <td>平均レートを最終決済価格に使うのが <code>OptionPayout -> feature -> averagingFeature</code>、平均レートをストライク価格自体にするのが <code>OptionPayout -> strike -> averagingStrikeFeature</code>。両者は <code>condition</code> で排他制御されている。</td>
-          <td><span class="cite-badge">product-template-type.rosetta:L137-L143</span><br /><span class="cite-badge">product-template-type.rosetta:L620-L634</span></td>
+          <td><strong>アジアン・オプション（アベレージ・レート vs アベレージ・ストライク）</strong><br />Asian Option (Average Rate vs Average Strike)</td>
+          <td><code>AveragingFeature</code><br /><code>AveragingStrikeFeature</code><br /><code>ObservationTerms</code> / <code>ObservationDates</code></td>
+          <td>観測期間中の市場レートの平均値を最終決済参照レートに使うのがアベレージ・レート（<code>OptionPayout -> observationTerms</code> または <code>feature -> averagingFeature [Out]</code> ＋ 固定ストライク <code>strike -> strikePrice</code>）、平均値をストライク価格自体に使うのがアベレージ・ストライク（<code>strike -> averagingStrikeFeature</code> または <code>feature -> averagingFeature [In]</code>）。<code>OptionStrike</code> の <code>one-of</code> および <code>OptionPayout</code> の <code>condition AsianOptionChoice_*</code> により二重に排他制御されており、アベレージ・ストライク約定時はストライク未確定のため <code>priceQuantity -> quantity</code>（基準通貨数量）のみを定め <code>derivedQuantity</code> は空（<code>absent</code>）とする。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L137-L144, L620-L634, L684-L694</span><br /><span class="cite-badge">product-common-schedule-type.rosetta:L151-L187</span></td>
         </tr>
         <tr>
-          <td><strong>バリア条件 / トリガーイベント</strong><br />Barrier / Trigger Event</td>
-          <td><code>Barrier</code><br /><code>TriggerEvent</code> / <code>Trigger</code></td>
-          <td>ノックイン（<code>knockIn</code>）・ノックアウト（<code>knockOut</code>）のトリガー水準（<code>level</code>）、判定方法（<code>triggerType</code>）、リベート支払（<code>featurePayment</code>）を定義する。バリアオプションやギャップオプションの表現に使用する。</td>
-          <td><span class="cite-badge">product-template-type.rosetta:L635-L638</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29</span></td>
+          <td><strong>バリア・オプション / トリガーイベント / リベート支払</strong><br />Barrier Option, Trigger Event &amp; Feature Payment</td>
+          <td><code>Barrier</code><br /><code>TriggerEvent</code> / <code>Trigger</code><br /><code>FeaturePayment</code><br /><code>BarrierDeterminationAgent</code></td>
+          <td><code>OptionPayout -> feature -> barrier</code> にてノックイン（<code>knockIn (0..*)</code>）・ノックアウト（<code>knockOut (0..*)</code>）を定義する。複数カーディナリティによりダブル・バリアや KIKO を表現可能。各 <code>Trigger</code> は <code>condition Choice1</code> により為替レート水準（<code>level</code>）、方向（<code>triggerType</code>：<code>EqualOrGreater</code> / <code>EqualOrLess</code> 等）、監視方法（<code>triggerTimeType</code>：連続監視 <code>Anytime</code> / 終値監視 <code>Closing</code>）を持ち、リベート補償金は <code>TriggerEvent -> featurePayment</code>（<code>PartyReferencePayerReceiver</code> 使用）に格納する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L635-L638, L661-L667</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29, L85-L101</span><br /><span class="cite-badge">observable-event-enum.rosetta:L15-L25</span></td>
+        </tr>
+        <tr>
+          <td><strong>ギャップ・オプション（ストライク $K_1$ vs トリガー $K_2$）</strong><br />Gap Option (Strike $K_1$ vs Trigger $K_2$)</td>
+          <td><code>strike -> strikePrice</code> ($K_1$)<br /><code>feature -> barrier -> knockIn -> trigger -> level</code> ($K_2$)</td>
+          <td>権利が有効化される発動閾値（トリガー $K_2$）と、発動した際の2通貨交換・差額精算の基準レート（ストライク $K_1$, $K_1 \neq K_2$）が分離しているオプション。CDM では精算基準の $K_1$ を <code>strike -> strikePrice</code> に、発動閾値の $K_2$ を <code>feature -> barrier -> knockIn -> trigger -> level</code> に分離配置し、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク $K_1$ で換算した対価通貨金額（$\text{quantity} \times K_1$）を格納する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L126-L136, L635-L638, L684-L694</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29</span></td>
         </tr>
         <tr>
           <td><strong>法的契約・担保規定</strong><br />Legal Agreement &amp; Collateral</td>
