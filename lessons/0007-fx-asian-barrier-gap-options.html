@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lesson 0007: 為替オプション② アジアン・バリア・ギャップ（AveragingFeature vs AveragingStrikeFeature, Barrier / TriggerEvent, ギャップ K1 vs K2）</title>
+  <title>Lesson 0007: 為替オプション② アジアン・バリア・ギャップ（AveragingFeature vs AveragingStrikeFeature, Barrier / TriggerEvent, ギャップ K1
+    vs K2）</title>
   <link rel="stylesheet" href="../assets/style.css" />
 </head>
 
@@ -27,17 +28,31 @@
     </nav>
 
     <header class="lesson-header">
-      <div class="lesson-meta">Phase 3 · Lesson 0007 · Exotic Foreign Exchange Options (Asian, Barrier &amp; Gap Options)</div>
-      <h1>為替オプション② アジアン・バリア・ギャップ（<code>AveragingFeature</code> vs <code>AveragingStrikeFeature</code> の排他制約、<code>Barrier</code> / <code>TriggerEvent</code>、ギャップ・オプションのトリガー <code>K<sub>2</sub></code> vs ストライク <code>K<sub>1</sub></code> 表現）</h1>
+      <div class="lesson-meta">Phase 3 · Lesson 0007 · Exotic Foreign Exchange Options (Asian, Barrier &amp; Gap
+        Options)</div>
+      <h1>為替オプション② アジアン・バリア・ギャップ（<code>AveragingFeature</code> vs <code>AveragingStrikeFeature</code>
+        の排他制約、<code>Barrier</code> / <code>TriggerEvent</code>、ギャップ・オプションのトリガー <code>K<sub>2</sub></code> vs ストライク
+        <code>K<sub>1</sub></code> 表現）
+      </h1>
       <p class="lesson-subtitle">
-        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a> では、単一の満期スポットレートと単一のストライクレートを比較するバニラ為替オプションおよび NDO の <code>OptionPayout</code> を確認しました。今回は、為替デリバティブ実務でヘッジコスト低減や期間平均レートヘッジのために広く用いられる<strong>経路依存型・条件付き為替オプション（アジアン・オプション、バリア・オプション、ギャップ・オプション）</strong>について、<code>OptionPayout</code> の拡張属性（<code>feature</code>・<code>observationTerms</code>・<code>strike</code>）と排他制約（<code>condition</code>）、および対になる <code>tradeLot -> priceQuantity</code> の設計ルールを一次ソースから整理します。
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
+        では、単一の満期スポットレートと単一のストライクレートを比較するバニラ為替オプションおよび NDO の <code>OptionPayout</code>
+        を確認しました。今回は、為替デリバティブ実務でヘッジコスト低減や期間平均レートヘッジのために広く用いられる<strong>経路依存型・条件付き為替オプション（アジアン・オプション、バリア・オプション、ギャップ・オプション）</strong>について、<code>OptionPayout</code>
+        の拡張属性（<code>feature</code>・<code>observationTerms</code>・<code>strike</code>）と排他制約（<code>condition</code>）、および対になる
+        <code>tradeLot -> priceQuantity</code> の設計ルールを一次ソースから整理します。
       </p>
     </header>
 
     <div class="callout callout-mission">
       <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
       <p style="margin-bottom: 0;">
-        ① <strong>アジアン為替オプション</strong>における「アベレージ・レート（固定ストライク vs 平均決済レート）」と「アベレージ・ストライク（平均ストライク vs 満期レート）」の違いを、<code>OptionPayout -> observationTerms</code>・<code>OptionFeature -> averagingFeature</code>・<code>OptionStrike -> averagingStrikeFeature</code> の構造および二重の排他制約（<code>OptionStrike</code> の <code>one-of</code> と <code>OptionPayout</code> の <code>AsianOptionChoice_*</code>）に基づいて区別し、② <strong>バリア為替オプション</strong>（Knock-in / Knock-out / Double Barrier / Rebate）の <code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> を構築でき、③ <strong>ギャップ・オプション</strong>における「ペイオフ計算基準のストライク <code>K<sub>1</sub></code>」と「権利発動閾値のトリガー <code>K<sub>2</sub></code>」の分離表現および各商品の <code>tradeLot -> priceQuantity</code> を設計・レビューできるようになります。
+        ① <strong>アジアン為替オプション</strong>における「アベレージ・レート（固定ストライク vs 平均決済レート）」と「アベレージ・ストライク（平均ストライク vs
+        満期レート）」の違いを、<code>OptionPayout -> observationTerms</code>・<code>OptionFeature -> averagingFeature</code>・<code>OptionStrike -> averagingStrikeFeature</code>
+        の構造および二重の排他制約（<code>OptionStrike</code> の <code>one-of</code> と <code>OptionPayout</code> の
+        <code>AsianOptionChoice_*</code>）に基づいて区別し、② <strong>バリア為替オプション</strong>（Knock-in / Knock-out / Double Barrier /
+        Rebate）の <code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> を構築でき、③
+        <strong>ギャップ・オプション</strong>における「ペイオフ計算基準のストライク <code>K<sub>1</sub></code>」と「権利発動閾値のトリガー
+        <code>K<sub>2</sub></code>」の分離表現および各商品の <code>tradeLot -> priceQuantity</code> を設計・レビューできるようになります。
       </p>
     </div>
 
@@ -45,12 +60,17 @@
     <section>
       <h2>1. アジアン為替オプション（Asian FX Option）と、アベレージレート vs アベレージストライクの排他制約</h2>
       <p>
-        まず、<strong>アジアン・オプション（Asian Option / 平均値オプション）</strong>の金融実務上の意味と2つの類型を確認し、続いて CDM 一次ソース（<code>product-template-type.rosetta</code> および <code>product-common-schedule-type.rosetta</code>）での表現と排他制約を読み解きます。
+        まず、<strong>アジアン・オプション（Asian Option / 平均値オプション）</strong>の金融実務上の意味と2つの類型を確認し、続いて CDM
+        一次ソース（<code>product-template-type.rosetta</code> および
+        <code>product-common-schedule-type.rosetta</code>）での表現と排他制約を読み解きます。
       </p>
 
       <h3>1-1. アジアン・オプションの金融実務概念：アベレージ・レート（Out）vs アベレージ・ストライク（In）</h3>
       <p>
-        バニラ・オプションは満期日（1時点）の為替スポットレート $S_T$ だけで権利行使価値が決まりますが、<strong>アジアン・オプション</strong>はあらかじめ定めた観測期間（Observation Period）における複数回の為替レート観測値 $S_{t_1}, S_{t_2}, \dots, S_{t_n}$ の<strong>平均値（Average Rate：算術平均 <code>Arithmetic</code> または幾何平均 <code>Geometric</code>、単純平均 <code>Unweighted</code> または加重平均 <code>Weighted</code>）</strong>を参照する経路依存型（Path-Dependent）オプションです。<br />
+        バニラ・オプションは満期日（1時点）の為替スポットレート $S_T$ だけで権利行使価値が決まりますが、<strong>アジアン・オプション</strong>はあらかじめ定めた観測期間（Observation
+        Period）における複数回の為替レート観測値 $S_{t_1}, S_{t_2}, \dots, S_{t_n}$ の<strong>平均値（Average Rate：算術平均
+          <code>Arithmetic</code> または幾何平均 <code>Geometric</code>、単純平均 <code>Unweighted</code> または加重平均
+          <code>Weighted</code>）</strong>を参照する経路依存型（Path-Dependent）オプションです。<br />
         輸出入企業の月次・四半期平均建値ヘッジなどに適しており、「平均レートを<strong>決済時の参照レート（Out）</strong>に使うか、それとも<strong>ストライク価格自体（In）</strong>に使うか」によって以下の2種類に分かれます。
       </p>
 
@@ -59,7 +79,8 @@
           <tr>
             <th style="width: 20%;">比較項目</th>
             <th style="width: 40%;">① アベレージ・レート・オプション<br />（Average Rate Option / Asian Price / <code>Out</code>）</th>
-            <th style="width: 40%;">② アベレージ・ストライク・オプション<br />（Average Strike Option / Floating Strike / <code>In</code>）</th>
+            <th style="width: 40%;">② アベレージ・ストライク・オプション<br />（Average Strike Option / Floating Strike / <code>In</code>）
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -67,10 +88,12 @@
             <td><strong>実務での仕組み</strong></td>
             <td>
               <strong>ストライク価格 $K$ は約定時に固定値として合意</strong>される。<br />
-              観測期間中の市場為替レートの<strong>平均値 $\bar{S}_{\text{out}}$ を満期時の最終決済参照レート（Expiration / Settlement Price）</strong>として用い、固定ストライク $K$ と比較して差金決済（または受渡精算）を行う。
+              観測期間中の市場為替レートの<strong>平均値 $\bar{S}_{\text{out}}$ を満期時の最終決済参照レート（Expiration / Settlement
+                Price）</strong>として用い、固定ストライク $K$ と比較して差金決済（または受渡精算）を行う。
             </td>
             <td>
-              <strong>約定時点ではストライク価格が固定されておらず、観測期間中の市場為替レートの平均値 $\bar{S}_{\text{in}}$ がそのままストライク価格（変動ストライク）</strong>になる。<br />
+              <strong>約定時点ではストライク価格が固定されておらず、観測期間中の市場為替レートの平均値 $\bar{S}_{\text{in}}$
+                がそのままストライク価格（変動ストライク）</strong>になる。<br />
               満期日のスポットレート $S_T$ と、確定した平均ストライク $\bar{S}_{\text{in}}$ を比較して精算する。
             </td>
           </tr>
@@ -88,10 +111,12 @@
           <tr>
             <td><strong>約定時点で確定している数量・価格</strong></td>
             <td>
-              固定ストライク $K$ が約定時に確定しているため、<strong>基準通貨数量（<code>quantity</code>）と対価通貨数量（<code>derivedQuantity</code> $= \text{quantity} \times K$）の両方が約定時に確定</strong>する。
+              固定ストライク $K$ が約定時に確定しているため、<strong>基準通貨数量（<code>quantity</code>）と対価通貨数量（<code>derivedQuantity</code> $=
+                \text{quantity} \times K$）の両方が約定時に確定</strong>する。
             </td>
             <td>
-              ストライク $\bar{S}_{\text{in}}$ が観測期間終了まで未確定であるため、<strong>約定時点では基準通貨の名目元本（<code>quantity</code>）のみが確定</strong>し、対価通貨数量（<code>derivedQuantity</code>）は約定時点では未確定（<code>absent</code>）となる。
+              ストライク $\bar{S}_{\text{in}}$
+              が観測期間終了まで未確定であるため、<strong>約定時点では基準通貨の名目元本（<code>quantity</code>）のみが確定</strong>し、対価通貨数量（<code>derivedQuantity</code>）は約定時点では未確定（<code>absent</code>）となる。
             </td>
           </tr>
         </tbody>
@@ -99,7 +124,9 @@
 
       <h3>1-2. CDM 一次ソースにおける2階層の排他制約（<code>condition</code>）とスキーマ配置</h3>
       <p>
-        CDM の <code>OptionPayout</code>（<span class="cite-badge">product-template-type.rosetta:L126-L144</span>）および <code>OptionStrike</code>（<span class="cite-badge">product-template-type.rosetta:L684-L694</span>）には、アジアン・オプションに関する属性と<strong>2階層の排他制約（<code>condition</code>）</strong>が定義されています。まず一次ソースの定義を確認しましょう。
+        CDM の <code>OptionPayout</code>（<span class="cite-badge">product-template-type.rosetta:L126-L144</span>）および
+        <code>OptionStrike</code>（<span
+          class="cite-badge">product-template-type.rosetta:L684-L694</span>）には、アジアン・オプションに関する属性と<strong>2階層の排他制約（<code>condition</code>）</strong>が定義されています。まず一次ソースの定義を確認しましょう。
       </p>
 
       <div class="code-header">
@@ -158,25 +185,54 @@
       </p>
       <ol>
         <li>
-          <strong>排他制約①：<code>OptionStrike</code> 内の <code>condition: one-of</code>（<code>L692-L693</code>）</strong>：<br />
-          <code>OptionStrike</code> は <code>strikePrice</code>（固定ストライク価格）と <code>averagingStrikeFeature</code>（平均観測による変動ストライク条件）のどちらか1つしか持てません。したがって、<strong>アベレージ・レート・オプション（固定ストライク $K$ がある取引）では必ず <code>strike -> strikePrice</code> を使用し、<code>strike -> averagingStrikeFeature</code> は空（<code>absent</code>）</strong>になります。逆に、<code>strike -> averagingStrikeFeature</code> を使用するアベレージ・ストライク・オプションでは、<code>strike -> strikePrice</code> を同時に設定することはできません。
+          <strong>排他制約①：<code>OptionStrike</code> 内の
+            <code>condition: one-of</code>（<code>L692-L693</code>）</strong>：<br />
+          <code>OptionStrike</code> は <code>strikePrice</code>（固定ストライク価格）と
+          <code>averagingStrikeFeature</code>（平均観測による変動ストライク条件）のどちらか1つしか持てません。したがって、<strong>アベレージ・レート・オプション（固定ストライク $K$
+            がある取引）では必ず <code>strike -> strikePrice</code> を使用し、<code>strike -> averagingStrikeFeature</code>
+            は空（<code>absent</code>）</strong>になります。逆に、<code>strike -> averagingStrikeFeature</code>
+          を使用するアベレージ・ストライク・オプションでは、<code>strike -> strikePrice</code> を同時に設定することはできません。
         </li>
         <li>
-          <strong>排他制約②：<code>OptionPayout</code> の <code>AsianOptionChoice_*</code>（<code>L137-L144</code>）</strong>：<br />
-          <code>OptionPayout -> feature -> averagingFeature</code>（<code>AveragingFeature</code> 型）と、<code>OptionPayout -> strike -> averagingStrikeFeature</code>（<code>AveragingStrikeFeature</code> 型）は、<strong>同一の <code>OptionPayout</code> 内で同時に存在することが禁止（相互排他）</strong>されています。<br />
-          なぜなら、<code>AveragingFeature</code> 自体が <code>averagingInOut</code>（<code>In</code>：平均ストライク、<code>Out</code>：平均決済価格、<code>Both</code>：両方平均、<span class="cite-badge">product-template-enum.rosetta:L6-L10</span>）という属性を持っており、もし <code>feature -> averagingFeature</code> と <code>strike -> averagingStrikeFeature</code> の両方を許すと平均ストライク条件が2箇所に重複定義されてしまうためです。
+          <strong>排他制約②：<code>OptionPayout</code> の
+            <code>AsianOptionChoice_*</code>（<code>L137-L144</code>）</strong>：<br />
+          <code>OptionPayout -> feature -> averagingFeature</code>（<code>AveragingFeature</code>
+          型）と、<code>OptionPayout -> strike -> averagingStrikeFeature</code>（<code>AveragingStrikeFeature</code>
+          型）は、<strong>同一の <code>OptionPayout</code> 内で同時に存在することが禁止（相互排他）</strong>されています。<br />
+          なぜなら、<code>AveragingFeature</code> 自体が
+          <code>averagingInOut</code>（<code>In</code>：平均ストライク、<code>Out</code>：平均決済価格、<code>Both</code>：両方平均、<span
+            class="cite-badge">product-template-enum.rosetta:L6-L10</span>）という属性を持っており、もし
+          <code>feature -> averagingFeature</code> と <code>strike -> averagingStrikeFeature</code>
+          の両方を許すと平均ストライク条件が2箇所に重複定義されてしまうためです。
         </li>
         <li>
           <strong>為替のアベレージ・レート・オプション（<code>fx-ex20</code>〜<code>fx-ex22</code>）における CDM の2つの表現ルート</strong>：<br />
-          一次ソースの FpML 変換関数 <code>MapFxOptionPayout</code>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L108-L110, L137-L192</span>）および検証済み JSON を確認すると、CDM には平均観測条件の格納先として以下の<strong>2つの正規ルート</strong>が存在します：
+          一次ソースの FpML 変換関数 <code>MapFxOptionPayout</code>（<span
+            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L108-L110,
+            L137-L192</span>）および検証済み JSON を確認すると、CDM には平均観測条件の格納先として以下の<strong>2つの正規ルート</strong>が存在します：
           <ul>
             <li>
-              <strong>ルートA（FX FpML Ingest 標準：<code>OptionPayout -> observationTerms</code> ＋ <code>strike -> strikePrice</code>）</strong>：<br />
-              FpML の <code>&lt;fxOption&gt;&lt;features&gt;&lt;asian&gt;</code> を変換した検証済み JSON（<span class="cite-badge">fx-ex20-avg-rate-option-parametric.json:L38-L74</span>）で使われている構造です。固定ストライクを <code>strike -> strikePrice</code> に置き、為替フィキシング時刻（<code>observationTime</code>）・情報ソース（<code>informationSource: FxSpotRateSource</code>）・観測日スケジュール（<code>observationDates</code>）を <strong><code>OptionPayout -> observationTerms</code></strong>（<span class="cite-badge">product-common-schedule-type.rosetta:L174-L187</span>）に格納します。
+              <strong>ルートA（FX FpML Ingest 標準：<code>OptionPayout -> observationTerms</code> ＋
+                <code>strike -> strikePrice</code>）</strong>：<br />
+              FpML の <code>&lt;fxOption&gt;&lt;features&gt;&lt;asian&gt;</code> を変換した検証済み JSON（<span
+                class="cite-badge">fx-ex20-avg-rate-option-parametric.json:L38-L74</span>）で使われている構造です。固定ストライクを
+              <code>strike -> strikePrice</code>
+              に置き、為替フィキシング時刻（<code>observationTime</code>）・情報ソース（<code>informationSource: FxSpotRateSource</code>）・観測日スケジュール（<code>observationDates</code>）を
+              <strong><code>OptionPayout -> observationTerms</code></strong>（<span
+                class="cite-badge">product-common-schedule-type.rosetta:L174-L187</span>）に格納します。
             </li>
             <li>
-              <strong>ルートB（<code>OptionFeature -> averagingFeature</code> または <code>OptionStrike -> averagingStrikeFeature</code> を用いる構造）</strong>：<br />
-              平均計算手法（<code>averagingCalculation</code>：算術／幾何平均 <code>calculationMethod</code>、加重有無 <code>isWeighted</code>、端数処理 <code>precision: Rounding</code>）や市場混乱時規定（<code>marketDisruption</code>）まで明示する場合は、アベレージ・レートなら <code>OptionPayout -> feature -> averagingFeature</code>（<code>averagingInOut: Out</code>）＋ <code>strike -> strikePrice</code>、アベレージ・ストライクなら <code>OptionPayout -> strike -> averagingStrikeFeature</code>（内部に <code>averagingCalculation</code> と <code>observationTerms</code> の両方を持つ）を使用します。なお、ルートAの <code>OptionPayout -> observationTerms</code> は <code>AsianOptionChoice_*</code> の排他対象外であるため、<code>feature -> averagingFeature</code> と併用して情報ソース（<code>FxSpotRateSource</code>）を補完することも可能です。
+              <strong>ルートB（<code>OptionFeature -> averagingFeature</code> または
+                <code>OptionStrike -> averagingStrikeFeature</code> を用いる構造）</strong>：<br />
+              平均計算手法（<code>averagingCalculation</code>：算術／幾何平均 <code>calculationMethod</code>、加重有無
+              <code>isWeighted</code>、端数処理
+              <code>precision: Rounding</code>）や市場混乱時規定（<code>marketDisruption</code>）まで明示する場合は、アベレージ・レートなら
+              <code>OptionPayout -> feature -> averagingFeature</code>（<code>averagingInOut: Out</code>）＋
+              <code>strike -> strikePrice</code>、アベレージ・ストライクなら
+              <code>OptionPayout -> strike -> averagingStrikeFeature</code>（内部に <code>averagingCalculation</code> と
+              <code>observationTerms</code> の両方を持つ）を使用します。なお、ルートAの <code>OptionPayout -> observationTerms</code> は
+              <code>AsianOptionChoice_*</code> の排他対象外であるため、<code>feature -> averagingFeature</code>
+              と併用して情報ソース（<code>FxSpotRateSource</code>）を補完することも可能です。
             </li>
           </ul>
         </li>
@@ -186,27 +242,75 @@
         <div class="callout-title">💡 深掘り解説：① なぜ平均ストライクの表現が2つあるのか？ ②「In / Out」の語源 ③「Both」と排他制約の関係</div>
         <ul style="margin-bottom: 0;">
           <li>
-            <strong>① なぜ <code>averagingFeature</code> と <code>averagingStrikeFeature</code> の2系統が存在し、どう使い分けるのか？</strong><br />
+            <strong>① なぜ <code>averagingFeature</code> と <code>averagingStrikeFeature</code>
+              の2系統が存在し、どう使い分けるのか？</strong><br />
             一次ソースの履歴（CDM 7 PR #3827 / <span class="cite-badge">RELEASE.md</span>）および型構造を見ると、この2つは設計の出自と保持できる属性が異なります：
             <ul>
-              <li><strong>もともとの CDM ネイティブ設計（概念分離型）</strong>：初期の CDM では、<code>OptionFeature</code> 側には平均決済価格用の <code>AveragingCalculation</code> のみを置き（そのため現在も <span class="cite-badge">product-template-type.rosetta:L664</span> の <code>averagingFeature</code> の説明文には <em>"an average market observation price is determined on valuation and compared to the strike"</em> とアベレージ・レート前提の記述が残っています）、平均ストライクは「ストライク価格の決定方式の1つ」として <code>OptionStrike -> averagingStrikeFeature</code>（<code>L631-L634, L690</code>）に分離していました。</li>
-              <li><strong>FpML Equity Asian Option（ISDA 2002 Equity Definitions）統合による拡張</strong>：一方、FpML の株式オプション（<span class="cite-badge">eqd-ex05-asian-long-form.xml</span>, <span class="cite-badge">eqd-ex06-averaging-in-long-form.xml</span>）では、平均ストライク（<code>In</code>）・平均決済価格（<code>Out</code>）・両方平均（<code>Both</code>）をすべて単一の <code>&lt;feature&gt;&lt;asian&gt;</code> タグで表現します。これを取り込むため、<code>AveragingFeature</code> 型（旧 <code>Asian</code> 型）が <code>OptionFeature -> averagingFeature</code> に接続され、既存の <code>OptionStrike -> averagingStrikeFeature</code> と重複しないよう <code>condition AsianOptionChoice_*</code> で排他制御されました。</li>
-              <li><strong>構造上の使い分け（<code>ObservationTerms</code> vs <code>AveragingPeriod</code>）</strong>：<code>AveragingStrikeFeature</code>（<code>L631-L634</code>）は内部に <strong><code>observationTerms: ObservationTerms</code></strong> を持ち、為替フィキシングに必要な画面ソース（<code>informationSource: FxSpotRateSource</code>）や観測時刻（<code>observationTime: BusinessCenterTime</code>）を直接格納できます。これに対し、<code>AveragingFeature</code> が持つ <code>averagingPeriodIn</code> / <code>averagingPeriodOut</code>（<code>AveragingPeriod</code> 型、<span class="cite-badge">product-common-schedule-type.rosetta:L242-L252</span>）には日時リストと <code>marketDisruption</code> しかなく <code>FxSpotRateSource</code> を持ちません。したがって、<strong>為替の純粋なアベレージ・ストライク・オプションを CDM ネイティブに表現する場合は <code>OptionStrike -> averagingStrikeFeature</code> が適しており</strong>、FpML <code>&lt;asian&gt;</code> 構造の取り込みや後述の <code>Both</code>（ダブル・アジアン）や <code>strikeFactor</code> を使う場合は <code>OptionFeature -> averagingFeature</code>（＋必要に応じ <code>OptionPayout -> observationTerms</code> で為替ソースを補完）を使い分けます。</li>
+              <li><strong>もともとの CDM ネイティブ設計（概念分離型）</strong>：初期の CDM では、<code>OptionFeature</code> 側には平均決済価格用の
+                <code>AveragingCalculation</code> のみを置き（そのため現在も <span
+                  class="cite-badge">product-template-type.rosetta:L664</span> の <code>averagingFeature</code> の説明文には
+                <em>"an average market observation price is determined on valuation and compared to the strike"</em>
+                とアベレージ・レート前提の記述が残っています）、平均ストライクは「ストライク価格の決定方式の1つ」として
+                <code>OptionStrike -> averagingStrikeFeature</code>（<code>L631-L634, L690</code>）に分離していました。
+              </li>
+              <li><strong>FpML Equity Asian Option（ISDA 2002 Equity Definitions）統合による拡張</strong>：一方、FpML の株式オプション（<span
+                  class="cite-badge">eqd-ex05-asian-long-form.xml</span>, <span
+                  class="cite-badge">eqd-ex06-averaging-in-long-form.xml</span>）では、平均ストライク（<code>In</code>）・平均決済価格（<code>Out</code>）・両方平均（<code>Both</code>）をすべて単一の
+                <code>&lt;feature&gt;&lt;asian&gt;</code> タグで表現します。これを取り込むため、<code>AveragingFeature</code> 型（旧
+                <code>Asian</code> 型）が <code>OptionFeature -> averagingFeature</code> に接続され、既存の
+                <code>OptionStrike -> averagingStrikeFeature</code> と重複しないよう <code>condition AsianOptionChoice_*</code>
+                で排他制御されました。
+              </li>
+              <li><strong>構造上の使い分け（<code>ObservationTerms</code> vs
+                  <code>AveragingPeriod</code>）</strong>：<code>AveragingStrikeFeature</code>（<code>L631-L634</code>）は内部に
+                <strong><code>observationTerms: ObservationTerms</code></strong>
+                を持ち、為替フィキシングに必要な画面ソース（<code>informationSource: FxSpotRateSource</code>）や観測時刻（<code>observationTime: BusinessCenterTime</code>）を直接格納できます。これに対し、<code>AveragingFeature</code>
+                が持つ <code>averagingPeriodIn</code> / <code>averagingPeriodOut</code>（<code>AveragingPeriod</code>
+                型、<span class="cite-badge">product-common-schedule-type.rosetta:L242-L252</span>）には日時リストと
+                <code>marketDisruption</code> しかなく <code>FxSpotRateSource</code>
+                を持ちません。したがって、<strong>為替の純粋なアベレージ・ストライク・オプションを CDM ネイティブに表現する場合は
+                  <code>OptionStrike -> averagingStrikeFeature</code> が適しており</strong>、FpML <code>&lt;asian&gt;</code>
+                構造の取り込みや後述の <code>Both</code>（ダブル・アジアン）や <code>strikeFactor</code> を使う場合は
+                <code>OptionFeature -> averagingFeature</code>（＋必要に応じ <code>OptionPayout -> observationTerms</code>
+                で為替ソースを補完）を使い分けます。
+              </li>
             </ul>
           </li>
           <li>
             <strong>② なぜ平均ストライクを <code>In</code>、平均決済価格を <code>Out</code> と呼ぶのか？（金融実務での語源）</strong><br />
-            <span class="cite-badge">product-template-enum.rosetta:L6-L10</span> の <code>AveragingInOutEnum</code> における <code>In</code> / <code>Out</code> は、ISDA 2002 Definitions および市場慣行の <strong>「Averaging-In（平均イン）」「Averaging-Out（平均アウト）」</strong> という用語に由来します：
+            <span class="cite-badge">product-template-enum.rosetta:L6-L10</span> の <code>AveragingInOutEnum</code> における
+            <code>In</code> / <code>Out</code> は、ISDA 2002 Definitions および市場慣行の
+            <strong>「Averaging-In（平均イン）」「Averaging-Out（平均アウト）」</strong> という用語に由来します：
             <ul>
-              <li><strong><code>In</code>（Averaging-In ＝ 取引の「入口」の建値・ストライク価格の平均化）</strong>：オプションのストライク価格とは、ポジションに<strong>参入（Entry ＝ In）</strong>する際の基準建値に相当します。取引初期（または一定期間）の観測レートを平均して「段階的にストライク（建値）へ入っていく（average <em>into</em> the strike）」ことから <strong><code>In</code>（<code>averagingPeriodIn</code>）</strong> と呼ばれます。</li>
-              <li><strong><code>Out</code>（Averaging-Out ＝ 取引の「出口」の満期決済価格の平均化）</strong>：満期時の決済参照価格（Expiration / Settlement Price）とは、ポジションから<strong>退出・精算（Exit ＝ Out）</strong>する際の出口価格に相当します。満期に向けた観測期間のレートを平均して「段階的に手仕舞い価格を確定させて出ていく（average <em>out of</em> the position）」ことから <strong><code>Out</code>（<code>averagingPeriodOut</code>）</strong> と呼ばれます。</li>
+              <li><strong><code>In</code>（Averaging-In ＝
+                  取引の「入口」の建値・ストライク価格の平均化）</strong>：オプションのストライク価格とは、ポジションに<strong>参入（Entry ＝
+                  In）</strong>する際の基準建値に相当します。取引初期（または一定期間）の観測レートを平均して「段階的にストライク（建値）へ入っていく（average <em>into</em> the
+                strike）」ことから <strong><code>In</code>（<code>averagingPeriodIn</code>）</strong> と呼ばれます。</li>
+              <li><strong><code>Out</code>（Averaging-Out ＝ 取引の「出口」の満期決済価格の平均化）</strong>：満期時の決済参照価格（Expiration /
+                Settlement Price）とは、ポジションから<strong>退出・精算（Exit ＝
+                  Out）</strong>する際の出口価格に相当します。満期に向けた観測期間のレートを平均して「段階的に手仕舞い価格を確定させて出ていく（average <em>out of</em> the
+                position）」ことから <strong><code>Out</code>（<code>averagingPeriodOut</code>）</strong> と呼ばれます。</li>
             </ul>
           </li>
           <li>
             <strong>③ <code>AveragingInOutEnum -> Both</code> は排他制約に違反しないのか？FX で使われることはあるか？</strong><br />
             <ul>
-              <li><strong>排他制約との関係（違反せずに表現可能）</strong>：<code>Both</code>（入口期間の平均レートでストライク $\bar{S}_{\text{in}}$ を決め、出口期間の平均レートで満期決済レート $\bar{S}_{\text{out}}$ を決める<strong>ダブル・アジアン / Double Asian Option</strong>）を表現する場合、<strong><code>strike -> averagingStrikeFeature</code> は使用せず（<code>absent</code> にし）、<code>OptionPayout -> feature -> averagingFeature</code> 1箇所の中だけ</strong>で <code>averagingInOut: Both</code> と <code>averagingPeriodIn</code>（入口期間）・<code>averagingPeriodOut</code>（出口期間）の両方を設定します。そのため、<code>strike -> averagingStrikeFeature</code> は空のままであり、排他制約①（<code>OptionStrike</code> の <code>one-of</code>）にも排他制約②（<code>AsianOptionChoice_*</code>）にも抵触しません。</li>
-              <li><strong>為替（FX）での扱い</strong>：FpML の為替オプション標準スキーマ（<code>&lt;fxOption&gt;&lt;features&gt;&lt;asian&gt;</code>）は単一観測期間＋固定ストライク（<code>Out</code> 相当）のみを想定しているため FpML FX の標準サンプルには <code>Both</code> は含まれませんが、実務の相対（OTC）為替デリバティブで「第1四半期の平均レートをストライクとし、第4四半期の平均レートで精算する」といった Double Average Rate Option を組成し CDM で表現する際には、この <code>feature -> averagingFeature</code>（<code>averagingInOut: Both</code> ＋ <code>averagingPeriodIn</code> ＋ <code>averagingPeriodOut</code>）を用いて表現できます。</li>
+              <li><strong>排他制約との関係（違反せずに表現可能）</strong>：<code>Both</code>（入口期間の平均レートでストライク $\bar{S}_{\text{in}}$
+                を決め、出口期間の平均レートで満期決済レート $\bar{S}_{\text{out}}$ を決める<strong>ダブル・アジアン / Double Asian
+                  Option</strong>）を表現する場合、<strong><code>strike -> averagingStrikeFeature</code>
+                  は使用せず（<code>absent</code> にし）、<code>OptionPayout -> feature -> averagingFeature</code>
+                  1箇所の中だけ</strong>で <code>averagingInOut: Both</code> と
+                <code>averagingPeriodIn</code>（入口期間）・<code>averagingPeriodOut</code>（出口期間）の両方を設定します。そのため、<code>strike -> averagingStrikeFeature</code>
+                は空のままであり、排他制約①（<code>OptionStrike</code> の
+                <code>one-of</code>）にも排他制約②（<code>AsianOptionChoice_*</code>）にも抵触しません。
+              </li>
+              <li><strong>為替（FX）での扱い</strong>：FpML
+                の為替オプション標準スキーマ（<code>&lt;fxOption&gt;&lt;features&gt;&lt;asian&gt;</code>）は単一観測期間＋固定ストライク（<code>Out</code>
+                相当）のみを想定しているため FpML FX の標準サンプルには <code>Both</code>
+                は含まれませんが、実務の相対（OTC）為替デリバティブで「第1四半期の平均レートをストライクとし、第4四半期の平均レートで精算する」といった Double Average Rate Option を組成し
+                CDM で表現する際には、この <code>feature -> averagingFeature</code>（<code>averagingInOut: Both</code> ＋
+                <code>averagingPeriodIn</code> ＋ <code>averagingPeriodOut</code>）を用いて表現できます。
+              </li>
             </ul>
           </li>
         </ul>
@@ -214,7 +318,9 @@
 
       <h3>1-3. 一次ソース実データ検証：<code>ObservationTerms</code> の構造と観測日スケジュール（パラメトリック期間 vs 個別観測日・加重ウェイト）</h3>
       <p>
-        為替のアベレージ・レート・オプションにおいて「いつ・どの画面ソースで・どの日程と重み付け（Weight）でスポットレートを観測するか」を定義するのが <strong><code>ObservationTerms</code></strong> および <strong><code>ObservationDates</code></strong>（<span class="cite-badge">product-common-schedule-type.rosetta:L151-L187</span>）です。まず一次ソースの型定義を確認しましょう。
+        為替のアベレージ・レート・オプションにおいて「いつ・どの画面ソースで・どの日程と重み付け（Weight）でスポットレートを観測するか」を定義するのが
+        <strong><code>ObservationTerms</code></strong> および <strong><code>ObservationDates</code></strong>（<span
+          class="cite-badge">product-common-schedule-type.rosetta:L151-L187</span>）です。まず一次ソースの型定義を確認しましょう。
       </p>
 
       <div class="code-header">
@@ -256,12 +362,18 @@
       <ol>
         <li>
           <strong>観測時刻と情報ソース（<code>observationTime</code> &amp; <code>informationSource</code>）</strong>：<br />
-          フィキシングを行う現地時刻と営業日カレンダー（例：メキシコシティ <code>18:00:00 MXMC</code> や東京 <code>15:00:00 JPTO</code>）を <code>observationTime</code>（<code>BusinessCenterTime</code> 型）に設定し、参照する為替レート画面（例：<code>Reuters</code> の <code>BNBX</code> ページ）を <code>informationSource -> primarySource</code>（<code>FxSpotRateSource</code> 型）に設定します。
+          フィキシングを行う現地時刻と営業日カレンダー（例：メキシコシティ <code>18:00:00 MXMC</code> や東京 <code>15:00:00 JPTO</code>）を
+          <code>observationTime</code>（<code>BusinessCenterTime</code> 型）に設定し、参照する為替レート画面（例：<code>Reuters</code> の
+          <code>BNBX</code> ページ）を <code>informationSource -> primarySource</code>（<code>FxSpotRateSource</code>
+          型）に設定します。
         </li>
         <li>
           <strong>観測日程の表現パターン①：パラメトリック期間指定（<code>observationDates -> periodicSchedule</code>）</strong>：<br />
-          「2001年11月1日から2001年11月30日まで」のように開始日（<code>startDate</code>）・終了日（<code>endDate</code>）・周期（<code>periodFrequency</code>）で観測期間を定義する場合は、<code>observationDates -> periodicSchedule</code>（<code>PeriodicDates</code> 型）を使用します。各観測日の重み（<code>weight</code>）を個別に指定しない場合、すべての観測日の重みは等しく <code>1.0</code> として扱われます。<br />
-          以下は、このパラメトリック方式を用いた一次ソースの検証済みデータ <span class="cite-badge">fx-ex20-avg-rate-option-parametric.json</span>（USD/MXN アベレージ・レート・コール・オプション、固定ストライク <code>9.82 MXN per USD</code>）の JSON 構造です。
+          「2001年11月1日から2001年11月30日まで」のように開始日（<code>startDate</code>）・終了日（<code>endDate</code>）・周期（<code>periodFrequency</code>）で観測期間を定義する場合は、<code>observationDates -> periodicSchedule</code>（<code>PeriodicDates</code>
+          型）を使用します。各観測日の重み（<code>weight</code>）を個別に指定しない場合、すべての観測日の重みは等しく <code>1.0</code> として扱われます。<br />
+          以下は、このパラメトリック方式を用いた一次ソースの検証済みデータ <span
+            class="cite-badge">fx-ex20-avg-rate-option-parametric.json</span>（USD/MXN アベレージ・レート・コール・オプション、固定ストライク
+          <code>9.82 MXN per USD</code>）の JSON 構造です。
         </li>
       </ol>
 
@@ -321,8 +433,18 @@
       <ol start="3">
         <li>
           <strong>観測日程の表現パターン②：個別観測日・加重ウェイト指定（<code>observationDates -> observationSchedule -> observationDate</code>）</strong>：<br />
-          為替アジアン・オプションの実務（たとえば <span class="cite-badge">fx-ex22-avg-rate-option-specific.xml:L68-L160</span>）では、月曜〜木曜の観測ウェイトを <code>1</code>、金曜日の観測ウェイトを週末（土・日）の2日分を含めて <code>3</code> とするような<strong>日別の重み付き個別観測スケジュール（Specific Observation Schedule）</strong>が広く使われます。<br />
-          これを CDM の正規スキーマで表現する場合は、<code>ObservationTerms -> observationDates -> observationSchedule</code>（<span class="cite-badge">product-common-schedule-type.rosetta:L156-L173</span>）内の <strong><code>observationDate (0..*)</code>（<code>ObservationDate</code> 型）</strong>を使用し、各日付（<code>adjustedDate</code>、または <code>unadjustedDate</code> ＋ <code>dateAdjustments</code>）と重み（<code>weight: 1</code> または <code>3</code>）を列挙します（なお、<code>OptionFeature -> averagingFeature</code> 側で表現する場合は <code>AveragingPeriod -> averagingObservations -> averagingObservation</code> の <code>WeightedAveragingObservation</code>、<code>L238-L266</code> を使用します）。
+          為替アジアン・オプションの実務（たとえば <span
+            class="cite-badge">fx-ex22-avg-rate-option-specific.xml:L68-L160</span>）では、月曜〜木曜の観測ウェイトを
+          <code>1</code>、金曜日の観測ウェイトを週末（土・日）の2日分を含めて <code>3</code> とするような<strong>日別の重み付き個別観測スケジュール（Specific Observation
+            Schedule）</strong>が広く使われます。<br />
+          これを CDM の正規スキーマで表現する場合は、<code>ObservationTerms -> observationDates -> observationSchedule</code>（<span
+            class="cite-badge">product-common-schedule-type.rosetta:L156-L173</span>）内の
+          <strong><code>observationDate (0..*)</code>（<code>ObservationDate</code>
+            型）</strong>を使用し、各日付（<code>adjustedDate</code>、または <code>unadjustedDate</code> ＋
+          <code>dateAdjustments</code>）と重み（<code>weight: 1</code> または
+          <code>3</code>）を列挙します（なお、<code>OptionFeature -> averagingFeature</code> 側で表現する場合は
+          <code>AveragingPeriod -> averagingObservations -> averagingObservation</code> の
+          <code>WeightedAveragingObservation</code>、<code>L238-L266</code> を使用します）。
         </li>
       </ol>
 
@@ -354,9 +476,20 @@
 }</code></pre>
 
       <div class="callout callout-warning">
-        <div class="callout-title">⚠️ 補足：現行 FpML Ingest 変換関数（<code>fx-ex21</code> / <code>fx-ex22</code>）における <code>&lt;rateObservation&gt;</code> の未マッピング箇所</div>
+        <div class="callout-title">⚠️ 補足：現行 FpML Ingest 変換関数（<code>fx-ex21</code> / <code>fx-ex22</code>）における
+          <code>&lt;rateObservation&gt;</code> の未マッピング箇所
+        </div>
         <p style="margin-bottom: 0;">
-          一次ソースの FpML 変換関数 <code>MapFxOptionFeaturesToObservationTerms</code>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L137-L192</span>）は、現行バージョンでは FpML の <code>&lt;asian&gt; -> &lt;observationSchedule&gt;</code>（パターン①のパラメトリック期間）のみを <code>observationDates -> periodicSchedule</code> にマッピングしており、FpML の日別要素 <code>&lt;rateObservation&gt;</code>（<code>&lt;date&gt;</code> と <code>&lt;averageRateWeightingFactor&gt;</code>）を上記パターン②の <code>observationDates -> observationSchedule -> observationDate</code> へ変換する処理が未実装となっています。そのため、<code>&lt;rateObservation&gt;</code> のみを持つ <span class="cite-badge">fx-ex22-avg-rate-option-specific.json:L38-L55</span> では出力 JSON 上で <code>observationDates</code> が欠落している点に留意してください。
+          一次ソースの FpML 変換関数 <code>MapFxOptionFeaturesToObservationTerms</code>（<span
+            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L137-L192</span>）は、現行バージョンでは FpML
+          の <code>&lt;asian&gt; -> &lt;observationSchedule&gt;</code>（パターン①のパラメトリック期間）のみを
+          <code>observationDates -> periodicSchedule</code> にマッピングしており、FpML の日別要素
+          <code>&lt;rateObservation&gt;</code>（<code>&lt;date&gt;</code> と
+          <code>&lt;averageRateWeightingFactor&gt;</code>）を上記パターン②の
+          <code>observationDates -> observationSchedule -> observationDate</code>
+          へ変換する処理が未実装となっています。そのため、<code>&lt;rateObservation&gt;</code> のみを持つ <span
+            class="cite-badge">fx-ex22-avg-rate-option-specific.json:L38-L55</span> では出力 JSON 上で
+          <code>observationDates</code> が欠落している点に留意してください。
         </p>
       </div>
     </section>
@@ -365,35 +498,57 @@
     <section>
       <h2>2. バリア為替オプション（FX Barrier Option）：Knock-in / Knock-out / Double Barrier / Rebate</h2>
       <p>
-        次に、為替オプション市場で最も取引量の多いエキゾチック商品である<strong>バリア・オプション（FX Barrier Option）</strong>の実務概念と、CDM の <code>OptionPayout -> feature -> barrier</code>（<code>Barrier</code> 型）および <code>TriggerEvent</code> / <code>Trigger</code> / <code>FeaturePayment</code> の階層構造を確認します。
+        次に、為替オプション市場で最も取引量の多いエキゾチック商品である<strong>バリア・オプション（FX Barrier Option）</strong>の実務概念と、CDM の
+        <code>OptionPayout -> feature -> barrier</code>（<code>Barrier</code> 型）および <code>TriggerEvent</code> /
+        <code>Trigger</code> / <code>FeaturePayment</code> の階層構造を確認します。
       </p>
 
       <h3>2-1. バリア・オプションの金融実務概念と基本類型</h3>
       <p>
-        <strong>バリア・オプション（Barrier Option）</strong>とは、観測期間中に原資産の為替スポットレートがあらかじめ定めた<strong>バリア水準（トリガーレート / Barrier Level / Trigger Rate）</strong>に到達（Breach / Touch）したかどうかに応じて、オプション権利が<strong>有効化（ノックイン / Knock-in）</strong>されたり、<strong>消滅（ノックアウト / Knock-out）</strong>したりする条件付きオプションです。
+        <strong>バリア・オプション（Barrier Option）</strong>とは、観測期間中に原資産の為替スポットレートがあらかじめ定めた<strong>バリア水準（トリガーレート / Barrier Level /
+          Trigger Rate）</strong>に到達（Breach / Touch）したかどうかに応じて、オプション権利が<strong>有効化（ノックイン /
+          Knock-in）</strong>されたり、<strong>消滅（ノックアウト / Knock-out）</strong>したりする条件付きオプションです。
       </p>
       <ul>
         <li>
           <strong>ノックイン（Knock-in：<code>Barrier -> knockIn</code>）</strong>：<br />
-          約定時点ではオプション権利はまだ有効ではなく（休眠状態）、観測期間中に市場レートがバリア水準に到達して初めて通常のバニラ・オプション（Call または Put）として有効化されます。現在のスポットレートより高いバリアへの上昇で有効化されるものを <strong>Up-and-In</strong>（<code>triggerType: EqualOrGreater</code>）、低いバリアへの下落で有効化されるものを <strong>Down-and-In</strong>（<code>triggerType: EqualOrLess</code>）と呼びます（例：<span class="cite-badge">fx-ex12-fx-barrier-option.xml</span> は約定時スポット <code>0.8935 USD/EUR</code>、ストライク <code>0.9000 USD/EUR</code>、トリガー <code>0.8975 USD/EUR</code> の Up-and-In EUR Call）。
+          約定時点ではオプション権利はまだ有効ではなく（休眠状態）、観測期間中に市場レートがバリア水準に到達して初めて通常のバニラ・オプション（Call または
+          Put）として有効化されます。現在のスポットレートより高いバリアへの上昇で有効化されるものを
+          <strong>Up-and-In</strong>（<code>triggerType: EqualOrGreater</code>）、低いバリアへの下落で有効化されるものを
+          <strong>Down-and-In</strong>（<code>triggerType: EqualOrLess</code>）と呼びます（例：<span
+            class="cite-badge">fx-ex12-fx-barrier-option.xml</span> は約定時スポット <code>0.8935 USD/EUR</code>、ストライク
+          <code>0.9000 USD/EUR</code>、トリガー <code>0.8975 USD/EUR</code> の Up-and-In EUR Call）。
         </li>
         <li>
           <strong>ノックアウト（Knock-out：<code>Barrier -> knockOut</code>）</strong>：<br />
-          約定時点では有効なオプションとして存在しますが、観測期間中に市場レートがバリア水準に一度でも到達すると、その時点でオプション権利が消滅（Null and Void）します。高いバリアへの上昇で消滅するものを <strong>Up-and-Out</strong>、低いバリアへの下落で消滅するものを <strong>Down-and-Out</strong> と呼びます。
+          約定時点では有効なオプションとして存在しますが、観測期間中に市場レートがバリア水準に一度でも到達すると、その時点でオプション権利が消滅（Null and Void）します。高いバリアへの上昇で消滅するものを
+          <strong>Up-and-Out</strong>、低いバリアへの下落で消滅するものを <strong>Down-and-Out</strong> と呼びます。
         </li>
         <li>
           <strong>ダブル・バリア（Double Barrier）と KIKO（Knock-in Knock-out）</strong>：<br />
-          下限バリア（Lower Trigger）と上限バリア（Upper Trigger）の2つの水準を設定し、期間中にどちらかに到達したら消滅する <strong>Double Knock-out</strong>（例：<span class="cite-badge">fx-ex13-fx-dbl-barrier-option.xml</span>：スポット <code>106 JPY/USD</code>、ストライク <code>105.05 JPY/USD</code>、下限 <code>102 JPY/USD</code> または上限 <code>115 JPY/USD</code> 到達で消滅する JPY Put / USD Call）、どちらかに到達したら有効化される <strong>Double Knock-in</strong>、さらに片方でノックイン・もう片方でノックアウトする <strong>KIKO（Knock-in Knock-out）</strong>があります。
+          下限バリア（Lower Trigger）と上限バリア（Upper Trigger）の2つの水準を設定し、期間中にどちらかに到達したら消滅する <strong>Double
+            Knock-out</strong>（例：<span class="cite-badge">fx-ex13-fx-dbl-barrier-option.xml</span>：スポット
+          <code>106 JPY/USD</code>、ストライク <code>105.05 JPY/USD</code>、下限 <code>102 JPY/USD</code> または上限
+          <code>115 JPY/USD</code> 到達で消滅する JPY Put / USD Call）、どちらかに到達したら有効化される <strong>Double
+            Knock-in</strong>、さらに片方でノックイン・もう片方でノックアウトする <strong>KIKO（Knock-in Knock-out）</strong>があります。
         </li>
         <li>
-          <strong>連続監視（<code>Anytime</code>）vs 終値・離散監視（<code>Closing</code>）とリベート（<code>FeaturePayment</code>）</strong>：<br />
-          FXバリア・オプションでは、観測期間中のどの時点でも市場レートがバリアにタッチすれば発動する<strong>連続監視（Continuous Barrier：<code>TriggerTimeTypeEnum -> Anytime</code>）</strong>が標準的ですが、特定の営業日終値・カットオフ時刻のみで判定する<strong>離散・終値監視（Window / Discrete Barrier：<code>TriggerTimeTypeEnum -> Closing</code>）</strong>もあります。また、ノックアウト等で権利が消滅した際に買手へ一定の補償金を支払う条件を<strong>リベート（Rebate：<code>TriggerEvent -> featurePayment</code>）</strong>と呼びます。
+          <strong>連続監視（<code>Anytime</code>）vs
+            終値・離散監視（<code>Closing</code>）とリベート（<code>FeaturePayment</code>）</strong>：<br />
+          FXバリア・オプションでは、観測期間中のどの時点でも市場レートがバリアにタッチすれば発動する<strong>連続監視（Continuous
+            Barrier：<code>TriggerTimeTypeEnum -> Anytime</code>）</strong>が標準的ですが、特定の営業日終値・カットオフ時刻のみで判定する<strong>離散・終値監視（Window
+            / Discrete
+            Barrier：<code>TriggerTimeTypeEnum -> Closing</code>）</strong>もあります。また、ノックアウト等で権利が消滅した際に買手へ一定の補償金を支払う条件を<strong>リベート（Rebate：<code>TriggerEvent -> featurePayment</code>）</strong>と呼びます。
         </li>
       </ul>
 
-      <h3>2-2. CDM 一次ソースにおける <code>Barrier</code> → <code>TriggerEvent</code> → <code>Trigger</code> / <code>FeaturePayment</code> の階層</h3>
+      <h3>2-2. CDM 一次ソースにおける <code>Barrier</code> → <code>TriggerEvent</code> → <code>Trigger</code> /
+        <code>FeaturePayment</code> の階層
+      </h3>
       <p>
-        一次ソースの <span class="cite-badge">product-template-type.rosetta:L635-L638</span>、<span class="cite-badge">observable-event-type.rosetta:L11-L29, L85-L101</span>、および <span class="cite-badge">observable-event-enum.rosetta:L15-L25</span> における定義を確認しましょう。
+        一次ソースの <span class="cite-badge">product-template-type.rosetta:L635-L638</span>、<span
+          class="cite-badge">observable-event-type.rosetta:L11-L29, L85-L101</span>、および <span
+          class="cite-badge">observable-event-enum.rosetta:L15-L25</span> における定義を確認しましょう。
       </p>
 
       <div class="code-header">
@@ -443,34 +598,63 @@
       <ol>
         <li>
           <strong>複数カーディナリティ <code>(0..*)</code> によるダブル・バリアと KIKO の表現</strong>：<br />
-          <code>Barrier</code> 型の <code>knockIn</code> と <code>knockOut</code> はどちらも <strong><code>TriggerEvent (0..*)</code>（0個以上の配列）</strong>です。<br />
-          たとえば <code>fx-ex13</code>（下限 <code>102 JPY/USD</code> で Down-and-Out、上限 <code>115 JPY/USD</code> で Up-and-Out のダブル・ノックアウト）を表現する場合、<code>knockOut</code> 配列に<strong>2つの <code>TriggerEvent</code> 要素</strong>を格納します（1つ目は <code>level.value: 102.0, triggerType: "EqualOrLess"</code>、2つ目は <code>level.value: 115.0, triggerType: "EqualOrGreater"</code>）。このように2要素に分けることで、下限と上限それぞれの発動方向（<code>triggerType</code>）を明確に保持できます。また、KIKO バリアであれば <code>knockIn</code> に1要素、<code>knockOut</code> に1要素を同時に設定します。
+          <code>Barrier</code> 型の <code>knockIn</code> と <code>knockOut</code> はどちらも
+          <strong><code>TriggerEvent (0..*)</code>（0個以上の配列）</strong>です。<br />
+          たとえば <code>fx-ex13</code>（下限 <code>102 JPY/USD</code> で Down-and-Out、上限 <code>115 JPY/USD</code> で Up-and-Out
+          のダブル・ノックアウト）を表現する場合、<code>knockOut</code> 配列に<strong>2つの <code>TriggerEvent</code> 要素</strong>を格納します（1つ目は
+          <code>level.value: 102.0, triggerType: "EqualOrLess"</code>、2つ目は
+          <code>level.value: 115.0, triggerType: "EqualOrGreater"</code>）。このように2要素に分けることで、下限と上限それぞれの発動方向（<code>triggerType</code>）を明確に保持できます。また、KIKO
+          バリアであれば <code>knockIn</code> に1要素、<code>knockOut</code> に1要素を同時に設定します。
         </li>
         <li>
           <strong><code>Trigger</code> の必須選択制約 <code>condition Choice1</code>（<code>L20-L21</code>）</strong>：<br />
-          <code>Trigger</code> 型では <code>level</code>（価格・為替レート水準）、<code>creditEvents</code>、<code>creditEventsReference</code> の3属性に対して <code>required choice</code> が課されています。クレジット・デフォルト・スワップション（<code>cd-swaption-1.json:L37-L45</code>）では <code>creditEventsReference</code> を使いますが、<strong>為替バリア・オプションでは必ず <code>level</code>（<code>PriceSchedule</code> 型：<code>value</code>, <code>unit</code>, <code>perUnitOf</code>, <code>priceType: "ExchangeRate"</code>）を選択</strong>します。
+          <code>Trigger</code> 型では
+          <code>level</code>（価格・為替レート水準）、<code>creditEvents</code>、<code>creditEventsReference</code> の3属性に対して
+          <code>required choice</code> が課されています。クレジット・デフォルト・スワップション（<code>cd-swaption-1.json:L37-L45</code>）では
+          <code>creditEventsReference</code> を使いますが、<strong>為替バリア・オプションでは必ず
+            <code>level</code>（<code>PriceSchedule</code> 型：<code>value</code>, <code>unit</code>,
+            <code>perUnitOf</code>, <code>priceType: "ExchangeRate"</code>）を選択</strong>します。
         </li>
         <li>
-          <strong><code>FeaturePayment</code>（リベート等）における <code>PartyReferencePayerReceiver</code> と <code>required choice</code></strong>：<br />
-          ノックアウト時のリベート支払等を表す <code>FeaturePayment</code>（<code>L85-L101</code>）では、① <code>payerReceiver</code> の型が抽象ロール（<code>Party1</code>/<code>Party2</code>）の <code>PayerReceiver</code> ではなく、<code>Party</code> 実体（<code>@ref:external: "party1"</code> 等）を参照する <strong><code>PartyReferencePayerReceiver</code></strong> である点、および ② <code>condition FeaturePaymentChoice</code> により <code>levelPercentage</code>（比率）か <code>amount</code>（非負の金額）の<strong>どちらか一方が必須（<code>required choice</code>）</strong>である点に注意してください。
+          <strong><code>FeaturePayment</code>（リベート等）における <code>PartyReferencePayerReceiver</code> と
+            <code>required choice</code></strong>：<br />
+          ノックアウト時のリベート支払等を表す <code>FeaturePayment</code>（<code>L85-L101</code>）では、① <code>payerReceiver</code>
+          の型が抽象ロール（<code>Party1</code>/<code>Party2</code>）の <code>PayerReceiver</code> ではなく、<code>Party</code>
+          実体（<code>@ref:external: "party1"</code> 等）を参照する <strong><code>PartyReferencePayerReceiver</code></strong>
+          である点、および ② <code>condition FeaturePaymentChoice</code> により <code>levelPercentage</code>（比率）か
+          <code>amount</code>（非負の金額）の<strong>どちらか一方が必須（<code>required choice</code>）</strong>である点に注意してください。
         </li>
         <li>
           <strong>バリア判定代理人（<code>BarrierDeterminationAgent</code>）の表現</strong>：<br />
-          実務契約（Confirmation）では「バリアにタッチしたかどうかを誰が判定するか」として<strong>バリア判定代理人（Barrier Determination Agent）</strong>を指定します。CDM では <code>Trade -> partyRole</code> に <code>role: PartyRoleEnum -> BarrierDeterminationAgent</code>（<span class="cite-badge">base-staticdata-party-enum.rosetta:L67</span>）を設定し、<code>Trade</code> の制約 <code>condition BarrierDerterminationAgent</code>（<span class="cite-badge">event-common-type.rosetta:L406-L408</span>）により「1件の取引に <code>BarrierDeterminationAgent</code> は最大1者まで（<code>count &lt;= 1</code>）」と検証されます。
+          実務契約（Confirmation）では「バリアにタッチしたかどうかを誰が判定するか」として<strong>バリア判定代理人（Barrier Determination Agent）</strong>を指定します。CDM
+          では <code>Trade -> partyRole</code> に <code>role: PartyRoleEnum -> BarrierDeterminationAgent</code>（<span
+            class="cite-badge">base-staticdata-party-enum.rosetta:L67</span>）を設定し、<code>Trade</code> の制約
+          <code>condition BarrierDerterminationAgent</code>（<span
+            class="cite-badge">event-common-type.rosetta:L406-L408</span>）により「1件の取引に
+          <code>BarrierDeterminationAgent</code> は最大1者まで（<code>count &lt;= 1</code>）」と検証されます。
         </li>
       </ol>
 
       <div class="callout callout-warning">
-        <div class="callout-title">⚠️ 一次ソース検証による注意点：<code>fx-ex12</code> / <code>fx-ex13</code> が <code>incomplete-products-fx-derivatives</code> に置かれている理由</div>
+        <div class="callout-title">⚠️ 一次ソース検証による注意点：<code>fx-ex12</code> / <code>fx-ex13</code> が
+          <code>incomplete-products-fx-derivatives</code> に置かれている理由
+        </div>
         <p style="margin-bottom: 0;">
-          一次ソースのリソースフォルダにある <span class="cite-badge">fx-ex12-fx-barrier-option.json</span> および <span class="cite-badge">fx-ex13-fx-dbl-barrier-option.json</span> は、<code>incomplete-products-fx-derivatives</code>（未完成プロダクト）フォルダに配置されています。<br />
-          これは、FpML 変換関数 <code>MapFxOptionPayout</code>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L88-L135</span>）に <code>fpmlFxOption -> features -> barrier</code> を <code>OptionPayout -> feature -> barrier</code> へ写す処理がまだ実装されておらず、出力 JSON 上で <code>feature -> barrier</code> が欠落してバニラ・オプションと同じ構造で出力されてしまうためです。<br />
-          実務で FX バリア・オプションを CDM にマッピングする際は、この未完成サンプル JSON の欠落をそのまま真似るのではなく、以下に示す正規の <code>OptionPayout -> feature -> barrier</code> 構造を設定する必要があります。
+          一次ソースのリソースフォルダにある <span class="cite-badge">fx-ex12-fx-barrier-option.json</span> および <span
+            class="cite-badge">fx-ex13-fx-dbl-barrier-option.json</span>
+          は、<code>incomplete-products-fx-derivatives</code>（未完成プロダクト）フォルダに配置されています。<br />
+          これは、FpML 変換関数 <code>MapFxOptionPayout</code>（<span
+            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L88-L135</span>）に
+          <code>fpmlFxOption -> features -> barrier</code> を <code>OptionPayout -> feature -> barrier</code>
+          へ写す処理がまだ実装されておらず、出力 JSON 上で <code>feature -> barrier</code> が欠落してバニラ・オプションと同じ構造で出力されてしまうためです。<br />
+          実務で FX バリア・オプションを CDM にマッピングする際は、この未完成サンプル JSON の欠落をそのまま真似るのではなく、以下に示す正規の
+          <code>OptionPayout -> feature -> barrier</code> 構造を設定する必要があります。
         </p>
       </div>
 
       <div class="code-header">
-        <span>fx-ex13（USD/JPY Double Knock-out Option：Strike 105.05, Lower Barrier 102.00, Upper Barrier 115.00）の正規CDMマッピング構造</span>
+        <span>fx-ex13（USD/JPY Double Knock-out Option：Strike 105.05, Lower Barrier 102.00, Upper Barrier
+          115.00）の正規CDMマッピング構造</span>
       </div>
       <pre><code>"payout" : [ {
   "@type" : "cdm.product.template.OptionPayout",
@@ -539,99 +723,171 @@
     <section>
       <h2>3. ギャップ・オプション（Gap Option）の一次ソース導出：ストライク $K_1$ vs トリガー $K_2$ の分離表現</h2>
       <p>
-        続いて、<code>MISSION.md</code> のターゲット商品である<strong>ギャップ・オプション（Gap Option）</strong>について、金融実務での意味（バニラ・オプションおよびデジタル・オプションとの違い）を整理し、一次ソースの型制約（<code>product-template-type.rosetta</code> / <code>observable-event-type.rosetta</code>）から正規の CDM スキーマ構造を導出します。
+        続いて、<strong>ギャップ・オプション（Gap
+          Option）</strong>について、金融実務での意味（バニラ・オプションおよび通常のノックイン・バリア・オプションとの比較）を整理し、一次ソースの型制約（<code>product-template-type.rosetta</code>
+        / <code>observable-event-type.rosetta</code>）から正規の CDM スキーマ構造を導出します。
       </p>
 
-      <h3>3-1. バニラ vs デジタル（バイナリー）vs ギャップ・オプションの3者比較</h3>
+      <h3>3-1. バニラ vs 連続監視ノックイン・バリア vs ギャップ・オプションの3者比較</h3>
       <p>
-        通常のバニラ・オプションでは、「<strong>権利が行使されるかどうかの発動閾値</strong>」と「<strong>権利が行使されたときにいくらで交換・精算するかの計算基準レート</strong>」が同一のストライクレート $K$ です。<br />
-        これに対し、<strong>ギャップ・オプション（Gap Option）</strong>では、<strong>① ペイオフ計算（または2通貨交換金額）の基準となるストライク価格 $K_1$（Strike Price）</strong>と、<strong>② 権利が有効化・行使されるかを決めるトリガー価格 $K_2$（Trigger Level, $K_1 \neq K_2$）</strong>が別々の値として分離しています。
+        通常のバニラ・オプションでは、「<strong>権利が行使されるかどうかの発動閾値</strong>」と「<strong>権利が行使されたときにいくらで交換・精算するかの計算基準レート</strong>」が同一のストライクレート
+        $K$ です。<br />
+        これに対し、<strong>ギャップ・オプション（Gap Option）</strong>では、<strong>① ペイオフ計算（または2通貨交換金額）の基準となるストライク価格 $K_1$（Strike
+          Price）</strong>と、<strong>② 満期時に権利が有効化・行使されるかを決めるトリガー価格 $K_2$（Trigger Level, $K_1 \neq
+          K_2$）</strong>が別々の値として分離しています。
       </p>
 
       <table>
         <thead>
           <tr>
             <th style="width: 18%;">オプション種別</th>
-            <th style="width: 28%;">満期時の発動条件とペイオフ<br />（Call の場合、満期レート $S_T$）</th>
-            <th style="width: 27%;">ストライク $K_1$ の有無と役割</th>
-            <th style="width: 27%;">トリガー $K_2$ の有無と役割</th>
+            <th style="width: 28%;">発動条件と満期ペイオフ<br />（Call の場合、満期レート $S_T$）</th>
+            <th style="width: 27%;">ストライク $K_1$（<code>strike -> strikePrice</code>）の役割</th>
+            <th style="width: 27%;">トリガー $K_2$（<code>feature -> barrier -> knockIn</code>）の役割</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><strong>① バニラ・オプション</strong><br />（Vanilla Option）</td>
             <td>
-              $S_T &gt; K_1$ のとき発動し、<br />
+              満期時に $S_T &gt; K_1$ のとき行使され、<br />
               ペイオフは $S_T - K_1$
             </td>
             <td>
-              <strong>あり</strong>（<code>strike -> strikePrice</code> = $K_1$）<br />
-              発動閾値と精算基準の両方を兼ねる
+              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
+              発動閾値と精算・交換基準の両方を兼ねる
             </td>
             <td>
               <strong>なし</strong>（<code>feature -> barrier</code> は <code>absent</code>）
             </td>
           </tr>
           <tr>
-            <td><strong>② デジタル（バイナリー）オプション</strong><br />（Digital / Binary Option, <span class="cite-badge">fx-ex14</span>）</td>
+            <td><strong>② 連続監視ノックイン・バリア</strong><br />（Continuous Knock-in Barrier, <span
+                class="cite-badge">fx-ex12</span>）</td>
             <td>
-              $S_T \ge K_2$ のとき発動し、<br />
-              レート差額ではなく<strong>固定金額 $M$</strong> を支払う
+              <strong>観測期間中に一度でも $S_t \ge K_2$ に到達</strong>すれば有効化され、満期時は $\max(S_T - K_1,\; 0)$
             </td>
             <td>
-              <strong>なし</strong>（<code>strike</code> は <code>absent</code>、原資産交換を行わない）
+              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
+              有効化された後のバニラ・オプションとしての行使価格
             </td>
             <td>
-              <strong>あり</strong>（<code>Trigger -> level</code> = $K_2$、固定支払額 $M$ は <code>FeaturePayment -> amount</code>）
+              <strong>あり</strong>（<code>Trigger -> level</code> = $K_2$、<code>triggerTimeType: Anytime</code>、観測期間
+              <code>schedule</code>）
             </td>
           </tr>
           <tr>
             <td><strong>③ ギャップ・オプション</strong><br />（Gap Option）</td>
             <td>
-              <strong>$S_T \ge K_2$ のときのみ発動</strong>し、<br />
+              <strong>満期判定時に $S_T \ge K_2$ のときのみ発動</strong>し、<br />
               発動時のペイオフは <strong>$S_T - K_1$</strong><br />
               （$S_T = K_2$ 到達時点で $K_2 - K_1$ の不連続な飛び値＝ギャップが発生）
             </td>
             <td>
-              <strong>あり</strong>（<code>strike -> strikePrice</code> = $K_1$）<br />
+              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
               <strong>発動した際の2通貨交換レート（または差額計算の基準レート）</strong>を表す
             </td>
             <td>
-              <strong>あり</strong>（<code>feature -> barrier -> knockIn -> trigger -> level</code> = $K_2$）<br />
-              <strong>権利が有効化されるための発動閾値</strong>を表す
+              <strong>あり</strong>（<code>Trigger -> level</code> = $K_2$、満期判定
+              <code>triggerTimeType: Closing</code>、<code>triggerDates</code> = 満期日）
             </td>
           </tr>
         </tbody>
       </table>
 
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ 補足：デジタル（バイナリー／タッチ）オプションとの違いと、現行 CDM における未解決課題（GitHub Issue #4957）</div>
+        <p>
+          ギャップ・オプションと混同しやすい商品に<strong>デジタル（バイナリー／ワンタッチ）オプション</strong>（<span
+            class="cite-badge">fx-ex14-euro-digital-option.xml</span> 〜 <span
+            class="cite-badge">fx-ex19-double-no-touch-option.xml</span>）があります。デジタル・オプションは、トリガー $K_2$ に到達したときに「原資産交換や
+          $S_T - K_1$ の差額精算」を行わず、「あらかじめ定めた<strong>固定金額 $M$</strong>（例：<code>750,000 GBP</code>）のみを支払う」取引です。<br />
+          このデジタル・オプションを CDM の <code>OptionPayout</code> でどう表現するかについては、現在も FINOS CDM で議論・改修途上（GitHub Issue #4957 <em>"Add
+            support for Digital Options"</em> が Open、サンプル <code>fx-ex14</code>〜<code>fx-ex19</code> はすべて
+          <code>incomplete-products-fx-derivatives</code> 配置）であり、一次ソース上で以下の未解決課題が存在します：
+        </p>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>① 「<code>strike is absent</code>」による識別と、固定支払額（Digital Payout Amount）の格納先未決</strong>：<br />
+            <code>OptionPayout -> strike</code> のカーディナリティ自体は <code>(0..1)</code> であり、直近の CDM 改修（Issue #5014 / PR
+            #5242）では「<code>feature -> barrier exists</code> かつ
+            <code>strike is absent</code>」をデジタル・オプション（<code>ForeignExchange_SimpleExotic_Digital</code>）と判定するルールが試みられています。<br />
+            しかし、肝心の FpML <code>&lt;fxDigitalOption&gt;&lt;payout&gt;</code>（トリガー到達時の固定支払額 <code>amount</code> や支払時期
+            <code>payoutStyle: Immediate | Deferred</code>）は、一次ソースの <code>MapFxDigitalOptionPayout</code>（<span
+              class="cite-badge">ingest-fpml-confirmation-product-fxdigitaloption-func.rosetta:L72-L108</span>）で<strong>どこにもマッピングされておらず、出力
+              JSON（<code>fx-ex14</code>〜<code>fx-ex19</code>）から固定支払額自体が欠落</strong>しています。固定支払額を
+            <code>OptionPayout -> feature -> barrier -> knockIn -> featurePayment -> amount</code>
+            に入れるのか、<code>tradeLot -> priceQuantity</code> 側で表現するのかについて、CDM ワーキンググループ内でもまだ正規仕様が確定していません。
+          </li>
+          <li>
+            <strong>② <code>OptionPayout</code> の <code>condition OptionTypePresent</code>（<span
+                class="cite-badge">product-template-type.rosetta:L186-L188</span>）との衝突</strong>：<br />
+            <code>OptionPayout</code> には
+            <code>if underlier as NonTransferableProduct is absent then optionType exists</code>
+            という必須制約があります。デジタル・オプション（ワンタッチ／ノータッチ等）は2通貨を交換しないため本来 <code>Call</code> / <code>Put</code>
+            の区別を持ちませんが、<code>underlier</code> に通貨（<code>Cash</code>）を設定するとこの制約が発動し、<code>optionType</code>
+            が空のままだとバリデーションエラー（<code>modelValidationFailures</code>）が発生します（逆にローカル一次ソースの
+            <code>MapFxDigitalOptionPayout:L96</code> のように <code>underlier: empty</code> とすると、必須属性
+            <code>underlier (1..1)</code> 違反となります）。
+          </li>
+          <li>
+            <strong>ギャップ・オプションは既存スキーマで問題なく表現可能</strong>：<br />
+            これに対し、本節で扱う<strong>ギャップ・オプション</strong>は「トリガー $K_2$ で有効化され、ストライク $K_1$
+            で2通貨交換（または差額精算）を行うコール／プット・オプション」であるため、<code>underlier</code>（<code>Cash</code>）・<code>optionType</code>（<code>Call</code>
+            /
+            <code>Put</code>）・<code>strike -> strikePrice</code>（$K_1$）・<code>feature -> barrier -> knockIn</code>（$K_2$）がすべて揃い、現行
+            CDM のバリデーション制約をすべて満たして表現できます。
+          </li>
+        </ul>
+      </div>
+
       <h3>3-2. ギャップ・オプションの CDM スキーマ導出（$K_1$ と $K_2$ のマッピング）</h3>
       <p>
-        実務における為替ギャップ・オプション（例：基準通貨名目元本 <code>10,000,000 USD</code>、<strong>ストライク $K_1 = 150.00\text{ JPY/USD}$</strong>、<strong>満期トリガー $K_2 = 155.00\text{ JPY/USD}$</strong> の USD/JPY Gap Call Option）は、実質的に「満期日（<code>expirationDate</code>）の判定時刻において $S_T \ge K_2$（<code>155.00 JPY/USD</code>）となった場合にのみ有効化（Knock-in）され、有効化された場合はストライク $K_1$（<code>150.00 JPY/USD</code>）で <code>10,000,000 USD</code> と <code>1,500,000,000 JPY</code> を交換（または差金決済）するヨーロピアン・ノックイン・オプション」と同じ経済構造を持ちます。<br />
+        実務における為替ギャップ・オプション（例：基準通貨名目元本 <code>10,000,000 USD</code>、<strong>ストライク $K_1 = 150.00\text{
+          JPY/USD}$</strong>、<strong>満期トリガー $K_2 = 155.00\text{ JPY/USD}$</strong> の USD/JPY Gap Call
+        Option）は、実質的に「満期日（<code>expirationDate</code>）の判定時刻において $S_T \ge
+        K_2$（<code>155.00 JPY/USD</code>）となった場合にのみ有効化（Knock-in）され、有効化された場合はストライク $K_1$（<code>150.00 JPY/USD</code>）で
+        <code>10,000,000 USD</code> と <code>1,500,000,000 JPY</code>
+        を交換（または差金決済）するヨーロピアン・ノックイン・オプション」と同じ経済構造を持ちます。<br />
         したがって、一次ソースの <code>OptionPayout</code> スキーマでは以下の3箇所を組み合わせて表現します：
       </p>
       <ol>
         <li>
           <strong>ストライク価格 $K_1$（<code>150.00 JPY per USD</code>）の配置</strong>：<br />
-          <code>OptionPayout -> strike -> strikePrice</code> に $K_1$（<code>value: 150.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）を設定します。
+          <code>OptionPayout -> strike -> strikePrice</code> に
+          $K_1$（<code>value: 150.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）を設定します。
         </li>
         <li>
           <strong>トリガー価格 $K_2$（<code>155.00 JPY per USD</code>）の配置</strong>：<br />
           <code>OptionPayout -> feature -> barrier -> knockIn[0]</code>（<code>TriggerEvent</code> 型）に以下を設定します：
           <ul>
-            <li><code>triggerDates</code>：満期判定日（例：<code>date: ["2026-12-17"]</code>）※期間中の連続監視ギャップであれば <code>schedule</code> を設定。</li>
-            <li><code>trigger -> level[0]</code>：$K_2$（<code>value: 155.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）。</li>
-            <li><code>trigger -> triggerType</code>：Gap Call（$S_T \ge K_2$ で発動）なら <strong><code>"EqualOrGreater"</code></strong>（または <code>"Greater"</code>）、Gap Put（$S_T \le K_2$ で発動）なら <strong><code>"EqualOrLess"</code></strong>（または <code>"Less"</code>）。</li>
-            <li><code>trigger -> triggerTimeType</code>：満期日カットオフ判定なら <strong><code>"Closing"</code></strong>（期間中常時判定なら <code>"Anytime"</code>）。</li>
+            <li><code>triggerDates</code>：満期判定日（例：<code>date: ["2026-12-17"]</code>）※期間中の連続監視ギャップであれば
+              <code>schedule</code> を設定。
+            </li>
+            <li>
+              <code>trigger -> level[0]</code>：$K_2$（<code>value: 155.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）。
+            </li>
+            <li><code>trigger -> triggerType</code>：Gap Call（$S_T \ge K_2$ で発動）なら
+              <strong><code>"EqualOrGreater"</code></strong>（または <code>"Greater"</code>）、Gap Put（$S_T \le K_2$ で発動）なら
+              <strong><code>"EqualOrLess"</code></strong>（または <code>"Less"</code>）。
+            </li>
+            <li><code>trigger -> triggerTimeType</code>：満期日カットオフ判定なら <strong><code>"Closing"</code></strong>（期間中常時判定なら
+              <code>"Anytime"</code>）。
+            </li>
           </ul>
         </li>
         <li>
           <strong><code>tradeLot -> priceQuantity</code> における2通貨金額（$K_1$ 基準）</strong>：<br />
-          権利が発動して決済される際に実際に交換される対価通貨（<code>JPY</code>）の金額は、トリガー $K_2$（<code>155.00</code>）ではなく<strong>ストライク $K_1$（<code>150.00</code>）</strong>に基づきます。そのため、<code>tradeLot -> priceQuantity</code> には基準通貨 <code>quantity = 10,000,000 USD</code> に対し、<strong>$K_1$ を掛けた <code>price -> derivedQuantity = 1,500,000,000 JPY</code>（$= 10,000,000 \times 150.00$）</strong>を格納します。
+          権利が発動して決済される際に実際に交換される対価通貨（<code>JPY</code>）の金額は、トリガー $K_2$（<code>155.00</code>）ではなく<strong>ストライク
+            $K_1$（<code>150.00</code>）</strong>に基づきます。そのため、<code>tradeLot -> priceQuantity</code> には基準通貨
+          <code>quantity = 10,000,000 USD</code> に対し、<strong>$K_1$ を掛けた
+            <code>price -> derivedQuantity = 1,500,000,000 JPY</code>（$= 10,000,000 \times 150.00$）</strong>を格納します。
         </li>
       </ol>
 
       <div class="code-header">
-        <span>USD/JPY Gap Call Option（Strike K1 = 150.00 JPY/USD, Trigger K2 = 155.00 JPY/USD, Notional 10M USD）の正規CDM JSON</span>
+        <span>USD/JPY Gap Call Option（Strike K1 = 150.00 JPY/USD, Trigger K2 = 155.00 JPY/USD, Notional 10M USD）の正規CDM
+          JSON</span>
       </div>
       <pre><code>{
   "product" : {
@@ -708,21 +964,27 @@
     <section>
       <h2>4. <code>tradeLot -> priceQuantity</code> と Product Qualification の横断整理</h2>
       <p>
-        ここで、今回学んだ4種類の為替オプション（アベレージ・レート、アベレージ・ストライク、バリア、ギャップ）について、<strong>① <code>OptionPayout</code> 側の設定、② <code>tradeLot -> priceQuantity</code> 側の設定とライフサイクル変化、③ <code>Qualify_ForeignExchange_VanillaOption</code> の自動判定結果</strong>を一覧表で比較・整理します。
+        ここで、今回学んだ4種類の為替オプション（アベレージ・レート、アベレージ・ストライク、バリア、ギャップ）について、<strong>① <code>OptionPayout</code> 側の設定、②
+          <code>tradeLot -> priceQuantity</code> 側の設定とライフサイクル変化、③ <code>Qualify_ForeignExchange_VanillaOption</code>
+          の自動判定結果</strong>を一覧表で比較・整理します。
       </p>
 
       <table>
         <thead>
           <tr>
             <th style="width: 16%;">商品種別</th>
-            <th style="width: 28%;"><code>OptionPayout</code> の <code>strike</code> と <code>feature</code> / <code>observationTerms</code></th>
+            <th style="width: 28%;"><code>OptionPayout</code> の <code>strike</code> と <code>feature</code> /
+              <code>observationTerms</code>
+            </th>
             <th style="width: 34%;">約定時の <code>tradeLot -> priceQuantity</code> とライフサイクル変化</th>
             <th style="width: 22%;"><code>Qualify_ForeignExchange_VanillaOption</code> の判定（物理受渡時）</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>① アベレージ・レート</strong><br />（Average Rate Option）<br /><span class="cite-badge">fx-ex20</span> / <span class="cite-badge">fx-ex22</span></td>
+            <td><strong>① アベレージ・レート</strong><br />（Average Rate Option）<br /><span class="cite-badge">fx-ex20</span> /
+              <span class="cite-badge">fx-ex22</span>
+            </td>
             <td>
               ・<code>strike -> strikePrice</code>：固定ストライク $K$<br />
               ・<code>observationTerms</code>（または <code>feature -> averagingFeature [Out]</code>）：平均観測スケジュールと情報ソース
@@ -749,11 +1011,13 @@
               ・観測期間終了時に平均ストライク $\bar{S}_{\text{in}}$ が <code>resetHistory</code> で確定
             </td>
             <td>
-              ・<code>strike -> averagingStrikeFeature</code> 使用（<code>feature</code> 空）または <code>feature -> averagingFeature</code> のみ使用なら <strong><code>True</code></strong>
+              ・<code>strike -> averagingStrikeFeature</code> 使用（<code>feature</code> 空）または
+              <code>feature -> averagingFeature</code> のみ使用なら <strong><code>True</code></strong>
             </td>
           </tr>
           <tr>
-            <td><strong>③ バリア・オプション</strong><br />（Barrier Option）<br /><span class="cite-badge">fx-ex12</span> / <span class="cite-badge">fx-ex13</span></td>
+            <td><strong>③ バリア・オプション</strong><br />（Barrier Option）<br /><span class="cite-badge">fx-ex12</span> / <span
+                class="cite-badge">fx-ex13</span></td>
             <td>
               ・<code>strike -> strikePrice</code>：固定ストライク $K$（約定時参照スポットは <code>composite -> baseValue</code>）<br />
               ・<code>feature -> barrier</code>：<code>knockIn</code> / <code>knockOut</code>（<code>TriggerEvent</code>）
@@ -761,7 +1025,8 @@
             <td>
               ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$<br />
               ・<code>price -> derivedQuantity</code>：バリア水準ではなく<strong>ストライク $K$ で換算した分子通貨元本 $N \times K$</strong><br />
-              ・Knock-out 到達時は <code>QuantityChange</code> で <code>quantity = 0</code>（<code>Closed</code>）へ遷移（リベートがあれば <code>transferHistory</code> に追加）
+              ・Knock-out 到達時は <code>QuantityChange</code> で <code>quantity = 0</code>（<code>Closed</code>）へ遷移（リベートがあれば
+              <code>transferHistory</code> に追加）
             </td>
             <td>
               <strong><code>False</code></strong><br />
@@ -772,11 +1037,13 @@
             <td><strong>④ ギャップ・オプション</strong><br />（Gap Option：$K_1 \neq K_2$）</td>
             <td>
               ・<code>strike -> strikePrice</code>：精算・交換基準の<strong>ストライク $K_1$</strong><br />
-              ・<code>feature -> barrier -> knockIn</code>：発動閾値の<strong>トリガー $K_2$</strong>（<code>Trigger -> level</code>）
+              ・<code>feature -> barrier -> knockIn</code>：発動閾値の<strong>トリガー
+                $K_2$</strong>（<code>Trigger -> level</code>）
             </td>
             <td>
               ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$<br />
-              ・<code>price -> derivedQuantity</code>：トリガー $K_2$ ではなく<strong>ストライク $K_1$ で換算した分子通貨元本 $N \times K_1$</strong>
+              ・<code>price -> derivedQuantity</code>：トリガー $K_2$ ではなく<strong>ストライク $K_1$ で換算した分子通貨元本 $N \times
+                K_1$</strong>
             </td>
             <td>
               <strong><code>False</code></strong><br />
@@ -791,7 +1058,8 @@
     <section>
       <h2>5. インタラクティブ図解：アジアン・バリア・ギャップのトップダウン階層＆ <code>.rosetta</code> 一次ソース探検</h2>
       <p>
-        左側のツリーから7つのコンポーネントをクリックし、<strong>「① 金融実務での意味」「② <code>.rosetta</code> 一次ソース定義と制約（<code>condition</code>）」「③ JSON マッピング構造」</strong>を切り替えて確認してください。
+        左側のツリーから7つのコンポーネントをクリックし、<strong>「① 金融実務での意味」「② <code>.rosetta</code> 一次ソース定義と制約（<code>condition</code>）」「③ JSON
+          マッピング構造」</strong>を切り替えて確認してください。
       </p>
 
       <div class="hierarchy-explorer" data-component="hierarchy-explorer">
@@ -859,10 +1127,14 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3>アベレージ・レート vs アベレージ・ストライクの二重排他制約</h3>
               <p>
-                <strong>金融実務での意味</strong>：アジアン・オプションでは、期間平均レートを「満期時の決済参照レート（Average Rate / Out）」に使うか、「ストライク価格自体（Average Strike / In）」に使うかを契約時に明確に区別します。
+                <strong>金融実務での意味</strong>：アジアン・オプションでは、期間平均レートを「満期時の決済参照レート（Average Rate / Out）」に使うか、「ストライク価格自体（Average
+                Strike / In）」に使うかを契約時に明確に区別します。
               </p>
               <p>
-                <strong>CDM での役割</strong>：CDM では ① <code>OptionStrike</code> の <code>condition: one-of</code> によって「固定ストライク <code>strikePrice</code>」と「平均ストライク <code>averagingStrikeFeature</code>」の同時設定を禁止し、さらに ② <code>OptionPayout</code> の <code>AsianOptionChoice_*</code> によって「<code>strike -> averagingStrikeFeature</code>」と「<code>feature -> averagingFeature</code>」の同時設定を禁止しています。
+                <strong>CDM での役割</strong>：CDM では ① <code>OptionStrike</code> の <code>condition: one-of</code>
+                によって「固定ストライク <code>strikePrice</code>」と「平均ストライク <code>averagingStrikeFeature</code>」の同時設定を禁止し、さらに ②
+                <code>OptionPayout</code> の <code>AsianOptionChoice_*</code>
+                によって「<code>strike -> averagingStrikeFeature</code>」と「<code>feature -> averagingFeature</code>」の同時設定を禁止しています。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -920,10 +1192,14 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3><code>ObservationTerms</code> と <code>ObservationDates</code>（観測スケジュール）</h3>
               <p>
-                <strong>金融実務での意味</strong>：アジアン・オプションにおいて「どの市場ソース（例：Reuters BNBX や WM/Refinitiv）を、何時（例：メキシコシティ 18:00 や東京 15:00）に、どの日程・重み付け（Weight）で観測するか」を定めるフィキシング観測規定です。
+                <strong>金融実務での意味</strong>：アジアン・オプションにおいて「どの市場ソース（例：Reuters BNBX や WM/Refinitiv）を、何時（例：メキシコシティ 18:00 や東京
+                15:00）に、どの日程・重み付け（Weight）で観測するか」を定めるフィキシング観測規定です。
               </p>
               <p>
-                <strong>CDM での役割</strong>：<code>ObservationDates</code>（<span class="cite-badge">product-common-schedule-type.rosetta:L151-L173</span>）は、開始日・終了日・頻度で指定するパラメトリック形式（<code>periodicSchedule</code>）と、各観測日（<code>unadjustedDate</code> / <code>adjustedDate</code>）および重み（<code>weight</code>：例 金曜日は <code>3</code>）を列挙するノンパラメトリック形式（<code>observationSchedule -> observationDate</code>）の両方をサポートしています。
+                <strong>CDM での役割</strong>：<code>ObservationDates</code>（<span
+                  class="cite-badge">product-common-schedule-type.rosetta:L151-L173</span>）は、開始日・終了日・頻度で指定するパラメトリック形式（<code>periodicSchedule</code>）と、各観測日（<code>unadjustedDate</code>
+                / <code>adjustedDate</code>）および重み（<code>weight</code>：例 金曜日は
+                <code>3</code>）を列挙するノンパラメトリック形式（<code>observationSchedule -> observationDate</code>）の両方をサポートしています。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -987,12 +1263,22 @@
           <!-- Node 3: AveragingFeature vs AveragingStrikeFeature -->
           <div class="node-detail-card" data-node-content="node-averaging-feature" style="display: none;">
             <div class="detail-pane active" data-pane="tab-domain">
-              <h3><code>AveragingFeature</code> vs <code>AveragingStrikeFeature</code> と <code>AveragingCalculation</code></h3>
+              <h3><code>AveragingFeature</code> vs <code>AveragingStrikeFeature</code> と
+                <code>AveragingCalculation</code>
+              </h3>
               <p>
-                <strong>金融実務での意味</strong>：平均計算の数学的ルール（算術平均 <code>Arithmetic</code>・幾何平均 <code>Geometric</code>・調和平均 <code>Harmonic</code>、加重平均か単純平均か <code>isWeighted</code>、丸め桁数 <code>precision</code>）と、観測日に市場混乱（Market Disruption）が起きた際の代替処理（<code>ModifiedPostponement</code>, <code>Postponement</code>, <code>Omission</code>）を定義します。
+                <strong>金融実務での意味</strong>：平均計算の数学的ルール（算術平均 <code>Arithmetic</code>・幾何平均 <code>Geometric</code>・調和平均
+                <code>Harmonic</code>、加重平均か単純平均か <code>isWeighted</code>、丸め桁数 <code>precision</code>）と、観測日に市場混乱（Market
+                Disruption）が起きた際の代替処理（<code>ModifiedPostponement</code>, <code>Postponement</code>,
+                <code>Omission</code>）を定義します。
               </p>
               <p>
-                <strong>CDM での役割</strong>：<code>OptionFeature -> averagingFeature</code> では <code>averagingInOut</code>（<code>In</code> / <code>Out</code> / <code>Both</code>）によって平均ストライク（<code>averagingPeriodIn</code>）と平均決済価格（<code>averagingPeriodOut</code>）を切り替えられます（<span class="cite-badge">eqd-ex05-asian-long-form.json</span>, <span class="cite-badge">eqd-ex06-averaging-in-long-form.json</span> 参照）。一方、ストライク構造体側で平均ストライクを直接表す場合は <code>OptionStrike -> averagingStrikeFeature</code> を使います。
+                <strong>CDM での役割</strong>：<code>OptionFeature -> averagingFeature</code> では
+                <code>averagingInOut</code>（<code>In</code> / <code>Out</code> /
+                <code>Both</code>）によって平均ストライク（<code>averagingPeriodIn</code>）と平均決済価格（<code>averagingPeriodOut</code>）を切り替えられます（<span
+                  class="cite-badge">eqd-ex05-asian-long-form.json</span>, <span
+                  class="cite-badge">eqd-ex06-averaging-in-long-form.json</span> 参照）。一方、ストライク構造体側で平均ストライクを直接表す場合は
+                <code>OptionStrike -> averagingStrikeFeature</code> を使います。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -1053,7 +1339,11 @@
                 <strong>金融実務での意味</strong>：ノックイン（バリア到達で権利発生）およびノックアウト（バリア到達で権利消滅）を表すコンテナです。
               </p>
               <p>
-                <strong>CDM での役割</strong>：<code>knockIn TriggerEvent (0..*)</code> と <code>knockOut TriggerEvent (0..*)</code> の両方が複数カーディナリティ（<code>0..*</code>）を持っているため、① シングル・バリア（<code>knockIn</code> 1個 または <code>knockOut</code> 1個）、② ダブル・バリア（<code>knockOut</code> に下限・上限の2個、または <code>knockIn</code> に2個）、③ KIKO バリア（<code>knockIn</code> と <code>knockOut</code> の両方に設定）のすべてを単一の <code>Barrier</code> 型で表現できます。
+                <strong>CDM での役割</strong>：<code>knockIn TriggerEvent (0..*)</code> と
+                <code>knockOut TriggerEvent (0..*)</code> の両方が複数カーディナリティ（<code>0..*</code>）を持っているため、①
+                シングル・バリア（<code>knockIn</code> 1個 または <code>knockOut</code> 1個）、② ダブル・バリア（<code>knockOut</code>
+                に下限・上限の2個、または <code>knockIn</code> に2個）、③ KIKO バリア（<code>knockIn</code> と <code>knockOut</code>
+                の両方に設定）のすべてを単一の <code>Barrier</code> 型で表現できます。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -1104,12 +1394,16 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3><code>TriggerEvent</code> / <code>Trigger</code> / <code>FeaturePayment</code></h3>
               <p>
-                <strong>金融実務での意味</strong>：個々のバリアイベントについて、① いつ監視するか（<code>schedule</code> / <code>triggerDates</code>）、② どのレート水準（<code>trigger -> level</code>）にどの方向（<code>triggerType</code>：<code>EqualOrGreater</code> = Up、<code>EqualOrLess</code> = Down）で、常時（<code>Anytime</code>）または終値（<code>Closing</code>）のどちらで判定するか、③ トリガー到達時にいくらのリベート補償金（<code>featurePayment</code>）を支払うかを定義します。
+                <strong>金融実務での意味</strong>：個々のバリアイベントについて、① いつ監視するか（<code>schedule</code> / <code>triggerDates</code>）、②
+                どのレート水準（<code>trigger -> level</code>）にどの方向（<code>triggerType</code>：<code>EqualOrGreater</code> =
+                Up、<code>EqualOrLess</code> = Down）で、常時（<code>Anytime</code>）または終値（<code>Closing</code>）のどちらで判定するか、③
+                トリガー到達時にいくらのリベート補償金（<code>featurePayment</code>）を支払うかを定義します。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
               <div class="code-header">
-                <span>observable-event-type.rosetta（L11-L29, L85-L101）&amp; observable-event-enum.rosetta（L15-L25）</span>
+                <span>observable-event-type.rosetta（L11-L29, L85-L101）&amp;
+                  observable-event-enum.rosetta（L15-L25）</span>
               </div>
               <pre><code><span class="kw">type</span> <span class="tp">TriggerEvent</span>:
     schedule <span class="tp">AveragingSchedule</span> (0..*)
@@ -1162,10 +1456,14 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3>ギャップ・オプション（ストライク $K_1$ vs トリガー $K_2$）の構造</h3>
               <p>
-                <strong>金融実務での意味</strong>：満期時（または観測時）のレート $S_T$ がトリガー水準 $K_2$ を超えた（Call の場合 $S_T \ge K_2$）ときに限り発動し、発動時の交換・精算レートには $K_2$ ではなくストライク価格 $K_1$（$K_1 \neq K_2$）を用いるオプションです。
+                <strong>金融実務での意味</strong>：満期時（または観測時）のレート $S_T$ がトリガー水準 $K_2$ を超えた（Call の場合 $S_T \ge
+                K_2$）ときに限り発動し、発動時の交換・精算レートには $K_2$ ではなくストライク価格 $K_1$（$K_1 \neq K_2$）を用いるオプションです。
               </p>
               <p>
-                <strong>CDM での役割</strong>：精算・交換基準となるストライク $K_1$ を <code>OptionPayout -> strike -> strikePrice</code> に配置し、発動閾値となるトリガー $K_2$ を <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level[0]</code> に配置することで、2つのレート水準の役割を曖昧さなく分離して表現します。
+                <strong>CDM での役割</strong>：精算・交換基準となるストライク $K_1$ を <code>OptionPayout -> strike -> strikePrice</code>
+                に配置し、発動閾値となるトリガー $K_2$ を
+                <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level[0]</code>
+                に配置することで、2つのレート水準の役割を曖昧さなく分離して表現します。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -1220,15 +1518,23 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3><code>tradeLot -> priceQuantity</code> と参照スポット・Qualification</h3>
               <p>
-                <strong>不変原則の適用</strong>：エキゾチック為替オプションでも、分母通貨（基準通貨 <code>perUnitOf</code>）が常に <code>priceQuantity -> quantity</code> および <code>underlier</code>（<code>Cash</code>）となり、分子通貨（対価通貨 <code>unit</code>）が <code>price -> derivedQuantity</code> になります。
+                <strong>不変原則の適用</strong>：エキゾチック為替オプションでも、分母通貨（基準通貨 <code>perUnitOf</code>）が常に
+                <code>priceQuantity -> quantity</code> および <code>underlier</code>（<code>Cash</code>）となり、分子通貨（対価通貨
+                <code>unit</code>）が <code>price -> derivedQuantity</code> になります。
               </p>
               <p>
-                <strong>バリア・ギャップ・アベレージストライクでの注意点</strong>：バリアやギャップでは、<code>derivedQuantity</code> はトリガー水準 $K_2$ ではなく<strong>ストライクレート $K_1$（$\text{quantity} \times K_1$）</strong>で算出された金額を格納します。一方、アベレージ・ストライクでは約定時にストライクが未確定であるため、<code>quantity</code>（基準通貨額）のみを設定し <code>derivedQuantity</code> は空（<code>absent</code>）とします。また、バリアの約定時参照スポットレートは <code>strike -> strikePrice -> composite -> baseValue</code> に格納します（<span class="cite-badge">fx-ex12-fx-barrier-option.json:L74-L76</span>）。
+                <strong>バリア・ギャップ・アベレージストライクでの注意点</strong>：バリアやギャップでは、<code>derivedQuantity</code> はトリガー水準 $K_2$
+                ではなく<strong>ストライクレート $K_1$（$\text{quantity} \times
+                  K_1$）</strong>で算出された金額を格納します。一方、アベレージ・ストライクでは約定時にストライクが未確定であるため、<code>quantity</code>（基準通貨額）のみを設定し
+                <code>derivedQuantity</code> は空（<code>absent</code>）とします。また、バリアの約定時参照スポットレートは
+                <code>strike -> strikePrice -> composite -> baseValue</code> に格納します（<span
+                  class="cite-badge">fx-ex12-fx-barrier-option.json:L74-L76</span>）。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
               <div class="code-header">
-                <span>ingest-fpml-confirmation-product-fxoption-func.rosetta（L231-L249）&amp; product-qualification-func.rosetta（L1764-L1769）</span>
+                <span>ingest-fpml-confirmation-product-fxoption-func.rosetta（L231-L249）&amp;
+                  product-qualification-func.rosetta（L1764-L1769）</span>
               </div>
               <pre><code><span class="cm">// 1. 約定時参照スポットレート (spotRate) は strikePrice -&gt; composite -&gt; baseValue へ格納</span>
 <span class="kw">set</span> strike:
@@ -1287,20 +1593,31 @@
     <section>
       <h2>6. 実践演習①：アジアン・バリア・ギャップ実務タームシート → CDM マッピング設計チャレンジ</h2>
       <p>
-        以下の3つのエキゾチック為替オプション案件を CDM の <code>TradeState</code> にマッピングする際、一次ソースの型定義と <code>condition</code> に適合する正しい設計を選択して「検証」ボタンを押してください。
+        以下の3つのエキゾチック為替オプション案件を CDM の <code>TradeState</code> にマッピングする際、一次ソースの型定義と <code>condition</code>
+        に適合する正しい設計を選択して「検証」ボタンを押してください。
       </p>
 
       <div class="callout">
         <div class="callout-title">📄 演習対象タームシート（3案件）</div>
         <ul style="margin-bottom: 0;">
           <li>
-            <strong>案件A（USD/MXN アベレージ・レート・コール・オプション）</strong>：買手 <code>Party1</code> が固定ストライク <code>12.40 MXN per USD</code>（分母 <code>perUnitOf = USD</code>、分子 <code>unit = MXN</code>）で <code>463,709.68 USD</code> を受け取り <code>5,750,000 MXN</code> を支払う権利。2010年11月1日〜11月30日の各営業日 <code>18:00:00 MXMC</code> に Reuters <code>BNBX</code> を観測（月〜木はウェイト <code>1</code>、金曜日はウェイト <code>3</code> の算術加重平均）。
+            <strong>案件A（USD/MXN アベレージ・レート・コール・オプション）</strong>：買手 <code>Party1</code> が固定ストライク
+            <code>12.40 MXN per USD</code>（分母 <code>perUnitOf = USD</code>、分子 <code>unit = MXN</code>）で
+            <code>463,709.68 USD</code> を受け取り <code>5,750,000 MXN</code> を支払う権利。2010年11月1日〜11月30日の各営業日
+            <code>18:00:00 MXMC</code> に Reuters <code>BNBX</code> を観測（月〜木はウェイト <code>1</code>、金曜日はウェイト <code>3</code>
+            の算術加重平均）。
           </li>
           <li>
-            <strong>案件B（USD/JPY アベレージ・ストライク・コール・オプション）</strong>：買手 <code>Party1</code> が基準通貨名目元本 <code>10,000,000 USD</code> を受け取り <code>JPY</code> を支払う権利。ストライクレート（<code>JPY per USD</code>）は2026年11月の20営業日の東京15:00スポットレートの単純算術平均（小数点以下4桁丸め）で決定される。
+            <strong>案件B（USD/JPY アベレージ・ストライク・コール・オプション）</strong>：買手 <code>Party1</code> が基準通貨名目元本
+            <code>10,000,000 USD</code> を受け取り <code>JPY</code>
+            を支払う権利。ストライクレート（<code>JPY per USD</code>）は2026年11月の20営業日の東京15:00スポットレートの単純算術平均（小数点以下4桁丸め）で決定される。
           </li>
           <li>
-            <strong>案件C（USD/JPY ギャップ・コール・オプション &amp; ノックアウト・バリア）</strong>：買手 <code>Party1</code>、売手 <code>Party2</code>、基準通貨名目元本 <code>10,000,000 USD</code>。満期日 <code>2026-12-17</code> の終値時点でスポットレートが<strong>トリガー $K_2 = 155.00\text{ JPY per USD}$ 以上</strong>であれば権利が有効化（Knock-in）され、有効化された場合は<strong>ストライク $K_1 = 150.00\text{ JPY per USD}$</strong> で精算・交換する。
+            <strong>案件C（USD/JPY ギャップ・コール・オプション &amp; ノックアウト・バリア）</strong>：買手 <code>Party1</code>、売手
+            <code>Party2</code>、基準通貨名目元本 <code>10,000,000 USD</code>。満期日 <code>2026-12-17</code>
+            の終値時点でスポットレートが<strong>トリガー $K_2 = 155.00\text{ JPY per USD}$
+              以上</strong>であれば権利が有効化（Knock-in）され、有効化された場合は<strong>ストライク $K_1 = 150.00\text{ JPY per USD}$</strong>
+            で精算・交換する。
           </li>
         </ul>
       </div>
@@ -1311,15 +1628,19 @@
           data-answer="strike -> strikePrice に 12.40 MXN per USD を設定し、observationTerms -> observationDates -> observationSchedule -> observationDate に各観測日と weight（1または3）を設定する（strike -> averagingStrikeFeature は absent）"
           data-explanation="案件Aは固定ストライク（<code>12.40 MXN per USD</code>）と期間平均レートを比較するアベレージ・レート・オプションです。したがって <code>OptionStrike</code>（<code>one-of</code>）では <code>strikePrice</code> を設定し（<code>averagingStrikeFeature</code> は <code>absent</code>）、日別の重み付き観測日程は <code>ObservationTerms -> observationDates -> observationSchedule -> observationDate</code>（<code>weight: 1</code> または <code>3</code>、<code>product-common-schedule-type.rosetta:L151-L173</code>）に設定します。">
           <div class="mapping-prompt">
-            問1.【案件A：アベレージ・レート】固定ストライク <code>12.40 MXN per USD</code> と、金曜日をウェイト <code>3</code> とする日別観測スケジュールは、<code>OptionPayout</code> のどこに設定すべきか？
+            問1.【案件A：アベレージ・レート】固定ストライク <code>12.40 MXN per USD</code> と、金曜日をウェイト <code>3</code>
+            とする日別観測スケジュールは、<code>OptionPayout</code> のどこに設定すべきか？
           </div>
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- アベレージ・レートの設計を選択 --</option>
               <option value="strike -> strikePrice に 12.40 を設定し、同時に strike -> averagingStrikeFeature にも観測スケジュールを設定する">
                 strike -> strikePrice に 12.40 を設定し、同時に strike -> averagingStrikeFeature にも観測スケジュールを設定する</option>
-              <option value="strike -> strikePrice に 12.40 MXN per USD を設定し、observationTerms -> observationDates -> observationSchedule -> observationDate に各観測日と weight（1または3）を設定する（strike -> averagingStrikeFeature は absent）">
-                strike -> strikePrice に 12.40 MXN per USD を設定し、observationTerms -> observationDates -> observationSchedule -> observationDate に各観測日と weight（1または3）を設定する（strike -> averagingStrikeFeature は absent）</option>
+              <option
+                value="strike -> strikePrice に 12.40 MXN per USD を設定し、observationTerms -> observationDates -> observationSchedule -> observationDate に各観測日と weight（1または3）を設定する（strike -> averagingStrikeFeature は absent）">
+                strike -> strikePrice に 12.40 MXN per USD を設定し、observationTerms -> observationDates ->
+                observationSchedule -> observationDate に各観測日と weight（1または3）を設定する（strike -> averagingStrikeFeature は
+                absent）</option>
               <option value="strike は空（absent）にし、feature -> barrier -> knockIn に 12.40 と各観測日の weight を設定する">
                 strike は空（absent）にし、feature -> barrier -> knockIn に 12.40 と各観測日の weight を設定する</option>
               <option value="exerciseTerms -> exerciseDates に各観測日と weight を設定し、strike -> strikeReference に 12.40 を設定する">
@@ -1335,19 +1656,27 @@
           data-answer="OptionPayout -> strike -> averagingStrikeFeature に averagingCalculation と observationTerms を設定し、strike -> strikePrice および feature -> averagingFeature はともに absent にする"
           data-explanation="<code>OptionStrike</code> の <code>condition: one-of</code>（<code>product-template-type.rosetta:L692-L693</code>）により <code>averagingStrikeFeature</code> と <code>strikePrice</code> は同時設定できず、さらに <code>OptionPayout</code> の <code>condition AsianOptionChoice_averagingStrikeFeature</code>（<code>L137-L140</code>）により <code>strike -> averagingStrikeFeature</code> が存在するときは <code>feature -> averagingFeature</code> を必ず <code>absent</code> にしなければなりません。">
           <div class="mapping-prompt">
-            問2.【案件B：アベレージ・ストライク】変動ストライク条件を <code>OptionStrike -> averagingStrikeFeature</code> で表現する場合、排他制約（<code>condition</code>）に適合する設定はどれか？
+            問2.【案件B：アベレージ・ストライク】変動ストライク条件を <code>OptionStrike -> averagingStrikeFeature</code>
+            で表現する場合、排他制約（<code>condition</code>）に適合する設定はどれか？
           </div>
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- アベレージ・ストライクの排他制約に適合する設計を選択 --</option>
-              <option value="OptionPayout -> strike -> averagingStrikeFeature と feature -> averagingFeature の両方に同じ平均計算条件を設定する">
-                OptionPayout -> strike -> averagingStrikeFeature と feature -> averagingFeature の両方に同じ平均計算条件を設定する</option>
-              <option value="OptionPayout -> strike -> averagingStrikeFeature を設定し、strike -> strikePrice には仮レート 0.0 を同時に設定する">
+              <option
+                value="OptionPayout -> strike -> averagingStrikeFeature と feature -> averagingFeature の両方に同じ平均計算条件を設定する">
+                OptionPayout -> strike -> averagingStrikeFeature と feature -> averagingFeature の両方に同じ平均計算条件を設定する
+              </option>
+              <option
+                value="OptionPayout -> strike -> averagingStrikeFeature を設定し、strike -> strikePrice には仮レート 0.0 を同時に設定する">
                 OptionPayout -> strike -> averagingStrikeFeature を設定し、strike -> strikePrice には仮レート 0.0 を同時に設定する</option>
-              <option value="OptionPayout -> strike -> averagingStrikeFeature に averagingCalculation と observationTerms を設定し、strike -> strikePrice および feature -> averagingFeature はともに absent にする">
-                OptionPayout -> strike -> averagingStrikeFeature に averagingCalculation と observationTerms を設定し、strike -> strikePrice および feature -> averagingFeature はともに absent にする</option>
-              <option value="OptionPayout -> strike は空（absent）にし、settlementTerms -> cashSettlementTerms に averagingStrikeFeature を設定する">
-                OptionPayout -> strike は空（absent）にし、settlementTerms -> cashSettlementTerms に averagingStrikeFeature を設定する</option>
+              <option
+                value="OptionPayout -> strike -> averagingStrikeFeature に averagingCalculation と observationTerms を設定し、strike -> strikePrice および feature -> averagingFeature はともに absent にする">
+                OptionPayout -> strike -> averagingStrikeFeature に averagingCalculation と observationTerms を設定し、strike
+                -> strikePrice および feature -> averagingFeature はともに absent にする</option>
+              <option
+                value="OptionPayout -> strike は空（absent）にし、settlementTerms -> cashSettlementTerms に averagingStrikeFeature を設定する">
+                OptionPayout -> strike は空（absent）にし、settlementTerms -> cashSettlementTerms に averagingStrikeFeature
+                を設定する</option>
             </select>
             <button class="btn-check">検証</button>
           </div>
@@ -1364,8 +1693,10 @@
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- アベレージ・ストライク約定時の priceQuantity を選択 --</option>
-              <option value="quantity に 10,000,000 USD（observable = Cash: USD）を設定し、ストライク未確定のため price -> derivedQuantity は空（absent）とする">
-                quantity に 10,000,000 USD（observable = Cash: USD）を設定し、ストライク未確定のため price -> derivedQuantity は空（absent）とする</option>
+              <option
+                value="quantity に 10,000,000 USD（observable = Cash: USD）を設定し、ストライク未確定のため price -> derivedQuantity は空（absent）とする">
+                quantity に 10,000,000 USD（observable = Cash: USD）を設定し、ストライク未確定のため price -> derivedQuantity は空（absent）とする
+              </option>
               <option value="quantity は空（absent）とし、price -> derivedQuantity に 10,000,000 USD を設定する">
                 quantity は空（absent）とし、price -> derivedQuantity に 10,000,000 USD を設定する</option>
               <option value="quantity と derivedQuantity の両方を 0 に設定し、transferHistory に 10,000,000 USD を入れる">
@@ -1383,19 +1714,28 @@
           data-answer="strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level = 155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する"
           data-explanation="ギャップ・コール・オプション（案件C）では、発動した際の精算・交換基準レートであるストライク $K_1$（<code>150.00 JPY/USD</code>）を <code>OptionPayout -> strike -> strikePrice</code> に配置し、権利が有効化される発動閾値であるトリガー $K_2$（<code>155.00 JPY/USD</code>）を <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level</code>（<code>triggerType: EqualOrGreater</code>, <code>triggerTimeType: Closing</code>）に配置します。">
           <div class="mapping-prompt">
-            問4.【案件C：ギャップ・オプション】ストライク $K_1 = 150.00\text{ JPY/USD}$ と満期トリガー $K_2 = 155.00\text{ JPY/USD}$ は、<code>OptionPayout</code> のどこにどう分離して設定すべきか？
+            問4.【案件C：ギャップ・オプション】ストライク $K_1 = 150.00\text{ JPY/USD}$ と満期トリガー $K_2 = 155.00\text{ JPY/USD}$
+            は、<code>OptionPayout</code> のどこにどう分離して設定すべきか？
           </div>
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- ギャップ・オプションの K1 と K2 の配置を選択 --</option>
-              <option value="strike -> strikePrice に K2 = 155.00 JPY/USD を設定し、feature -> barrier -> knockOut[0] -> trigger に level = 150.00 JPY/USD（K1）を設定する">
-                strike -> strikePrice に K2 = 155.00 JPY/USD を設定し、feature -> barrier -> knockOut[0] -> trigger に level = 150.00 JPY/USD（K1）を設定する</option>
-              <option value="strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level = 155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する">
-                strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level = 155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する</option>
-              <option value="strike は空（absent）にし、feature -> barrier -> knockIn[0] -> trigger -> level 配列に 150.00 と 155.00 の2つを並べて入れる">
-                strike は空（absent）にし、feature -> barrier -> knockIn[0] -> trigger -> level 配列に 150.00 と 155.00 の2つを並べて入れる</option>
-              <option value="strike -> strikePrice に K1 = 150.00 を設定し、strike -> strikePrice -> composite -> baseValue に K2 = 155.00 を設定する">
-                strike -> strikePrice に K1 = 150.00 を設定し、strike -> strikePrice -> composite -> baseValue に K2 = 155.00 を設定する</option>
+              <option
+                value="strike -> strikePrice に K2 = 155.00 JPY/USD を設定し、feature -> barrier -> knockOut[0] -> trigger に level = 150.00 JPY/USD（K1）を設定する">
+                strike -> strikePrice に K2 = 155.00 JPY/USD を設定し、feature -> barrier -> knockOut[0] -> trigger に level =
+                150.00 JPY/USD（K1）を設定する</option>
+              <option
+                value="strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level = 155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する">
+                strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level =
+                155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する</option>
+              <option
+                value="strike は空（absent）にし、feature -> barrier -> knockIn[0] -> trigger -> level 配列に 150.00 と 155.00 の2つを並べて入れる">
+                strike は空（absent）にし、feature -> barrier -> knockIn[0] -> trigger -> level 配列に 150.00 と 155.00 の2つを並べて入れる
+              </option>
+              <option
+                value="strike -> strikePrice に K1 = 150.00 を設定し、strike -> strikePrice -> composite -> baseValue に K2 = 155.00 を設定する">
+                strike -> strikePrice に K1 = 150.00 を設定し、strike -> strikePrice -> composite -> baseValue に K2 = 155.00
+                を設定する</option>
             </select>
             <button class="btn-check">検証</button>
           </div>
@@ -1407,17 +1747,25 @@
           data-answer="quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00 で換算した対価通貨金額）を設定する"
           data-explanation="ギャップ・オプションやバリア・オプションにおいて、権利が有効化されて行使された際に実際に交換（または差額計算）される対価通貨額は、トリガー $K_2$（<code>155.00</code>）ではなくストライク $K_1$（<code>150.00</code>）に基づきます。したがって <code>tradeLot -> priceQuantity</code> には <code>quantity = 10,000,000 USD</code>、<code>price -> derivedQuantity = 1,500,000,000 JPY</code>（$= 10,000,000 \times 150.00$）を設定します。">
           <div class="mapping-prompt">
-            問5.【案件C：ギャップ・オプション】基準通貨元本 <code>10,000,000 USD</code>、ストライク $K_1 = 150.00$、トリガー $K_2 = 155.00$ のとき、<strong><code>tradeLot -> priceQuantity</code></strong> の <code>quantity</code> と <code>derivedQuantity</code> はどう設定すべきか？
+            問5.【案件C：ギャップ・オプション】基準通貨元本 <code>10,000,000 USD</code>、ストライク $K_1 = 150.00$、トリガー $K_2 = 155.00$
+            のとき、<strong><code>tradeLot -> priceQuantity</code></strong> の <code>quantity</code> と
+            <code>derivedQuantity</code> はどう設定すべきか？
           </div>
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- ギャップ・オプションの priceQuantity を選択 --</option>
-              <option value="quantity = 10,000,000 USD、price -> derivedQuantity = 1,550,000,000 JPY（トリガー K2 = 155.00 で換算した金額）を設定する">
-                quantity = 10,000,000 USD、price -> derivedQuantity = 1,550,000,000 JPY（トリガー K2 = 155.00 で換算した金額）を設定する</option>
-              <option value="quantity = 10,000,000 USD、price -> derivedQuantity = 50,000,000 JPY（ギャップ差額 K2 - K1 = 5.00 で換算した金額）を設定する">
-                quantity = 10,000,000 USD、price -> derivedQuantity = 50,000,000 JPY（ギャップ差額 K2 - K1 = 5.00 で換算した金額）を設定する</option>
-              <option value="quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00 で換算した対価通貨金額）を設定する">
-                quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00 で換算した対価通貨金額）を設定する</option>
+              <option
+                value="quantity = 10,000,000 USD、price -> derivedQuantity = 1,550,000,000 JPY（トリガー K2 = 155.00 で換算した金額）を設定する">
+                quantity = 10,000,000 USD、price -> derivedQuantity = 1,550,000,000 JPY（トリガー K2 = 155.00 で換算した金額）を設定する
+              </option>
+              <option
+                value="quantity = 10,000,000 USD、price -> derivedQuantity = 50,000,000 JPY（ギャップ差額 K2 - K1 = 5.00 で換算した金額）を設定する">
+                quantity = 10,000,000 USD、price -> derivedQuantity = 50,000,000 JPY（ギャップ差額 K2 - K1 = 5.00 で換算した金額）を設定する
+              </option>
+              <option
+                value="quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00 で換算した対価通貨金額）を設定する">
+                quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00
+                で換算した対価通貨金額）を設定する</option>
               <option value="quantity = 1,500,000,000 JPY、price -> derivedQuantity = 1,550,000,000 JPY を設定する">
                 quantity = 1,500,000,000 JPY、price -> derivedQuantity = 1,550,000,000 JPY を設定する</option>
             </select>
@@ -1431,13 +1779,16 @@
           data-answer="TriggerEvent -> featurePayment に payerReceiver（PartyReferencePayerReceiver: payerPartyReference = party2, receiverPartyReference = party1）、amount = 50000、currency = USD を設定する"
           data-explanation="<code>TriggerEvent -> featurePayment</code>（<code>FeaturePayment</code> 型、<code>observable-event-type.rosetta:L85-L101</code>）では、<code>payerReceiver</code> に <code>PartyReferencePayerReceiver</code>（<code>@ref:external</code> で売手 <code>party2</code> を支払者、買手 <code>party1</code> を受取者に指定）を設定し、<code>condition FeaturePaymentChoice: required choice levelPercentage, amount</code> に従って <code>amount: 50000</code> と <code>currency: USD</code> を設定します。">
           <div class="mapping-prompt">
-            問6.【バリアのリベート拡張】もしノックアウト・バリア到達時に、オプション売手（<code>party2</code>）から買手（<code>party1</code>）へリベート補償金 <code>50,000 USD</code> が支払われる契約である場合、どこにどう設定すべきか？
+            問6.【バリアのリベート拡張】もしノックアウト・バリア到達時に、オプション売手（<code>party2</code>）から買手（<code>party1</code>）へリベート補償金
+            <code>50,000 USD</code> が支払われる契約である場合、どこにどう設定すべきか？
           </div>
           <div class="mapping-controls">
             <select class="mapping-select">
               <option value="">-- リベート支払の設定箇所を選択 --</option>
-              <option value="TriggerEvent -> featurePayment に payerReceiver（PartyReferencePayerReceiver: payerPartyReference = party2, receiverPartyReference = party1）、amount = 50000、currency = USD を設定する">
-                TriggerEvent -> featurePayment に payerReceiver（PartyReferencePayerReceiver: payerPartyReference = party2, receiverPartyReference = party1）、amount = 50000、currency = USD を設定する</option>
+              <option
+                value="TriggerEvent -> featurePayment に payerReceiver（PartyReferencePayerReceiver: payerPartyReference = party2, receiverPartyReference = party1）、amount = 50000、currency = USD を設定する">
+                TriggerEvent -> featurePayment に payerReceiver（PartyReferencePayerReceiver: payerPartyReference =
+                party2, receiverPartyReference = party1）、amount = 50000、currency = USD を設定する</option>
               <option value="OptionPayout -> exerciseTerms -> exerciseFee に feeAmount = 50000 を設定する">
                 OptionPayout -> exerciseTerms -> exerciseFee に feeAmount = 50000 を設定する</option>
               <option value="OptionPayout -> strike -> strikePrice -> composite -> operand に 50000 を設定する">
@@ -1464,7 +1815,8 @@
         <div class="quiz-question-card" data-correct-index="1"
           data-explanation="<code>OptionPayout</code>（<code>product-template-type.rosetta:L137-L144</code>）の <code>condition AsianOptionChoice_averagingStrikeFeature</code> および <code>condition AsianOptionChoice_averagingFeature</code> により、<code>strike -> averagingStrikeFeature</code> と <code>feature -> averagingFeature</code> は片方が存在するとき他方は必ず <code>absent</code>（空）でなければならず、同時設定は禁止されています。">
           <div class="quiz-q-title">
-            Q1. <code>OptionPayout</code> における <code>feature -> averagingFeature</code> と <code>strike -> averagingStrikeFeature</code> の排他制約（<code>condition</code>）として正しいものはどれか？
+            Q1. <code>OptionPayout</code> における <code>feature -> averagingFeature</code> と
+            <code>strike -> averagingStrikeFeature</code> の排他制約（<code>condition</code>）として正しいものはどれか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">両方とも同時に必須属性として設定しなければバリデーション失敗</button>
@@ -1479,7 +1831,8 @@
         <div class="quiz-question-card" data-correct-index="3"
           data-explanation="アベレージ・ストライク・オプションで <code>OptionStrike -> averagingStrikeFeature</code> を設定する場合、<code>OptionStrike</code> の <code>condition: one-of</code>（<code>product-template-type.rosetta:L692-L693</code>）により <code>strikePrice</code> は設定できません（<code>absent</code>）。また約定時点ではストライクレートが未確定であるため、<code>tradeLot -> priceQuantity</code> では基準通貨数量（<code>quantity</code>）のみを定め、対価通貨数量（<code>derivedQuantity</code>）は空（<code>absent</code>）となります。">
           <div class="quiz-q-title">
-            Q2. アベレージ・ストライク・オプションを <code>OptionStrike -> averagingStrikeFeature</code> で表現する場合、<code>strikePrice</code> と約定時の <code>priceQuantity</code> はどうなるか？
+            Q2. アベレージ・ストライク・オプションを <code>OptionStrike -> averagingStrikeFeature</code> で表現する場合、<code>strikePrice</code>
+            と約定時の <code>priceQuantity</code> はどうなるか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">固定ストライク価格を併記して２通貨の両方の数量を約定時に確定</button>
@@ -1494,7 +1847,8 @@
         <div class="quiz-question-card" data-correct-index="0"
           data-explanation="<code>Barrier</code> 型（<code>product-template-type.rosetta:L635-L638</code>）の <code>knockOut</code> は <code>TriggerEvent (0..*)</code> の配列です。下限バリア（<code>EqualOrLess</code>）と上限バリア（<code>EqualOrGreater</code>）の2つを持つダブル・ノックアウト・オプションでは、<code>knockOut</code> 配列に下限用と上限用の2つの <code>TriggerEvent</code> を格納します。">
           <div class="quiz-q-title">
-            Q3. 下限バリア（<code>102 JPY/USD</code> 以下で消滅）と上限バリア（<code>115 JPY/USD</code> 以上で消滅）を持つダブル・ノックアウト・オプションは <code>Barrier</code> 型でどう表現するか？
+            Q3. 下限バリア（<code>102 JPY/USD</code> 以下で消滅）と上限バリア（<code>115 JPY/USD</code> 以上で消滅）を持つダブル・ノックアウト・オプションは
+            <code>Barrier</code> 型でどう表現するか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">ノックアウト配列に下限条件と上限条件の２つのトリガーを入れる</button>
@@ -1509,7 +1863,8 @@
         <div class="quiz-question-card" data-correct-index="2"
           data-explanation="<code>Trigger</code> 型（<code>observable-event-type.rosetta:L11-L22</code>）の <code>condition Choice1: required choice level, creditEvents, creditEventsReference</code> により、為替バリア・オプションでは <code>level</code>（<code>PriceSchedule</code>）を選択し、観測期間中の常時（連続）監視には <code>triggerTimeType: TriggerTimeTypeEnum -> Anytime</code>（<code>observable-event-enum.rosetta:L24</code>）を指定します。">
           <div class="quiz-q-title">
-            Q4. <code>Trigger</code> 型の必須選択制約（<code>condition Choice1</code>）および観測期間中の連続監視バリア（Continuous Barrier）を表す設定の組み合わせとして正しいものはどれか？
+            Q4. <code>Trigger</code> 型の必須選択制約（<code>condition Choice1</code>）および観測期間中の連続監視バリア（Continuous
+            Barrier）を表す設定の組み合わせとして正しいものはどれか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">信用事象参照を選択してトリガー時刻種別には終値監視を指定する</button>
@@ -1524,7 +1879,8 @@
         <div class="quiz-question-card" data-correct-index="1"
           data-explanation="ギャップ・オプションでは、ペイオフ・交換金額の基準レートであるストライク $K_1 = 150.00$ を <code>strike -> strikePrice</code> に置き、発動閾値であるトリガー $K_2 = 155.00$ を <code>feature -> barrier -> knockIn -> trigger -> level</code> に置き、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク $K_1$ で換算した対価通貨額（$10,000,000 \times 150.00 = 15\text{億円}$）を設定します。">
           <div class="quiz-q-title">
-            Q5. 元本 <code>1,000万USD</code>、ストライク $K_1 = 150\text{円}$、トリガー $K_2 = 155\text{円}$ のギャップ・コール・オプションにおける $K_1$・$K_2$・<code>derivedQuantity</code> の設定はどれか？
+            Q5. 元本 <code>1,000万USD</code>、ストライク $K_1 = 150\text{円}$、トリガー $K_2 = 155\text{円}$ のギャップ・コール・オプションにおける
+            $K_1$・$K_2$・<code>derivedQuantity</code> の設定はどれか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">ストライクに１５５を置きトリガーに１５０を置き１５億５千万円</button>
@@ -1539,7 +1895,8 @@
         <div class="quiz-question-card" data-correct-index="3"
           data-explanation="<code>Qualify_ForeignExchange_VanillaOption</code>（<code>product-qualification-func.rosetta:L1767-L1768</code>）は <code>(optionPayout -> feature is absent or optionPayout -> feature -> averagingFeature only exists)</code> を条件としています。そのため、<code>feature -> averagingFeature</code> のみを持つ場合は <code>True</code>（バニラ分類に含む）と判定され、<code>feature -> barrier</code> が存在する場合は <code>False</code>（バニラから除外）と判定されます。">
           <div class="quiz-q-title">
-            Q6. <code>Qualify_ForeignExchange_VanillaOption</code> において、<code>OptionPayout -> feature</code> に平均機能（<code>averagingFeature</code>）またはバリア機能（<code>barrier</code>）がある場合の判定結果はどれか？
+            Q6. <code>Qualify_ForeignExchange_VanillaOption</code> において、<code>OptionPayout -> feature</code>
+            に平均機能（<code>averagingFeature</code>）またはバリア機能（<code>barrier</code>）がある場合の判定結果はどれか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">平均機能とバリア機能の両方ともバニラオプションとして判定する</button>
@@ -1558,16 +1915,26 @@
         <div class="callout-title">📚 今回の推奨一次ソース（直接開いて確認してください）</div>
         <ul style="margin-bottom: 0;">
           <li>
-            <strong><code>OptionPayout</code> のアジアン排他制約・<code>OptionFeature</code>・<code>AveragingFeature</code>・<code>AveragingStrikeFeature</code>・<code>Barrier</code> 定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta</code>（L126-L144, L620-L638, L661-L667, L684-L694）および <code>product-template-enum.rosetta</code>（L6-L10）
+            <strong><code>OptionPayout</code>
+              のアジアン排他制約・<code>OptionFeature</code>・<code>AveragingFeature</code>・<code>AveragingStrikeFeature</code>・<code>Barrier</code>
+              定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta</code>（L126-L144,
+            L620-L638, L661-L667, L684-L694）および <code>product-template-enum.rosetta</code>（L6-L10）
           </li>
           <li>
-            <strong><code>ObservationTerms</code>・<code>ObservationDates</code>・<code>AveragingPeriod</code> 定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-common-schedule-type.rosetta</code>（L151-L187, L238-L266）
+            <strong><code>ObservationTerms</code>・<code>ObservationDates</code>・<code>AveragingPeriod</code>
+              定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-common-schedule-type.rosetta</code>（L151-L187,
+            L238-L266）
           </li>
           <li>
-            <strong><code>TriggerEvent</code>・<code>Trigger</code>・<code>FeaturePayment</code> 定義と列挙型</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/observable-event-type.rosetta</code>（L11-L29, L85-L101）および <code>observable-event-enum.rosetta</code>（L10-L25）
+            <strong><code>TriggerEvent</code>・<code>Trigger</code>・<code>FeaturePayment</code>
+              定義と列挙型</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/observable-event-type.rosetta</code>（L11-L29,
+            L85-L101）および <code>observable-event-enum.rosetta</code>（L10-L25）
           </li>
           <li>
-            <strong>検証済み実データJSON &amp; FpML入力（Average Rate Option / Barrier Option）</strong>：<code>common-domain-model/rosetta-source/src/main/resources/ingest/output/fpml-confirmation-to-trade-state/fpml-5-13-products-fx-derivatives/fx-ex20-avg-rate-option-parametric.json</code>、<code>fx-ex22-avg-rate-option-specific.json</code>、および <code>fpml-5-13-incomplete-products-fx-derivatives/fx-ex12-fx-barrier-option.json</code> / <code>fx-ex13-fx-dbl-barrier-option.json</code>
+            <strong>検証済み実データJSON &amp; FpML入力（Average Rate Option / Barrier
+              Option）</strong>：<code>common-domain-model/rosetta-source/src/main/resources/ingest/output/fpml-confirmation-to-trade-state/fpml-5-13-products-fx-derivatives/fx-ex20-avg-rate-option-parametric.json</code>、<code>fx-ex22-avg-rate-option-specific.json</code>、および
+            <code>fpml-5-13-incomplete-products-fx-derivatives/fx-ex12-fx-barrier-option.json</code> /
+            <code>fx-ex13-fx-dbl-barrier-option.json</code>
           </li>
         </ul>
       </div>
@@ -1575,8 +1942,12 @@
       <div class="callout callout-mission">
         <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
         <p style="margin-bottom: 0;">
-          今回の内容（アベレージ・レートとアベレージ・ストライクの排他制約、<code>ObservationTerms</code> による重み付き観測スケジュール、<code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> の構造、ギャップ・オプションの $K_1$ vs $K_2$ と <code>priceQuantity</code> の関係など）で疑問点や深掘りしたい箇所があれば、いつでもチャットで質問してください。<br />
-          理解が固まったら、次は Phase 3（為替デリバティブ各論）の総仕上げとなる <strong>Lesson 0008（シンセティック・マルチフォワードの複合マッピング設計：Call＋Put の合成フォワード × 複数期日 <code>CalculationSchedule</code> / 複数 <code>OptionPayout</code> の設計比較と Qualification 関数の挙動）</strong>へ進みましょう。
+          今回の内容（アベレージ・レートとアベレージ・ストライクの排他制約、<code>ObservationTerms</code>
+          による重み付き観測スケジュール、<code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> の構造、ギャップ・オプションの $K_1$ vs
+          $K_2$ と <code>priceQuantity</code> の関係など）で疑問点や深掘りしたい箇所があれば、いつでもチャットで質問してください。<br />
+          理解が固まったら、次は Phase 3（為替デリバティブ各論）の総仕上げとなる <strong>Lesson 0008（シンセティック・マルチフォワードの複合マッピング設計：Call＋Put の合成フォワード ×
+            複数期日 <code>CalculationSchedule</code> / 複数 <code>OptionPayout</code> の設計比較と Qualification
+            関数の挙動）</strong>へ進みましょう。
         </p>
       </div>
     </footer>
