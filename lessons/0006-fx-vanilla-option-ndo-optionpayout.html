@@ -45,8 +45,9 @@
       <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
       <p style="margin-bottom: 0;">
         <strong>バニラ為替オプション（FX Vanilla Option：ヨーロピアン／アメリカン）</strong>および<strong>非受渡為替オプション（NDO：Non-Deliverable
-          Option）</strong>について、① <code>OptionPayout</code> が持つ <code>buyerSeller</code>（オプション権利の買手・売手）と
-        <code>payerReceiver</code>（原資産 <code>underlier</code> の支払・受取方向）の厳密な区分と権利行使時の <code>Put</code>
+          Option）</strong>について、① オプション約定時の <code>OptionPayout</code> が持つ <code>buyerSeller</code>（オプション権利の買手・売手）と
+        <code>payerReceiver</code>（オプション・ペイアウト自体の義務負担者・権利享受者）の意味、および権利行使後に新規生成される為替決済取引（<code>SettlementPayout</code>）における
+        <code>payerReceiver</code>（原資産通貨 <code>underlier</code> の支払者・受取者）への引き継ぎと <code>Put</code>
         反転ロジック（<code>Create_Exercise</code>）、② クオート基準（分母通貨 <code>perUnitOf</code>）に基づく
         <code>optionType</code>（<code>Call</code> / <code>Put</code>）と2通貨数量（<code>quantity</code> vs
         <code>derivedQuantity</code>）の決定ルール、③
@@ -79,72 +80,107 @@
         </li>
       </ul>
 
-      <h3>設計ポイント①：<code>BuyerSeller</code>（権利の買手・売手）と <code>PayerReceiver</code>（原資産の支払・受取）の同時保持</h3>
+      <h3>設計ポイント①：<code>BuyerSeller</code> と <code>PayerReceiver</code> の同時保持と、オプション約定時・権利行使後のそれぞれで
+        <code>payerReceiver</code> が表す対象</h3>
       <p>
         Lesson 0005 の質疑応答でも確認したとおり、CDMには当事者の方向を表す型として <strong><code>BuyerSeller</code></strong> と
         <strong><code>PayerReceiver</code></strong> が明確に区別されて存在します（<span
           class="cite-badge">base-staticdata-party-type.rosetta:L18-L35</span>）。<br />
-        <code>OptionPayout</code>（<span class="cite-badge">product-template-type.rosetta:L126-L136</span>）は
-        <code>PayoutBase</code> を継承（<code>extends PayoutBase</code>）しているため、<strong><code>buyerSeller (1..1)</code> と
-          <code>payerReceiver (1..1)</code> の両方を必須属性として同時に保持</strong>します。
+        <code>OptionPayout</code>（<span class="cite-badge">product-template-type.rosetta:L126-L136</span>）は共通基底クラス
+        <code>PayoutBase</code>（<span
+          class="cite-badge">product-common-settlement-type.rosetta:L65-L72</span>）を継承（<code>extends PayoutBase</code>）しているため、<strong><code>buyerSeller (1..1)</code>
+          と
+          <code>payerReceiver (1..1)</code> の両方を必須属性として同時に保持</strong>します。ここで、<strong>「① オプション約定時の
+          <code>OptionPayout -> payerReceiver</code>」</strong>と<strong>「② 権利行使後に新規生成される為替決済取引の
+          <code>SettlementPayout -> payerReceiver</code>」</strong>は、それぞれ表している対象が異なります。
       </p>
       <ul>
         <li>
           <strong><code>OptionPayout -> buyerSeller</code>（<code>BuyerSeller</code> 型）</strong>：<br />
           <strong>オプション契約（権利という金融商品）の「買手（<code>buyer</code>）」と「売手（<code>seller</code>）」</strong>を表します。権利行使を選択できるのは
-          <code>buyer</code> であり、プレミアムを支払うのも原則として <code>buyer</code> です。
+          <code>buyer</code>（例：<code>Party1</code>）であり、プレミアムを支払うのも原則として <code>buyer</code>
+          です。また、<strong>原資産通貨（<code>underlier</code>）をどちらが受け取る権利か／支払う権利かは、この <code>buyerSeller</code> と
+            <code>optionType</code>（<code>Call</code> / <code>Put</code>）の組み合わせによって表現</strong>されます（<code>Call</code> なら
+          <code>buyer</code> が <code>underlier</code> を受け取る権利、<code>Put</code> なら <code>buyer</code> が
+          <code>underlier</code> を支払う権利）。
         </li>
         <li>
-          <strong><code>OptionPayout -> payerReceiver</code>（<code>PayoutBase</code> から継承された <code>PayerReceiver</code>
-            型）</strong>：<br />
-          権利行使された場合に生じる<strong>原資産（<code>underlier</code>）の計算上の「支払者（<code>payer</code>）」と「受取者（<code>receiver</code>）」</strong>を表します。<br />
-          一次ソースの FpML 変換関数 <code>MapFxOptionPayout</code>（<span
-            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</span>）および
-          <code>MapSellerAsPayerAndBuyerAsReceiver</code>（<span
-            class="cite-badge">ingest-fpml-confirmation-party-func.rosetta:L844-L862</span>）では、<strong>オプション約定時の初期値として常に「オプションの売手（<code>seller</code>）＝
-            <code>payer</code>、オプションの買手（<code>buyer</code>）＝ <code>receiver</code>」（すなわち <code>Call</code> オプションで
-            <code>buyer</code> が原資産 <code>underlier</code> を受け取る方向）</strong>に正規化してセットされます。
+          <strong>① オプション約定時の <code>OptionPayout -> payerReceiver</code>
+            が表す対象（「オプション・ペイアウト自体」の義務負担者と権利享受者）</strong>：<br />
+          <code>OptionPayout -> payerReceiver</code>
+          は、原資産通貨（<code>underlier</code>）の受渡方向を表すものでは<strong>ありません</strong>。親クラス <code>PayoutBase</code>
+          の必須属性として、<strong>「この
+            <code>OptionPayout</code>（オプションから生じる将来のペイオフ／権利価値）を履行・負担する当事者（<code>payer</code>）と、享受・受け取る当事者（<code>receiver</code>）」</strong>を表します。<br />
+          オプション取引では、<code>Call</code> であっても <code>Put</code>
+          であっても、権利行使時にペイオフ義務を負うのは常にオプションの売手（<code>seller</code>）であり、権利利益を受け取るのは常にオプションの買手（<code>buyer</code>）です。そのため、一次ソースの
+          FpML 変換関数 <code>MapFxOptionPayout</code>（<span
+            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</span>）は、<code>optionType</code>
+          が <code>Call</code> か <code>Put</code> かに関わらず常に <code>MapSellerAsPayerAndBuyerAsReceiver</code>（<span
+            class="cite-badge">ingest-fpml-confirmation-party-func.rosetta:L844-L862</span>）を呼び出し、<strong><code>Call</code>
+            でも <code>Put</code> でも機械的に「<code>payer</code> ＝ オプションの <code>seller</code>
+            であった当事者（例：<code>Party2</code>）、<code>receiver</code> ＝ オプションの <code>buyer</code>
+            であった当事者（例：<code>Party1</code>）」</strong>をセットします（実際に <code>optionType: "Put"</code> である
+          <code>fx-ex09-euro-opt.json:L28-L31, L42-L45, L50</code> でも <code>payer: "Party2", receiver: "Party1"</code>
+          となっています）。
         </li>
         <li>
-          <strong>では、<code>Put</code> オプション（買手が原資産 <code>underlier</code> を支払う権利）のときはどうなるのか？</strong>：<br />
-          ここが一次ソースを読まないと気づけないポイントです。<code>Put</code> オプションであっても、<code>OptionPayout</code> 上の
-          <code>payerReceiver</code> は <code>payer: seller, receiver: buyer</code>
-          のまま保持されます（<code>fx-ex09-euro-opt.json:L28-L31, L42-L45, L50</code>）。その代わり、<strong>権利行使イベントを実行する一次ソース関数
-            <code>Create_Exercise</code>（<span
-              class="cite-badge">event-common-func.rosetta:L520-L527</span>）において、<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code>
-            が呼ばれ、行使によって生成される決済取引（FX Spot/Forward）の <code>payer</code> と <code>receiver</code>
-            が自動的に反転（Flip）される</strong>設計になっています。
+          <strong>② 権利行使イベント実行後に作られる為替決済取引の <code>SettlementPayout -> payerReceiver</code> が表す対象（「原資産通貨
+            <code>underlier</code>」の支払者と受取者）</strong>：<br />
+          物理受渡の為替オプションが権利行使されると、一次ソース関数 <code>Create_Exercise</code>（<span
+            class="cite-badge">event-common-func.rosetta:L498-L578</span>）によって元のオプション取引は終了し、新たに<strong>為替決済取引（<code>SettlementPayout</code>
+            を持つ <code>NonTransferableProduct</code>）</strong>が生成されます。<br />
+          この新しい為替決済取引はもはやオプションではないため <strong><code>buyerSeller</code>
+            属性は存在せず、<code>SettlementPayout -> payerReceiver</code> だけが存在し、その <code>payerReceiver</code>
+            は「原資産通貨（<code>underlier</code> ＝
+            基準通貨）を実際に支払う当事者（<code>payer</code>）と受け取る当事者（<code>receiver</code>）」</strong>を表します。<br />
+          たとえばオプション契約で <code>buyer: Party1, seller: Party2</code>（したがって <code>OptionPayout -> payerReceiver</code> は
+          <code>payer: Party2, receiver: Party1</code>）だった場合、<code>Create_Exercise</code> はまず
+          <code>Create_NonTransferableProduct(underlier, optionPayout -> payerReceiver)</code> で
+          <code>OptionPayout -> payerReceiver</code> を新しい <code>SettlementPayout -> payerReceiver</code>
+          にコピーした上で、以下の分岐を行います：
+          <ul>
+            <li><strong>元のオプションが <code>Call</code>（<code>Party1</code> が原資産通貨 <code>underlier</code>
+                を受け取る権利）だった場合</strong>：反転処理は行われず（<code>else resultProduct</code>）、新しい為替決済取引の
+              <code>SettlementPayout -> payerReceiver</code> は
+              <strong><code>payer: Party2, receiver: Party1</code></strong>（<code>Party2</code>
+              が原資産通貨を支払い、<code>Party1</code> が原資産通貨を受け取る）となります。</li>
+            <li><strong>元のオプションが <code>Put</code>（<code>Party1</code> が原資産通貨 <code>underlier</code>
+                を支払う権利）だった場合</strong>：<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code>（<code>L520-L527</code>）が呼ばれ、<code>payer</code>
+              と <code>receiver</code> が反転されることにより、新しい為替決済取引の <code>SettlementPayout -> payerReceiver</code> は
+              <strong><code>payer: Party1, receiver: Party2</code></strong>（<code>Party1</code>
+              が原資産通貨を支払い、<code>Party2</code> が原資産通貨を受け取る）となります。<br />
+              <span
+                style="font-size: 0.9rem; color: var(--text-muted);">※一次ソース実装上の補足：<code>Update_ProductDirection</code>（<code>event-common-func.rosetta:L554-L566</code>）は直前の
+                <code>Create_NonTransferableProduct</code>（<code>L575-L577</code>）が生成した <code>SettlementPayout</code>
+                の向きを反転させるために呼ばれていますが、現行の <code>.rosetta</code> コードでは代入先パスが
+                <code>after -> economicTerms -> payout -> OptionPayout -> payerReceiver</code>
+                と記述されており、仕様上の設計意図（<code>Put</code> 行使時に生成される決済商品の <code>payer</code> / <code>receiver</code>
+                反転）と関数内のパス指定にズレがある点も一次ソースから確認できます。</span>
+            </li>
+          </ul>
         </li>
       </ul>
 
-      <h3>設計ポイント②：「通貨Aのコール＝通貨Bのプット」をどう一意に <code>Call</code> または <code>Put</code> に決めるのか？</h3>
+      <h3>設計ポイント②：「通貨Aのコール＝通貨Bのプット」を CDM ではどう一意に <code>Call</code> または <code>Put</code> に表現するのか？</h3>
       <p>
         為替オプションでは、たとえば「買手（<code>Party1</code>）が <code>1 AUD = 0.4920 USD</code> のストライクで <strong>75,000,000 AUD
-          を支払い（Put）、36,900,000 USD を受け取る（Call）権利</strong>」は、見方によって「<strong>AUD プット</strong>」とも「<strong>USD
-          コール</strong>」とも呼べます。実務の FpML でも <code>putCurrencyAmount (75,000,000 AUD)</code> と
-        <code>callCurrencyAmount (36,900,000 USD)</code> の両方を並列に記述します。<br />
+          を支払い、36,900,000 USD を受け取る権利</strong>」は、見方によって「<strong>AUD プット</strong>」とも「<strong>USD
+          コール</strong>」とも呼べます。<br />
         しかし CDM の <code>OptionPayout -> optionType</code> には <code>Call</code> か <code>Put</code>
-        の<strong>どちらか1つ</strong>しか入りません。どちらになるかは、Lesson 0003〜0005 で貫いてきた<strong>「為替レートの分母通貨（基準通貨
+        の<strong>どちらか1つ</strong>しか入りません。CDM における決定ルールは、Lesson 0003〜0005 で貫いてきた<strong>「為替レートの分母通貨（基準通貨
           <code>perUnitOf</code>）が常に <code>quantity</code> および <code>underlier</code>
-          になる」という不変原則</strong>から機械的に決まります（<span
-          class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L119-L122, L194-L249,
-          L251-L314</span>）：
+          になる」という不変原則</strong>から直接導かれます：
       </p>
       <ol>
         <li>
-          <strong>ステップ1（基準通貨 <code>perUnitOf</code> ＝ <code>underlier</code> &amp; <code>quantity</code>
-            の特定）</strong>：<br />
-          ストライクレートのクオート基準（<code>strikeQuoteBasis</code>）を見ます。分母通貨（<code>perUnitOf</code>：「1単位あたり」の基準通貨）が常にこのオプションの<strong>原資産（<code>underlier</code>
-            ＝ <code>Cash</code>）および <code>priceQuantity -> quantity</code></strong> となり、分子通貨（<code>unit</code>：対価通貨）が
-          <strong><code>price -> derivedQuantity</code></strong> となります。
+          <strong>ステップ1（ストライクレートの分母通貨 <code>perUnitOf</code> ＝ <code>underlier</code> &amp; <code>quantity</code> の決定）</strong>：<br />
+          CDM のストライクレート（<code>OptionPayout -> strike -> strikePrice</code>）では、為替レートの<strong>分母通貨（基準通貨 <code>perUnitOf</code>：「1単位あたり」の通貨、例：<code>0.4920 USD per AUD</code> なら <code>AUD</code>、<code>150.00 JPY per USD</code> なら <code>USD</code>）</strong>と<strong>分子通貨（対価通貨 <code>unit</code>）</strong>を指定します。<br />
+          不変原則どおり、この<strong>分母通貨（基準通貨 <code>perUnitOf</code>）が常にオプションの原資産（<code>underlier</code> ＝ <code>Cash</code>）および <code>priceQuantity -> quantity</code></strong> となり、分子通貨（対価通貨 <code>unit</code>）の金額が <strong><code>price -> derivedQuantity</code></strong> となります。<br />
+          <span style="font-size: 0.9rem; color: var(--text-muted);">※為替市場では通常、通貨ペアごとにどちらを分母（基準通貨 <code>perUnitOf</code>）にするかのクオート慣行（<code>AUD/USD</code> なら分母は <code>AUD</code>、<code>USD/JPY</code> なら分母は <code>USD</code>）が決まっているため、通貨ペアのクオート方向に従えば <code>perUnitOf</code>（＝<code>underlier</code> &amp; <code>quantity</code>）も一意に定まります。</span>
         </li>
         <li>
           <strong>ステップ2（基準通貨 <code>underlier</code> に対する権利が <code>Call</code> か <code>Put</code> かの決定）</strong>：<br />
-          オプションの買手（<code>buyer</code>）にとって、その<strong>基準通貨（<code>perUnitOf</code> ＝ <code>underlier</code>）を受け取る権利であれば
-            <code>optionType: "Call"</code>、基準通貨（<code>perUnitOf</code> ＝ <code>underlier</code>）を支払う権利であれば
-            <code>optionType: "Put"</code></strong> となります（<span
-            class="cite-badge">ingest-fpml-confirmation-other-func.rosetta:L2300-L2305</span> の
-          <code>MapPutCallEnum</code>）。
+          原資産（<code>underlier</code>）が分母通貨（基準通貨 <code>perUnitOf</code>）に決まれば、あとは<strong>オプションの買手（<code>buyer</code>）がその基準通貨（<code>perUnitOf</code> ＝ <code>underlier</code>）を「受け取る（買う）権利」であれば <code>optionType: "Call"</code>、「支払う（売る）権利」であれば <code>optionType: "Put"</code></strong> に一意に決まります。
         </li>
       </ol>
 
@@ -152,10 +188,10 @@
         <thead>
           <tr>
             <th style="width: 20%;">比較項目</th>
-            <th style="width: 40%;">パターンA：基準通貨（<code>perUnitOf</code>）が Put 通貨の場合<br /><span
+            <th style="width: 40%;">例①：基準通貨（分母 <code>perUnitOf</code>）を買手が支払うオプション<br /><span
                 class="cite-badge">fx-ex09-euro-opt.json</span> / <span class="cite-badge">fx-ex10-amer-opt.json</span>
             </th>
-            <th style="width: 40%;">パターンB：基準通貨（<code>perUnitOf</code>）が Call 通貨の場合<br /><span
+            <th style="width: 40%;">例②：基準通貨（分母 <code>perUnitOf</code>）を買手が受け取るオプション<br /><span
                 class="cite-badge">fx-ex11-non-deliverable-option.json</span>（NDO）</th>
           </tr>
         </thead>
@@ -163,27 +199,25 @@
           <tr>
             <td><strong>取引の経済条件</strong></td>
             <td>
-              買手（<code>Party1</code>）は <code>75,000,000 AUD</code> を支払い（Put）、<br />
-              <code>36,900,000 USD</code> を受け取る（Call）権利を持つ
+              買手（<code>Party1</code>）は <code>75,000,000 AUD</code> を支払い、<br />
+              <code>36,900,000 USD</code> を受け取る権利を持つ
             </td>
             <td>
-              買手（<code>Party1</code>）は <code>15,000,000 USD</code> を受け取り（Call）、<br />
-              <code>17,250,000 VEB</code> を支払う（Put）権利を持つ（USDで差金決済）
+              買手（<code>Party1</code>）は <code>15,000,000 USD</code> を受け取り、<br />
+              <code>17,250,000 VEB</code> を支払う権利を持つ（USDで差金決済）
             </td>
           </tr>
           <tr>
-            <td><strong>ストライクのクオート基準<br /><code>strike -> strikePrice</code></strong></td>
+            <td><strong>CDM のストライク定義<br /><code>strike -> strikePrice</code></strong></td>
             <td>
-              <code>0.4920</code> <strong>USD per AUD</strong><br />
-              （FpML: <code>CallCurrencyPerPutCurrency</code>）<br />
-              ・分母（基準通貨 <code>perUnitOf</code>）＝ <strong><code>AUD</code></strong>（Put通貨）<br />
-              ・分子（対価通貨 <code>unit</code>）＝ <strong><code>USD</code></strong>（Call通貨）
+              <code>value: 0.4920</code>（<strong>USD per AUD</strong>）<br />
+              ・分母（基準通貨 <code>perUnitOf</code>）＝ <strong><code>AUD</code></strong><br />
+              ・分子（対価通貨 <code>unit</code>）＝ <strong><code>USD</code></strong>
             </td>
             <td>
-              <code>1.15</code> <strong>VEB per USD</strong><br />
-              （FpML: <code>PutCurrencyPerCallCurrency</code>）<br />
-              ・分母（基準通貨 <code>perUnitOf</code>）＝ <strong><code>USD</code></strong>（Call通貨）<br />
-              ・分子（対価通貨 <code>unit</code>）＝ <strong><code>VEB</code></strong>（Put通貨）
+              <code>value: 1.15</code>（<strong>VEB per USD</strong>）<br />
+              ・分母（基準通貨 <code>perUnitOf</code>）＝ <strong><code>USD</code></strong><br />
+              ・分子（対価通貨 <code>unit</code>）＝ <strong><code>VEB</code></strong>
             </td>
           </tr>
           <tr>
@@ -210,16 +244,45 @@
           <tr>
             <td><strong><code>OptionPayout -> optionType</code></strong></td>
             <td>
-              原資産（<code>AUD</code>）を買手が支払う（売る）権利なので<br />
+              基準通貨（<code>underlier = AUD</code>）を買手が<strong>支払う（売る）権利</strong>なので<br />
               <strong><code>"Put"</code></strong>
             </td>
             <td>
-              原資産（<code>USD</code>）を買手が受け取る（買う）権利なので<br />
+              基準通貨（<code>underlier = USD</code>）を買手が<strong>受け取る（買う）権利</strong>なので<br />
               <strong><code>"Call"</code></strong>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <div class="callout">
+        <div class="callout-title">💡 補足コラム：FpML の表現（<code>callCurrencyAmount</code> / <code>putCurrencyAmount</code> / <code>strikeQuoteBasis</code>）との違いと Ingest 変換関数</div>
+        <p>
+          CDM には上記のように <code>perUnitOf</code>・<code>unit</code> と <code>optionType</code>（<code>Call</code> / <code>Put</code>）があり、<code>strikeQuoteBasis</code> という属性は存在しません。一方、一次ソースの FpML 変換関数（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L119-L122, L194-L314</span>）を読む際には、FpML 固有の表現方法を知っておく必要があります。
+        </p>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>FpML での為替オプションの書き方</strong>：<br />
+            FpML の <code>&lt;fxOption&gt;</code> には <code>optionType</code>（<code>Call</code> / <code>Put</code>）というタグがなく、代わりに「買手が受け取る通貨と金額」を <code>&lt;callCurrencyAmount&gt;</code>、「買手が支払う通貨と金額」を <code>&lt;putCurrencyAmount&gt;</code> として並べて記述します。そしてストライク <code>&lt;strike&gt;</code> には数値 <code>&lt;rate&gt;</code> とともに、「そのレートが Call 通貨と Put 通貨のどちらを分母（1単位あたり）としているか」を示す <strong><code>&lt;strikeQuoteBasis&gt;</code></strong>（<code>CallCurrencyPerPutCurrency</code> または <code>PutCurrencyPerCallCurrency</code>）を記述します。
+          </li>
+          <li>
+            <strong>同じ通貨ペア・同じ市場クオートでも、取引方向によって FpML の <code>strikeQuoteBasis</code> は変わる</strong>：<br />
+            たとえば <code>USD/JPY</code>（市場クオートは常に <code>JPY per USD</code>＝分母は常に <code>USD</code>）の場合：
+            <ul>
+              <li>買手が <strong>USD を受け取り（Call）、JPY を支払う（Put）</strong>契約では、分母 <code>USD</code> が <code>CallCurrency</code>、分子 <code>JPY</code> が <code>PutCurrency</code> なので、FpML の <code>strikeQuoteBasis</code> は <strong><code>PutCurrencyPerCallCurrency</code></strong> になります。</li>
+              <li>買手が <strong>USD を支払い（Put）、JPY を受け取る（Call）</strong>契約では、分母 <code>USD</code> が <code>PutCurrency</code>、分子 <code>JPY</code> が <code>CallCurrency</code> なので、同じ <code>JPY per USD</code> のレートであっても FpML の <code>strikeQuoteBasis</code> は <strong><code>CallCurrencyPerPutCurrency</code></strong> に変わります。</li>
+            </ul>
+          </li>
+          <li>
+            <strong>FpML → CDM 変換関数（Ingest）の仕組み</strong>：<br />
+            変換関数 <code>MapFxOptionPayout</code> / <code>MapFxOptionPriceQuantityList</code> / <code>MapPutCallEnum</code>（<span class="cite-badge">ingest-fpml-confirmation-other-func.rosetta:L2300-L2305</span>）は、この FpML の <code>strikeQuoteBasis</code> を見て CDM の構造へ逆算変換しています：
+            <ul>
+              <li><code>strikeQuoteBasis = PutCurrencyPerCallCurrency</code>（分母が <code>CallCurrency</code>）のとき → 分母である <code>callCurrencyAmount</code> の通貨を <code>perUnitOf</code>・<code>underlier</code>・<code>quantity</code> に配置し、買手がその分母通貨を受け取る（Callする）ので <code>optionType = Call</code> に変換する。</li>
+              <li><code>strikeQuoteBasis = CallCurrencyPerPutCurrency</code>（分母が <code>PutCurrency</code>）のとき → 分母である <code>putCurrencyAmount</code> の通貨を <code>perUnitOf</code>・<code>underlier</code>・<code>quantity</code> に配置し、買手がその分母通貨を支払う（Putする）ので <code>optionType = Put</code> に変換する。</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <!-- Section 2 -->
@@ -367,128 +430,127 @@
         という点です。一次ソースの変換関数と制約（<code>condition</code>）から4つの核心を整理しましょう。
       </p>
 
-      <h3>3-1. なぜストライクレートは <code>tradeLot -> priceQuantity -> price.value</code> ではなく
-        <code>OptionPayout -> strike -> strikePrice</code> に入るのか？
-      </h3>
+      <h3>3-1. ストライクレート（<code>OptionStrike -> strikePrice</code>）と <code>tradeLot -> priceQuantity</code>（2通貨名目元本）の役割分担</h3>
       <p>
         FX Forward では約定フォワードレートを <code>tradeLot -> priceQuantity -> price[0] -> value</code> に入れていました。一方、FX
         Option（<code>fx-ex09</code> / <code>fx-ex10</code> /
         <code>fx-ex11</code>）では、ストライクレート（<code>0.4920 USD/AUD</code> や <code>1.15 VEB/USD</code>）は
         <strong><code>OptionPayout -> strike -> strikePrice</code>（<code>Price</code>
           型）</strong>に格納され、<code>tradeLot -> priceQuantity -> price[0]</code> には <code>value</code> を入れず
-        <strong><code>derivedQuantity</code>（対価通貨の名目元本）のみ</strong>が格納されています（<span
-          class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L205-L314</span>）。
+        <strong><code>derivedQuantity</code>（対価通貨の名目元本）のみ</strong>が格納されます。
       </p>
       <p>
-        なぜかというと、オプションにおいて「ストライク価格（行使価格
-        <code>K</code>）」は、将来イン・ザ・マネーかアウト・オブ・ザ・マネーかを判定する<strong>商品契約のペイアウト計算パラメータ（<code>Product -> EconomicTerms</code>
-          の一部）</strong>である一方、「そのオプション取引をいくらで売買したか」という<strong>取引約定価格（Trade Price）は本来「オプション・プレミアム（Option
-          Premium）」</strong>だからです。
+        なぜかというと、オプションにおいて「ストライク価格（行使価格 <code>K</code>）」は、満期や行使時点でイン・ザ・マネーかアウト・オブ・ザ・マネーかを判定しペイオフを決定するための<strong>商品契約上の計算条件（<code>Product -> EconomicTerms -> OptionPayout</code> の構成要素）</strong>だからです。
       </p>
       <ul>
         <li>
-          <strong>約定時スポットレート（Spot Rate）が FpML にある場合</strong>：<br />
-          <code>MapFxOptionStrikePrice</code>（<span
-            class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L231-L249</span>）の通り、<code>OptionPayout -> strike -> strikePrice -> composite -> baseValue</code>
-          に約定時のスポットレート（<code>fpmlFxOption -> spotRate</code>）が格納されます。
+          <strong><code>OptionPayout -> strike</code>（<code>OptionStrike</code> 型：<span class="cite-badge">product-template-type.rosetta:L684-L694</span>）の構造</strong>：<br />
+          <code>OptionStrike</code> は4属性（<code>strikePrice</code>, <code>strikeReference</code>, <code>referenceSwapCurve</code>, <code>averagingStrikeFeature</code>）の <code>condition: one-of</code> を持ちます。バニラ為替オプションおよび NDO では <code>strikePrice</code>（<code>Price</code> 型）を選び、<code>value</code>（ストライクレート）、<code>perUnitOf</code>（分母通貨＝基準通貨）、<code>unit</code>（分子通貨＝対価通貨）、<code>priceType: "ExchangeRate"</code> を設定します。なお、約定時の参照スポットレートを併記する場合は <code>strikePrice -> composite -> baseValue</code> に格納します（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L231-L249</span>）。
         </li>
         <li>
-          <strong><code>tradeLot -> priceQuantity -> price[0]</code> で <code>value</code> が空でもエラーにならない理由</strong>：<br />
-          <code>PriceSchedule</code>（<span class="cite-badge">observable-asset-type.rosetta:L135-L203</span>）は
-          <code>MeasureSchedule</code>（<code>value (0..1)</code> が任意）を継承しており、<code>value</code> を空にして
-          <code>derivedQuantity</code>（<code>36,900,000 USD</code>）だけを保持することが許されています。さらに Lesson 0003 で学んだ三角整合性ルール
-          <code>PriceQuantityTriangulation</code>（<span
-            class="cite-badge">observable-common-func.rosetta:L18-L38</span>）および
-          <code>CashPriceQuantityNoOfUnitsTriangulation</code>（<code>L58-L78</code>）は、<code>price -> priceType = CashPrice</code>
-          等が存在する場合にのみチェックを行うため、<code>priceType</code> と <code>value</code> を空にした <code>derivedQuantity</code>
-          ホルダーはバリデーションを正常に通過します。
+          <strong><code>tradeLot -> priceQuantity[0]</code> における2通貨名目元本の保持とバリデーション</strong>：<br />
+          基準通貨（<code>perUnitOf</code>）の名目元本は <code>priceQuantity -> quantity</code>（例：<code>75,000,000 AUD</code>）、対価通貨（<code>unit</code>）の名目元本は <code>priceQuantity -> price[0] -> derivedQuantity</code>（例：<code>36,900,000 USD</code>）に配置します。<br />
+          ここで <code>PriceSchedule</code>（<span class="cite-badge">observable-asset-type.rosetta:L135-L203</span>）は <code>MeasureSchedule</code>（<code>value (0..1)</code> が任意）を継承しているため、<code>price[0]</code> の <code>value</code> と <code>priceType</code> を空（<code>absent</code>）にして <code>derivedQuantity</code> のみを保持することが許容されています。また Lesson 0003 で学んだ三角整合性ルール <code>PriceQuantityTriangulation</code>（<span class="cite-badge">observable-common-func.rosetta:L18-L38</span>）も、<code>priceType = CashPrice</code> 等が設定されている場合にのみ発動するため、この構造は CDM のバリデーションを正常に通過します。
         </li>
       </ul>
 
-      <h3>3-2. オプション・プレミアム（Option Premium）の2つの表現場所と二次資料（<code>docs/</code>）とのギャップ注意点</h3>
+      <h3>3-2. オプション・プレミアム（Option Premium）の CDM における表現</h3>
       <p>
-        では、買手から売手へ支払われるオプション・プレミアム（例：<code>fx-ex09</code> の <code>36,900 USD</code>、決済日
-        <code>2001-12-06</code>）はどこにマッピングされるのでしょうか？
-      </p>
-
-      <div class="callout callout-warning">
-        <div class="callout-title">⚠️ 二次資料（<code>docs/product-model.md</code>）との差分・注意点（一次ソースによる裏付け）</div>
-        <p>
-          二次資料の <code>common-domain-model/docs/product-model.md</code>（L847-L851）には、<em>「An option trade will contain an
-            instance of a <code>PriceQuantity</code> containing only the premium as price attribute, but no quantity or
-            observable」</em>と記載されています。<br />
-          しかし、<strong>一次ソースの FpML 変換関数および検証済みJSON（<code>fx-ex09</code>, <code>fx-ex10</code>, <code>fx-ex11</code>,
-            <code>fx-ex20</code> 等すべて）を検証すると、FpMLの <code>&lt;premium&gt;</code> は <code>tradeLot -> priceQuantity</code>
-            ではなく、<code>TradeState -> transferHistory</code> 内の
-            <code>UnscheduledTransfer</code>（<code>transferType: "Premium"</code>）にマッピングされています</strong>（<span
-            class="cite-badge">ingest-fpml-confirmation-payment-func.rosetta:L106-L107, L412-L421</span>）。
-        </p>
-        <p style="margin-bottom: 0;">
-          さらに、<code>MapFxOptionPremiumListToTransferStateList</code>（<code>L421</code>）の末尾には
-          <strong><code>// TODO map other fields</code></strong> というコメントが残されており、FpMLの
-          <code>&lt;fxOptionPremium&gt;</code> に含まれる <strong><code>&lt;quote&gt;</code>（プレミアム相場：例
-            <code>0.001 USD per AUD</code> や額面比％）や <code>&lt;settlementInformation&gt;</code>
-            は現行のFpMLインジェスト関数ではまだマッピングされていません</strong>。<br />
-          実務システムで「プレミアムのキャッシュフロー金額（例：<code>36,900 USD</code>）」と「プレミアムの単価・料率（例：<code>0.000492 USD per AUD</code>）」の両方をCDMで保持したい場合は、以下の2箇所を併用するのが一次ソースの型定義に適合する正規の設計です：
-        </p>
-        <ol style="margin-top: 0.5rem; margin-bottom: 0;">
-          <li>
-            <strong>プレミアムの決済キャッシュフロー（誰から誰へ・いつ・いくら支払うか）</strong>：<br />
-            <code>TradeState -> transferHistory</code> に
-            <code>UnscheduledTransfer</code>（<code>transferType: UnscheduledTransferEnum -> Premium</code>、<code>quantity: 36,900 USD</code>、<code>settlementDate: 2001-12-06</code>、<code>payerReceiver: party1 -> party2</code>）として記録する（<span
-              class="cite-badge">fx-ex09-euro-opt.json:L184-L221</span>）。
-          </li>
-          <li>
-            <strong>プレミアムの約定単価・料率（1単位あたりいくらのプレミアムで取引したか）や一部解約時のフィー</strong>：<br />
-            <code>tradeLot -> priceQuantity</code> の <code>price</code> に
-            <code>priceType: PriceTypeEnum -> CashPrice</code>（および必要に応じて <code>datedValue</code> や
-            <code>composite</code>）として保持する（<span class="cite-badge">observable-asset-enum.rosetta:L376-L380</span>,
-            <span class="cite-badge">event-common-type.rosetta:L166</span>）。
-          </li>
-        </ol>
-      </div>
-
-      <h3>3-3. 為替オプションのライフサイクル（権利行使・一部行使・消滅）における <code>priceQuantity</code> の変化</h3>
-      <p>
-        約定した為替オプションが満期または期中に迎えるライフサイクルイベントにおいて、<code>TradeState</code> と <code>tradeLot -> priceQuantity</code>
-        がどう変化するかを一次ソース関数 <code>Create_Exercise</code>（<span
-          class="cite-badge">event-common-func.rosetta:L498-L553</span>）で確認しましょう。
+        オプションの買手（<code>buyer</code>）から売手（<code>seller</code>）へ支払われる対価である<strong>オプション・プレミアム（Option Premium：例 <code>fx-ex09</code> の <code>36,900 USD</code>、決済日 <code>2001-12-06</code>）</strong>は、CDM の仕様上、用途に応じて以下の2つの構造で表現できます：
       </p>
       <ol>
         <li>
-          <strong>全額権利行使（Full Exercise）</strong>：<br />
-          <code>Create_Exercise</code> は2つの <code>TradeState</code> を出力します：
+          <strong>プレミアムの決済キャッシュフロー（「誰から誰へ・いつ・いくら支払うか」という資金移動の記録）</strong>：<br />
+          <code>TradeState -> transferHistory</code> 内の <strong><code>UnscheduledTransfer</code></strong>（<span class="cite-badge">event-common-type.rosetta:L243-L255</span>）として表現します。具体的には以下の属性を設定します（<span class="cite-badge">fx-ex09-euro-opt.json:L184-L221</span>）：
           <ul>
-            <li><strong>①
-                元のオプション取引（<code>originalTrade</code>）</strong>：<code>exerciseInstruction -> exerciseQuantity</code>（減額指示
-              <code>QuantityChangeDirectionEnum -> Decrease</code> 等）によって <code>tradeLot -> priceQuantity</code> の
-              <code>quantity</code>（および <code>derivedQuantity</code>）が <strong><code>0</code></strong>
-              に減額され、<code>state -> positionState = Closed</code> となって終了します。
+            <li><code>transferType</code>：<strong><code>UnscheduledTransferEnum -> Premium</code></strong>（<span class="cite-badge">product-common-settlement-enum.rosetta:L29</span>：<em>"Denotes the amount payable by the buyer to the seller for an option."</em>）</li>
+            <li><code>quantity</code> および <code>asset</code>：プレミアムの通貨と金額（例：<code>value: 36900, unit.currency: "USD"</code>、<code>asset: Cash (USD)</code>）</li>
+            <li><code>settlementDate</code>：プレミアムの決済日（例：<code>unadjustedDate: "2001-12-06"</code>、通常は約定日の T+2 営業日）</li>
+            <li><code>payerReceiver</code>：<code>Product</code> の外側にある実際の決済フローであるため、抽象ロール（<code>Party1</code>/<code>Party2</code>）ではなく <code>PartyReferencePayerReceiver</code>（<code>payerPartyReference: "party1"</code>［買手］、<code>receiverPartyReference: "party2"</code>［売手］）を使用します。</li>
+          </ul>
+        </li>
+        <li>
+          <strong>プレミアムの約定単価・料率（「1単位あたりいくらの価格・何％でオプションを売買したか」という取引価格条件）</strong>：<br />
+          オプション取引自体の約定価格（または一部解約・増額イベント時のフィー単価）を <code>TradeLot</code> 上の価格情報として保持する場合は、<code>tradeLot -> priceQuantity -> price</code> に <strong><code>priceType: PriceTypeEnum -> CashPrice</code></strong>（<span class="cite-badge">observable-asset-enum.rosetta:L376-L380</span>, <span class="cite-badge">event-common-type.rosetta:L166</span>）を設定した <code>PriceSchedule</code> として表現します（例：<code>1 AUD</code> あたり <code>0.000492 USD</code> の場合は <code>value: 0.000492, unit.currency: "USD", perUnitOf.currency: "AUD", priceType: "CashPrice"</code>）。
+        </li>
+      </ol>
+
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ 補足コラム：なぜ未決済のプレミアムを <code>transferHistory</code> の <code>UnscheduledTransfer</code> に置くのか？／二次資料との差分と FpML Ingest 仕様</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>疑問①：フォワードプレミアムなど未決済の将来キャッシュフローなのに、なぜ <code>Product</code> ではなく <code>transferHistory</code> に置くのか？</strong><br />
+            旧バージョンの CDM では <code>Product -> EconomicTerms -> Payout</code> 内に <code>Cashflow</code> という型が存在しましたが、現行の CDM では「プレミアムやアップフロント精算金、一部解約手数料などの確定キャッシュフローは、商品の計算ルール（<code>Product</code>）ではなく、取引イベント（約定 <code>Execution</code> 等）に伴って発生した取引固有の資金移動（<code>Transfer</code>）である」という方針に統一され、<code>Product</code> から廃止されました（<span class="cite-badge">product-template-type.rosetta:L108</span> の <code>// Cashflow is no longer part of the product</code> コメント参照）。<br />
+            また、<code>transferHistory</code> という属性名は「すでに決済が完了した過去の履歴」のように見えますが、実際には未決済（<code>transferStatus: Pending</code> / <code>Instructed</code>）から決済完了（<code>Settled</code>）までの状態を持つ <strong><code>TransferState</code>（その取引で金額と決済日が確定した全キャッシュフロー）のリスト</strong>です（<span class="cite-badge">event-common-type.rosetta:L204, L243-L248</span>, <span class="cite-badge">event-common-enum.rosetta:L66-L72</span>）。そのため、約定時に支払日と金額が合意されたプレミアムは、将来の決済日（<code>settlementDate</code>）を持つ <code>TransferState</code> として約定時点から <code>transferHistory</code> に格納されます。
+          </li>
+          <li>
+            <strong>疑問②：プレミアムは支払日（<code>settlementDate</code>）が決まっているのに、なぜ <code>ScheduledTransfer</code> ではなく <code>UnscheduledTransfer</code> を <code>choice</code> するのか？</strong><br />
+            CDM の <code>choice Transfer</code>（<span class="cite-badge">event-common-type.rosetta:L249-L265</span>）における <code>Scheduled</code> / <code>Unscheduled</code> / <code>Contingent</code> の3区分は、「支払日が決まっているか否か」による区分ではありません（<code>UnscheduledTransfer</code> も親クラス <code>AssetFlowBase</code> から必須属性 <code>settlementDate (1..1)</code> を継承しています）。その区分基準は<strong>「そのキャッシュフローが何から生成されたか」</strong>にあります：
+            <ul>
+              <li><strong><code>ScheduledTransfer</code></strong>：金利スワップのクーポン（<code>Coupon</code> / <code>FixedRateReturn</code> / <code>FloatingRateReturn</code>）など、<code>Product -> Payout</code> の<strong>定期計算期間スケジュール（<code>CalculationPeriodDates</code> 等）から定期的に算出されるキャッシュフロー</strong>（<span class="cite-badge">product-common-settlement-enum.rosetta:L10-L20</span>）。</li>
+              <li><strong><code>UnscheduledTransfer</code></strong>：<code>Payout</code> の定期計算スケジュールから算出されるのではなく、<strong>取引イベント（新規約定・増額・一部解約・ノベーション等）に付随して単発（Ad-hoc）で合意・発生するキャッシュフロー</strong>（<span class="cite-badge">product-common-settlement-enum.rosetta:L21-L32</span>）。<code>Premium</code>（オプション料）、<code>Upfront</code>（スワップの初期精算金）、<code>Termination</code> / <code>PartialTermination</code>（解約精算金）、<code>Novation</code>（更改手数料）はすべてこの <code>UnscheduledTransferEnum</code> に定義されているため、<code>UnscheduledTransfer</code> を選択します。</li>
+              <li><strong><code>ContingentTransfer</code></strong>：クレジットイベント（<code>CreditEvent</code>）、コーポレートアクション（<code>CorporateAction</code>）、オプション権利行使（<code>Exercise</code>）など、偶発的事象が起きたときにのみ条件付きで生じるキャッシュフロー（<span class="cite-badge">product-common-settlement-enum.rosetta:L34-L38</span>）。</li>
+            </ul>
+          </li>
+          <li>
+            <strong>二次資料 <code>docs/product-model.md</code> とのギャップ</strong>：<br />
+            二次資料の <code>common-domain-model/docs/product-model.md</code>（L847-L851）には、<em>「An option trade will contain an instance of a <code>PriceQuantity</code> containing only the premium as price attribute, but no quantity or observable」</em>（オプション取引はプレミアムのみを <code>price</code> に持つ別個の <code>PriceQuantity</code> インスタンスを含む）と記述されています。<br />
+            しかし、一次ソースの検証済みJSON（<code>fx-ex09</code>, <code>fx-ex10</code>, <code>fx-ex11</code>, <code>fx-ex20</code> 等すべて）を実際に確認すると、<code>tradeLot -> priceQuantity</code> には原資産2通貨の名目元本用の <code>PriceQuantity</code> が1個だけ存在し、<strong>プレミアムは <code>tradeLot -> priceQuantity</code> ではなく、すべて上記①の <code>TradeState -> transferHistory</code>（<code>UnscheduledTransfer</code>, <code>transferType: "Premium"</code>）に出力されています</strong>。
+          </li>
+          <li>
+            <strong>FpML Ingest 変換関数（<code>MapTransferStateList</code>）の仕様と未実装（<code>TODO</code>）箇所</strong>：<br />
+            FpML から <code>TradeState</code> へ変換する <code>MapTradeState</code>（<span class="cite-badge">ingest-fpml-confirmation-tradestate-func.rosetta:L78-L89</span>）および <code>MapTransferStateList</code>（<span class="cite-badge">ingest-fpml-confirmation-payment-func.rosetta:L106-L107, L412-L421</span>）は、FpML の <code>&lt;fxOption&gt; -> &lt;premium&gt;</code> を読み取って <code>transferHistory</code> 内の <code>UnscheduledTransfer</code>（<code>transferType: Premium</code>）へマッピングしています。<br />
+            なお、<code>MapFxOptionPremiumListToTransferStateList</code>（<code>L421</code>）のコード末尾には <code>// TODO map other fields</code> というコメントが残されており、FpML の <code>&lt;premium&gt;</code> 内に含まれる <code>&lt;quote&gt;</code>（プレミアムのクオート単価や額面比％）は現行の FpML Ingest 関数ではまだ変換対象になっていません。実務システムでプレミアムの決済キャッシュフローとクオート単価の両方を CDM にマッピングする場合は、本文①（<code>transferHistory</code>）と②（<code>priceQuantity -> price [CashPrice]</code>）を組み合わせて設計します。
+          </li>
+        </ul>
+      </div>
+
+      <h3>3-3. 為替オプションのライフサイクル（全額権利行使・一部権利行使・一部解約・失効）における <code>BusinessEvent -> after</code> と <code>transferHistory</code> の変化</h3>
+      <p>
+        約定した為替オプションが満期または期中に迎えるライフサイクルイベントでは、<strong>「① 権利行使（<code>Exercise</code>）か、合意解約（<code>Termination</code>）か」</strong>、さらに権利行使の場合は<strong>「② 物理受渡（Vanilla Option）か、差金決済（NDO）か」</strong>によって、<code>BusinessEvent -> after</code>（<code>TradeState</code> の配列 <code>0..*</code>）の件数と <code>transferHistory</code> の変化が一意に決まります。一次ソースの <code>Create_Exercise</code>（<span
+          class="cite-badge">event-common-func.rosetta:L498-L553</span>）およびイベント判定関数 <code>Qualify_Exercise</code> / <code>Qualify_PartialTermination</code>（<span
+          class="cite-badge">event-qualification-func.rosetta:L198-L214, L516-L535</span>）に基づいて4つのケースを整理しましょう。
+      </p>
+      <ol>
+        <li>
+          <strong>全額権利行使（Full Exercise：<code>intent = OptionExercise</code>）</strong>：<br />
+          物理受渡（Vanilla）と差金決済（NDO）で <code>BusinessEvent -> after</code> の構造が異なります：
+          <ul>
+            <li>
+              <strong>パターンA：物理受渡オプション（FX Vanilla Option）の全額権利行使 → <code>after</code> は 2件（<code>after[0]</code> と <code>after[1]</code>）</strong>（<span class="cite-badge">event-common-func.rosetta:L548-L552</span>, <span class="cite-badge">exercise-swaption-full-physical-func-output.json</span>）
+              <ul>
+                <li><strong><code>after[0]</code>（元のオプション取引）</strong>：<code>quantityChange</code> により <code>tradeLot -> priceQuantity</code> の <code>quantity</code> が <strong><code>0</code></strong> に減額され、<code>state -> positionState = Closed</code>（<code>closedState -> state = Terminated</code>）となって終了します。<strong>この <code>after[0]</code> の <code>transferHistory</code> には新たな <code>Transfer</code> は追加されません</strong>（約定時の <code>Premium</code> の履歴がそのまま残るのみです）。なぜなら、物理受渡オプションを行使した直接の結果は「その場でのキャッシュフロー」ではなく「新しい為替決済取引（<code>after[1]</code>）の成立」だからです。</li>
+                <li><strong><code>after[1]</code>（新規生成される為替決済取引：Replacement Trade）</strong>：もはやオプションではなく、原資産通貨（例：<code>Cash: AUD</code>）の <code>SettlementPayout</code>（<code>buyerSeller</code> は存在せず <code>payerReceiver</code> のみを持つ）を格納した新しい <code>TradeState</code>（<code>positionState = Executed</code>）が2件目の <code>after</code> として生成されます。元のオプションの <code>tradeLot -> priceQuantity</code>（<code>75,000,000 AUD</code> と <code>36,900,000 USD</code>）が引き継がれ（<code>L533</code>）、元のオプションが <code>Call</code> なら <code>payerReceiver</code> は <code>payer: Party2, receiver: Party1</code>、<code>Put</code> なら <code>Update_ProductDirection</code>（<code>L520-L527</code>）によって <code>payer: Party1, receiver: Party2</code> に反転されます（その後、受渡日が到来した際にこの新取引側で2通貨の受渡決済 <code>Transfer</code> が実行されます）。</li>
+              </ul>
             </li>
-            <li><strong>② 行使によって新たに成立する直物／先渡取引（Replacement Trade）</strong>：物理受渡オプションの場合、原資産（<code>Cash: AUD</code>）の
-              <code>SettlementPayout</code> を持つ新しい <code>TradeState</code> が生成されます。この際、<strong>元のオプションの
-                <code>tradeLot -> priceQuantity</code>（<code>75,000,000 AUD</code> と
-                <code>36,900,000 USD</code>）がそのまま新しい決済取引の <code>priceQuantity</code>
-                として引き継がれ</strong>（<code>L533</code>）、<code>optionType = Put</code> であれば
-              <code>Update_ProductDirection</code>（<code>L520-L527</code>）によって
-              <code>SettlementPayout -> payerReceiver</code> が
-              <code>payer: Party1 (Buyer), receiver: Party2 (Seller)</code> に反転されます。
+            <li>
+              <strong>パターンB：差金決済オプション（NDO）の全額権利行使 → <code>after</code> は 1件（<code>after[0]</code> のみ）</strong>（<span class="cite-badge">event-qualification-func.rosetta:L208-L209</span>, <span class="cite-badge">exercise-cash-settled-func-output.json</span>）
+              <ul>
+                <li>NDO（現金決済）では新しい為替決済取引は生成されず、1つの <code>PrimitiveInstruction</code> 内で <code>quantityChange</code>（数量を <code>0</code> に更新）と <code>transfer</code>（差金決済金の追加）が同時に実行されます。</li>
+                <li>その結果、<strong>単一の <code>after[0]</code>（元のオプション取引）において <code>quantity = 0</code>・<code>positionState = Closed</code> となると同時に、同じ <code>after[0]</code> の <code>transferHistory</code> に差金決済キャッシュフローが <code>ContingentTransfer</code>（<code>transferType: ContingentTransferEnum -> Exercise</code>）として1件追加</strong>されます。</li>
+              </ul>
             </li>
           </ul>
         </li>
         <li>
-          <strong>一部権利行使（Partial Exercise）または一部解約（Partial Termination）</strong>：<br />
-          <code>ExerciseTerms -> partialExercise</code>（またはアメリカンの <code>multipleExercise</code>）に基づき、たとえば名目元本
-          <code>75,000,000 AUD</code> のうち <code>25,000,000 AUD</code> だけを行使（または一部解約）した場合、元のオプションの
-          <code>tradeLot -> priceQuantity</code>
-          は残存元本（<code>quantity: 50,000,000 AUD</code>、<code>derivedQuantity: 24,600,000 USD</code>）に更新され、行使された
-          <code>25,000,000 AUD</code> 分についてのみ決済（または 新規 <code>SettlementPayout</code> 取引／差金
-          <code>Transfer</code>）が生成されます。
+          <strong>一部権利行使（Partial Exercise：<code>ExerciseTerms -> partialExercise</code> / <code>multipleExercise</code>）</strong>：<br />
+          アメリカン・オプション等で名目元本の一部（例：<code>75,000,000 AUD</code> のうち <code>25,000,000 AUD</code>）のみを権利行使した場合も、上記1と同様に物理受渡か差金決済かで一意に決まります：
+          <ul>
+            <li><strong>物理受渡オプションの一部権利行使 → <code>after</code> は 2件</strong>（<span class="cite-badge">exercise-partial-exercise-func-output.json</span>）：<code>after[0]</code>（元のオプション取引）は残存元本（<code>50,000,000 AUD</code>）に減額された状態でオープン（継続）し、新たな <code>Transfer</code> は追加されません。そして <code>after[1]</code> として、行使された数量分の新規為替決済取引（<code>SettlementPayout</code>）が生成されます。</li>
+            <li><strong>差金決済オプションの一部権利行使 → <code>after</code> は 1件</strong>：<code>after[0]</code>（元のオプション取引）が残存元本に減額されて継続し、同じ <code>after[0]</code> の <code>transferHistory</code> に行使部分の差金決済額が <code>ContingentTransfer</code>（<code>transferType: Exercise</code>）として追加されます。</li>
+          </ul>
+        </li>
+        <li>
+          <strong>一部解約（Partial Termination）および全額解約（Full Termination）と解約手数料（Unwind Fee）</strong>：<br />
+          満期前に当事者間の合意でオプション契約の一部または全部を解約（Unwind）するイベントは、権利行使（<code>Exercise</code>）とは明確に区別され、<code>Qualify_PartialTermination</code>（<span class="cite-badge">event-qualification-func.rosetta:L516-L535</span>）または <code>Qualify_Termination</code> で判定されます（<span class="cite-badge">partial-termination-equity-swap-func-input.json:L1-L55</span>）。
+          <ul>
+            <li><strong><code>after</code> の件数は物理受渡・NDO 問わず常に 1件（<code>after[0]</code> のみ）</strong>：解約であるため、新しい為替決済取引（<code>SettlementPayout</code>）は生成されません。</li>
+            <li><strong>元本の減額と解約手数料（時価精算金）の記録</strong>：1つの <code>PrimitiveInstruction</code> に <code>quantityChange</code>（<code>direction: Decrease</code>）と <code>transfer</code> を組み合わせて実行します。その結果、<code>after[0]</code>（元のオプション取引）の <code>tradeLot -> priceQuantity</code> が残存元本に減額（全額解約なら <code>0</code> かつ <code>Closed</code>）されると同時に、<strong>解約に伴って授受される解約手数料（オプションの時価精算金）が、同じ <code>after[0]</code> の <code>transferHistory</code> に <code>UnscheduledTransfer</code>（一部解約なら <code>transferType: UnscheduledTransferEnum -> PartialTermination</code>、全額解約なら <code>transferType: Termination</code>）として追加</strong>されます。</li>
+          </ul>
         </li>
         <li>
           <strong>アウト・オブ・ザ・マネーでの権利放棄・失効（Expiry / Abandonment）</strong>：<br />
-          満期日（<code>expirationDate</code>）のカットオフ時刻（<code>expirationTime</code>）にアウト・オブ・ザ・マネーであった場合、決済取引や決済キャッシュフローは一切生成されず、オプション取引の
-          <code>quantity</code> が <code>0</code>（<code>Closed</code>）となって消滅します。
+          満期日（<code>expirationDate</code>）のカットオフ時刻（<code>expirationTime</code>）にアウト・オブ・ザ・マネーで権利行使されなかった場合、<code>after</code> は <strong>1件（<code>after[0]</code> のみ）</strong>です。新規取引や新規 <code>Transfer</code> は一切生成されず、元のオプション取引の <code>quantity</code> が <code>0</code>、<code>state -> positionState = Closed</code>（<code>closedState -> state = Expired</code>）となって消滅します。
         </li>
       </ol>
     </section>
@@ -531,31 +593,30 @@
             <span class="kw">and</span> (optionPayout -&gt; exerciseTerms -&gt; style = <span class="tp">OptionExerciseStyleEnum</span> -&gt; European)
             <span class="kw">and</span> optionPayout -&gt; settlementTerms -&gt; cashSettlementTerms exists</code></pre>
 
-      <div class="callout callout-tip">
-        <div class="callout-title">💡 一次ソースの Qualification 関数から読み取れる3つの重要事実</div>
-        <ol style="margin-bottom: 0;">
-          <li>
-            <strong>バニラオプションと NDO の分岐点も <code>cashSettlementTerms</code> の有無</strong>：<br />
-            Lesson 0005 の「FX Forward vs NDF」とまったく同じように、単一の <code>OptionPayout</code> において
-            <code>settlementTerms -> cashSettlementTerms is absent</code> なら
-            <code>ForeignExchange_VanillaOption</code>、<code>cashSettlementTerms exists</code>（かつ
-            <code>style = European</code>）なら <code>ForeignExchange_NDO</code> と判定されます。
-          </li>
-          <li>
-            <strong><code>Qualify_ForeignExchange_VanillaOption</code> の行 L1766-L1768 の特徴</strong>：<br />
-            ① <code>style &lt;&gt; Bermuda</code>（ヨーロピアンまたはアメリカンのみ）、②
-            <code>feature is absent or feature -> averagingFeature only exists</code>（<code>feature</code> が空であるか、または次回の
-            Lesson 0007 で学ぶアベレージレート条件 <code>averagingFeature</code> のみを持つ場合も ISDA Taxonomy 上
-            <code>ForeignExchange_VanillaOption</code> に含まれる）という条件になっています。
-          </li>
-          <li>
-            <strong>NDO は <code>European</code> スタイル専用</strong>：<br />
-            <code>Qualify_ForeignExchange_NDO</code>（<code>L1783</code>）には
-            <code>optionPayout -> exerciseTerms -> style = OptionExerciseStyleEnum -> European</code>
-            が課されています。これは実務上、NDO が満期日の公定フィキシングレート（<code>FxFixingDate</code>）との差額で差金決済されるヨーロピアン型として取引されることに対応しています。
-          </li>
-        </ol>
-      </div>
+      <p>
+        上記2つの一次ソース関数（<span class="cite-badge">product-qualification-func.rosetta:L1754-L1785</span>）の判定式から、以下の3つの条件が読み取れます：
+      </p>
+      <ol>
+        <li>
+          <strong>バニラオプションと NDO の分岐点は <code>settlementTerms -> cashSettlementTerms</code> の有無</strong>：<br />
+          Lesson 0005 の「FX Forward vs NDF」と同じく、単一の <code>OptionPayout</code> において
+          <code>settlementTerms -> cashSettlementTerms is absent</code> なら
+          <code>ForeignExchange_VanillaOption</code>、<code>cashSettlementTerms exists</code>（かつ
+          <code>style = European</code>）なら <code>ForeignExchange_NDO</code> と判定されます。
+        </li>
+        <li>
+          <strong><code>Qualify_ForeignExchange_VanillaOption</code>（L1766-L1768）の行使スタイルと <code>feature</code> 条件</strong>：<br />
+          ① <code>style &lt;&gt; Bermuda</code>（ヨーロピアンまたはアメリカンのみ）、②
+          <code>feature is absent or feature -> averagingFeature only exists</code>（<code>feature</code> が空であるか、または次回の
+          Lesson 0007 で学ぶアベレージレート条件 <code>averagingFeature</code> のみを持つ場合も ISDA Taxonomy 上
+          <code>ForeignExchange_VanillaOption</code> に含まれる）という条件になっています。
+        </li>
+        <li>
+          <strong><code>Qualify_ForeignExchange_NDO</code>（L1783）は <code>European</code> スタイルに限定</strong>：<br />
+          <code>optionPayout -> exerciseTerms -> style = OptionExerciseStyleEnum -> European</code>
+          が条件として課されています。これは実務上、NDO が満期日の公定フィキシングレート（<code>FxFixingDate</code>）との差額で差金決済されるヨーロピアン型として取引されることに対応しています。
+        </li>
+      </ol>
     </section>
 
     <!-- Section 5: Interactive Hierarchy & .rosetta Explorer -->
@@ -687,20 +748,33 @@
           <!-- Node 2: buyerSeller vs payerReceiver -->
           <div class="node-detail-card" data-node-content="node-buyer-vs-payer" style="display: none;">
             <div class="detail-pane active" data-pane="tab-domain">
-              <h3><code>buyerSeller</code> vs <code>payerReceiver</code> と <code>Put</code> 行使時の方向反転</h3>
+              <h3><code>buyerSeller</code> と、約定時・権利行使後のそれぞれで <code>payerReceiver</code> が表す対象</h3>
               <p>
-                <strong>金融実務とCDMの厳密な区分</strong>：<br />
-                ・<strong><code>buyerSeller</code></strong>：オプションという「権利」を買った当事者（<code>buyer</code>）と売った当事者（<code>seller</code>）。<br />
-                ・<strong><code>payerReceiver</code></strong>：原資産（<code>underlier</code> ＝
-                基準通貨）を「支払う当事者（<code>payer</code>）」と「受け取る当事者（<code>receiver</code>）」。
+                <strong>① オプション約定時（<code>OptionPayout</code> 上の <code>buyerSeller</code> と
+                  <code>payerReceiver</code>）</strong>：<br />
+                ・<strong><code>OptionPayout -> buyerSeller</code></strong>：オプションという「権利」を買った当事者（<code>buyer</code>、例：<code>Party1</code>）と売った当事者（<code>seller</code>、例：<code>Party2</code>）。原資産通貨（<code>underlier</code>）を受け取る権利か支払う権利かは
+                <code>buyerSeller</code> と <code>optionType</code>（<code>Call</code> /
+                <code>Put</code>）の組み合わせで表されます。<br />
+                ・<strong><code>OptionPayout -> payerReceiver</code></strong>：原資産通貨の受渡方向ではなく、<strong>「この
+                  <code>OptionPayout</code>（オプションのペイオフ義務・権利価値）自体の義務負担者（<code>payer</code>）と権利享受者（<code>receiver</code>）」</strong>を表します。そのため
+                <code>MapFxOptionPayout</code> は <code>Call</code> でも <code>Put</code> でも無条件に
+                <code>MapSellerAsPayerAndBuyerAsReceiver</code> を呼び、常に
+                <strong><code>payer: Party2</code>（オプションの売手であった当事者）、<code>receiver: Party1</code>（オプションの買手であった当事者）</strong>をセットします。
               </p>
               <p>
-                <strong>なぜ <code>Put</code> でも約定時の <code>payerReceiver</code> は
-                  <code>payer: Seller, receiver: Buyer</code> なのか？</strong>：<br />
-                <code>MapFxOptionPayout</code> は <code>MapSellerAsPayerAndBuyerAsReceiver</code> を使って、常にオプションの売手を
-                <code>payer</code>、買手を <code>receiver</code> にセットします。そして権利行使関数 <code>Create_Exercise</code>
-                が実行される際、<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code>
-                によって、行使後に生成される為替決済取引の <code>payer</code> と <code>receiver</code> を反転（買手が基準通貨を支払い、売手が受け取る方向へ変換）します。
+                <strong>② 権利行使イベント実行後（新規生成される為替決済取引 <code>SettlementPayout -> payerReceiver</code>）</strong>：<br />
+                権利行使関数 <code>Create_Exercise</code> によって生成される為替決済取引（<code>SettlementPayout</code>）はもはやオプションではないため
+                <code>buyerSeller</code> を持たず、<strong><code>SettlementPayout -> payerReceiver</code>
+                  は「原資産通貨（<code>underlier</code> ＝
+                  基準通貨）を実際に支払う当事者（<code>payer</code>）と受け取る当事者（<code>receiver</code>）」</strong>を表します。<br />
+                ・元のオプションが <strong><code>Call</code></strong> のとき：反転せず、<code>SettlementPayout -> payerReceiver</code> は
+                <strong><code>payer: Party2, receiver: Party1</code></strong>（<code>Party2</code>
+                が原資産通貨を支払い、<code>Party1</code> が受け取る）。<br />
+                ・元のオプションが <strong><code>Put</code></strong>
+                のとき：<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code>
+                により反転され、<code>SettlementPayout -> payerReceiver</code> は
+                <strong><code>payer: Party1, receiver: Party2</code></strong>（<code>Party1</code>
+                が原資産通貨を支払い、<code>Party2</code> が受け取る）となります。
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -757,12 +831,12 @@ buyerSeller: <span class="tp">MapBuyerSeller</span>(
                 および同一ストライクでコールとプットを同時購入する <code>Straddle</code> を含みます。
               </p>
               <p>
-                <strong>為替オプションでの決定ルール</strong>：<br />
-                ストライクレートの分母通貨（基準通貨 <code>perUnitOf</code>）が常に
-                <code>underlier</code>（<code>Cash</code>）になります。買手（<code>buyer</code>）がその基準通貨（<code>perUnitOf</code>）を支払う（Putする）契約（FpMLで
-                <code>strikeQuoteBasis = CallCurrencyPerPutCurrency</code>）なら
-                <strong><code>optionType = Put</code></strong>、買手が基準通貨（<code>perUnitOf</code>）を受け取る（Callする）契約（<code>PutCurrencyPerCallCurrency</code>）なら
-                <strong><code>optionType = Call</code></strong> となります。
+                <strong>CDM の為替オプションでの決定ルール</strong>：<br />
+                ストライクレート（<code>strike -> strikePrice</code>）の分母通貨（基準通貨 <code>perUnitOf</code>）が常に
+                <code>underlier</code>（<code>Cash</code>）および <code>priceQuantity -> quantity</code> になります。そして、買手（<code>buyer</code>）がその基準通貨（<code>perUnitOf</code> ＝ <code>underlier</code>）を受け取る権利なら
+                <strong><code>optionType = Call</code></strong>、買手がその基準通貨（<code>perUnitOf</code> ＝ <code>underlier</code>）を支払う権利なら
+                <strong><code>optionType = Put</code></strong> となります。<br />
+                <span style="font-size: 0.9rem; color: var(--text-muted);">（補足：FpML から Ingest する際は、FpML の <code>strikeQuoteBasis</code> が <code>PutCurrencyPerCallCurrency</code>［分母が Call 通貨］なら <code>Call</code>、<code>CallCurrencyPerPutCurrency</code>［分母が Put 通貨］なら <code>Put</code> に変換されます。）</span>
               </p>
             </div>
             <div class="detail-pane" data-pane="tab-rosetta">
@@ -1116,7 +1190,7 @@ fpml.FxOption <span class="kw">then</span>
         <!-- Item 1 -->
         <div class="mapping-item"
           data-answer="buyerSeller は {buyer: Party1, seller: Party2}、payerReceiver は {payer: Party2, receiver: Party1}"
-          data-explanation="<code>OptionPayout</code> では、権利の買手である B社（<code>Party1</code>）を <code>buyerSeller -> buyer</code>、売手である A銀行（<code>Party2</code>）を <code>buyerSeller -> seller</code> に設定し、<code>payerReceiver</code> には原資産（<code>USD</code>）の支払者として <code>payer: Party2</code>、受取者として <code>receiver: Party1</code> を設定します（<code>ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</code>）。">
+          data-explanation="<code>OptionPayout</code> では、権利の買手である B社（<code>Party1</code>）を <code>buyerSeller -> buyer</code>、売手である A銀行（<code>Party2</code>）を <code>buyerSeller -> seller</code> に設定します。また、約定時の <code>OptionPayout -> payerReceiver</code> にはオプション・ペイアウト自体の義務負担者・権利享受者として（<code>Call</code> / <code>Put</code> に関わらず）<code>MapSellerAsPayerAndBuyerAsReceiver</code> により <code>payer: Party2</code>、<code>receiver: Party1</code> を設定します（<code>ingest-fpml-confirmation-product-fxoption-func.rosetta:L92-L107</code>）。">
           <div class="mapping-prompt">
             問1. この <code>OptionPayout</code> の <strong><code>buyerSeller</code></strong> と
             <strong><code>payerReceiver</code></strong> の組み合わせとして正しいものはどれか？
@@ -1299,7 +1373,7 @@ fpml.FxOption <span class="kw">then</span>
       <div class="quiz-container">
         <!-- Q1: Correct = index 2 (All 4 options = 28 chars) -->
         <div class="quiz-question-card" data-correct-index="2"
-          data-explanation="<code>OptionPayout</code>（<code>product-template-type.rosetta:L126-L136</code>）は <code>PayoutBase</code> を継承しているため、オプション自体の買手・売手を表す <code>buyerSeller (1..1)</code> と、原資産 <code>underlier</code> の支払・受取方向を表す <code>payerReceiver (1..1)</code> の両方を必須属性として保持します。">
+          data-explanation="<code>OptionPayout</code>（<code>product-template-type.rosetta:L126-L136</code>）は <code>PayoutBase</code> を継承しているため、オプション権利自体の買手・売手を表す <code>buyerSeller (1..1)</code> と、オプション・ペイアウトの義務負担者・権利享受者を表す <code>payerReceiver (1..1)</code>（約定時は常に売手側が <code>payer</code>、買手側が <code>receiver</code>）の両方を必須属性として保持します。">
           <div class="quiz-q-title">
             Q1. <code>OptionPayout</code> における当事者の方向指定属性（<code>buyerSeller</code> と
             <code>payerReceiver</code>）の定義として正しいものはどれか？
@@ -1307,8 +1381,8 @@ fpml.FxOption <span class="kw">then</span>
           <div class="quiz-options">
             <button class="quiz-option-btn">買手と売手の属性のみが必須であり支払と受取の属性は存在しない</button>
             <button class="quiz-option-btn">支払と受取の属性のみが必須であり買手と売手の属性は存在しない</button>
-            <button class="quiz-option-btn">権利の買手売手と原資産の支払受取の両方の属性を必須として持つ</button>
-            <button class="quiz-option-btn">権利の買手売手と原資産の支払受取のどちらか一方のみを選択する</button>
+            <button class="quiz-option-btn">オプションの買手売手とペイアウトの支払受取の両方を必須で持つ</button>
+            <button class="quiz-option-btn">オプションの買手売手とペイアウトの支払受取の片方のみを選択する</button>
           </div>
           <div class="feedback-msg"></div>
         </div>
@@ -1331,7 +1405,7 @@ fpml.FxOption <span class="kw">then</span>
 
         <!-- Q3: Correct = index 3 (All 4 options = 28 chars) -->
         <div class="quiz-question-card" data-correct-index="3"
-          data-explanation="<code>Create_Exercise</code>（<code>event-common-func.rosetta:L520-L527</code>）では、<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code> を実行し、オプション約定時に <code>payer: Seller, receiver: Buyer</code> で保持されていた原資産の支払・受取方向を反転させて決済取引を生成します。">
+          data-explanation="<code>Create_Exercise</code>（<code>event-common-func.rosetta:L515-L527</code>）では、新規生成される為替決済取引（<code>SettlementPayout</code>：<code>buyerSeller</code> は存在せず <code>payerReceiver</code> が原資産通貨 <code>underlier</code> の支払者・受取者を表す）に対し、一旦 <code>optionPayout -> payerReceiver</code> をコピーした上で、<code>if optionPayout -> optionType = Put then Update_ProductDirection(...)</code> を実行して <code>payer</code> と <code>receiver</code>（<code>Party1</code> と <code>Party2</code>）を反転させます。">
           <div class="quiz-q-title">
             Q3. <code>optionType = Put</code> の <code>OptionPayout</code>
             が権利行使（<code>Create_Exercise</code>）された際、生成される決済取引の <code>payerReceiver</code> はどう処理されるか？

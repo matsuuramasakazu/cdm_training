@@ -192,13 +192,13 @@
         <tr>
           <td><strong>オプション・ペイアウト（為替オプション各種）</strong><br />Option Payout</td>
           <td><code>OptionPayout</code><br />(<code>extends PayoutBase</code>)</td>
-          <td>コール／プットの権利の買手・売手（<code>buyerSeller</code>）、原資産の支払・受取方向（<code>payerReceiver</code>）、行使条件（<code>exerciseTerms</code>）、ストライク（<code>strike</code>）、オプション特性（<code>feature</code>：バリア・アジアン等）を定義するペイアウト。<code>settlementTerms -> cashSettlementTerms</code> が空ならバニラ為替オプション、存在（かつ <code>European</code>）なら NDO と自動判定される。</td>
+          <td>オプション権利の買手・売手（<code>buyerSeller</code>）、オプション・ペイアウト自体の義務負担者・権利享受者（<code>payerReceiver</code>：約定時は常に <code>payer</code>＝売手側、<code>receiver</code>＝買手側）、行使条件（<code>exerciseTerms</code>）、ストライク（<code>strike</code>）、オプション特性（<code>feature</code>：バリア・アジアン等）を定義するペイアウト。<code>settlementTerms -> cashSettlementTerms</code> が空ならバニラ為替オプション、存在（かつ <code>European</code>）なら NDO と自動判定される。</td>
           <td><span class="cite-badge">product-template-type.rosetta:L126-L194</span><br /><span class="cite-badge">product-qualification-func.rosetta:L1754-L1785</span></td>
         </tr>
         <tr>
           <td><strong>オプション種別（コール／プット／ストラドル）</strong><br />Option Type (Call / Put / Straddle)</td>
           <td><code>OptionTypeEnum</code><br />(<code>extends PutCallEnum</code>)</td>
-          <td>為替オプションでは、ストライクレートの分母通貨（基準通貨 <code>perUnitOf</code> ＝ <code>underlier</code> &amp; <code>quantity</code>）を買手（<code>buyer</code>）が受け取る権利なら <code>Call</code>、基準通貨を買手が支払う権利なら <code>Put</code> と設定される。<code>Put</code> 行使時は <code>Create_Exercise</code> 内の <code>Update_ProductDirection</code> により決済取引の <code>payerReceiver</code> が反転される。</td>
+          <td>為替オプションでは、ストライクレートの分母通貨（基準通貨 <code>perUnitOf</code> ＝ <code>underlier</code> &amp; <code>quantity</code>）を買手（<code>buyer</code>）が受け取る権利なら <code>Call</code>、基準通貨を買手が支払う権利なら <code>Put</code> と設定される。権利行使後に新規生成される為替決済取引（<code>SettlementPayout</code>：<code>buyerSeller</code> は持たず <code>payerReceiver</code> が原資産通貨 <code>underlier</code> の支払・受取を表す）では、<code>Put</code> の場合に <code>Create_Exercise</code> 内の <code>Update_ProductDirection</code> により <code>payer</code> と <code>receiver</code> が反転される。</td>
           <td><span class="cite-badge">product-template-enum.rosetta:L11-L15</span><br /><span class="cite-badge">ingest-fpml-confirmation-other-func.rosetta:L2300-L2305</span><br /><span class="cite-badge">event-common-func.rosetta:L520-L527</span></td>
         </tr>
         <tr>
