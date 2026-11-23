@@ -182,13 +182,91 @@
         </li>
       </ol>
 
-      <h3>1-3. 一次ソース実データ検証：<code>fx-ex20-avg-rate-option-parametric.json</code> と観測日スケジュールの表現</h3>
+      <div class="callout">
+        <div class="callout-title">💡 深掘り解説：① なぜ平均ストライクの表現が2つあるのか？ ②「In / Out」の語源 ③「Both」と排他制約の関係</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong>① なぜ <code>averagingFeature</code> と <code>averagingStrikeFeature</code> の2系統が存在し、どう使い分けるのか？</strong><br />
+            一次ソースの履歴（CDM 7 PR #3827 / <span class="cite-badge">RELEASE.md</span>）および型構造を見ると、この2つは設計の出自と保持できる属性が異なります：
+            <ul>
+              <li><strong>もともとの CDM ネイティブ設計（概念分離型）</strong>：初期の CDM では、<code>OptionFeature</code> 側には平均決済価格用の <code>AveragingCalculation</code> のみを置き（そのため現在も <span class="cite-badge">product-template-type.rosetta:L664</span> の <code>averagingFeature</code> の説明文には <em>"an average market observation price is determined on valuation and compared to the strike"</em> とアベレージ・レート前提の記述が残っています）、平均ストライクは「ストライク価格の決定方式の1つ」として <code>OptionStrike -> averagingStrikeFeature</code>（<code>L631-L634, L690</code>）に分離していました。</li>
+              <li><strong>FpML Equity Asian Option（ISDA 2002 Equity Definitions）統合による拡張</strong>：一方、FpML の株式オプション（<span class="cite-badge">eqd-ex05-asian-long-form.xml</span>, <span class="cite-badge">eqd-ex06-averaging-in-long-form.xml</span>）では、平均ストライク（<code>In</code>）・平均決済価格（<code>Out</code>）・両方平均（<code>Both</code>）をすべて単一の <code>&lt;feature&gt;&lt;asian&gt;</code> タグで表現します。これを取り込むため、<code>AveragingFeature</code> 型（旧 <code>Asian</code> 型）が <code>OptionFeature -> averagingFeature</code> に接続され、既存の <code>OptionStrike -> averagingStrikeFeature</code> と重複しないよう <code>condition AsianOptionChoice_*</code> で排他制御されました。</li>
+              <li><strong>構造上の使い分け（<code>ObservationTerms</code> vs <code>AveragingPeriod</code>）</strong>：<code>AveragingStrikeFeature</code>（<code>L631-L634</code>）は内部に <strong><code>observationTerms: ObservationTerms</code></strong> を持ち、為替フィキシングに必要な画面ソース（<code>informationSource: FxSpotRateSource</code>）や観測時刻（<code>observationTime: BusinessCenterTime</code>）を直接格納できます。これに対し、<code>AveragingFeature</code> が持つ <code>averagingPeriodIn</code> / <code>averagingPeriodOut</code>（<code>AveragingPeriod</code> 型、<span class="cite-badge">product-common-schedule-type.rosetta:L242-L252</span>）には日時リストと <code>marketDisruption</code> しかなく <code>FxSpotRateSource</code> を持ちません。したがって、<strong>為替の純粋なアベレージ・ストライク・オプションを CDM ネイティブに表現する場合は <code>OptionStrike -> averagingStrikeFeature</code> が適しており</strong>、FpML <code>&lt;asian&gt;</code> 構造の取り込みや後述の <code>Both</code>（ダブル・アジアン）や <code>strikeFactor</code> を使う場合は <code>OptionFeature -> averagingFeature</code>（＋必要に応じ <code>OptionPayout -> observationTerms</code> で為替ソースを補完）を使い分けます。</li>
+            </ul>
+          </li>
+          <li>
+            <strong>② なぜ平均ストライクを <code>In</code>、平均決済価格を <code>Out</code> と呼ぶのか？（金融実務での語源）</strong><br />
+            <span class="cite-badge">product-template-enum.rosetta:L6-L10</span> の <code>AveragingInOutEnum</code> における <code>In</code> / <code>Out</code> は、ISDA 2002 Definitions および市場慣行の <strong>「Averaging-In（平均イン）」「Averaging-Out（平均アウト）」</strong> という用語に由来します：
+            <ul>
+              <li><strong><code>In</code>（Averaging-In ＝ 取引の「入口」の建値・ストライク価格の平均化）</strong>：オプションのストライク価格とは、ポジションに<strong>参入（Entry ＝ In）</strong>する際の基準建値に相当します。取引初期（または一定期間）の観測レートを平均して「段階的にストライク（建値）へ入っていく（average <em>into</em> the strike）」ことから <strong><code>In</code>（<code>averagingPeriodIn</code>）</strong> と呼ばれます。</li>
+              <li><strong><code>Out</code>（Averaging-Out ＝ 取引の「出口」の満期決済価格の平均化）</strong>：満期時の決済参照価格（Expiration / Settlement Price）とは、ポジションから<strong>退出・精算（Exit ＝ Out）</strong>する際の出口価格に相当します。満期に向けた観測期間のレートを平均して「段階的に手仕舞い価格を確定させて出ていく（average <em>out of</em> the position）」ことから <strong><code>Out</code>（<code>averagingPeriodOut</code>）</strong> と呼ばれます。</li>
+            </ul>
+          </li>
+          <li>
+            <strong>③ <code>AveragingInOutEnum -> Both</code> は排他制約に違反しないのか？FX で使われることはあるか？</strong><br />
+            <ul>
+              <li><strong>排他制約との関係（違反せずに表現可能）</strong>：<code>Both</code>（入口期間の平均レートでストライク $\bar{S}_{\text{in}}$ を決め、出口期間の平均レートで満期決済レート $\bar{S}_{\text{out}}$ を決める<strong>ダブル・アジアン / Double Asian Option</strong>）を表現する場合、<strong><code>strike -> averagingStrikeFeature</code> は使用せず（<code>absent</code> にし）、<code>OptionPayout -> feature -> averagingFeature</code> 1箇所の中だけ</strong>で <code>averagingInOut: Both</code> と <code>averagingPeriodIn</code>（入口期間）・<code>averagingPeriodOut</code>（出口期間）の両方を設定します。そのため、<code>strike -> averagingStrikeFeature</code> は空のままであり、排他制約①（<code>OptionStrike</code> の <code>one-of</code>）にも排他制約②（<code>AsianOptionChoice_*</code>）にも抵触しません。</li>
+              <li><strong>為替（FX）での扱い</strong>：FpML の為替オプション標準スキーマ（<code>&lt;fxOption&gt;&lt;features&gt;&lt;asian&gt;</code>）は単一観測期間＋固定ストライク（<code>Out</code> 相当）のみを想定しているため FpML FX の標準サンプルには <code>Both</code> は含まれませんが、実務の相対（OTC）為替デリバティブで「第1四半期の平均レートをストライクとし、第4四半期の平均レートで精算する」といった Double Average Rate Option を組成し CDM で表現する際には、この <code>feature -> averagingFeature</code>（<code>averagingInOut: Both</code> ＋ <code>averagingPeriodIn</code> ＋ <code>averagingPeriodOut</code>）を用いて表現できます。</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <h3>1-3. 一次ソース実データ検証：<code>ObservationTerms</code> の構造と観測日スケジュール（パラメトリック期間 vs 個別観測日・加重ウェイト）</h3>
       <p>
-        実際に一次ソースの検証済みデータ <span class="cite-badge">fx-ex20-avg-rate-option-parametric.json</span>（USD/MXN アベレージ・レート・コール・オプション：2001年11月1日〜11月30日の期間観測、固定ストライク <code>9.82 MXN per USD</code>）の構造を確認しましょう。
+        為替のアベレージ・レート・オプションにおいて「いつ・どの画面ソースで・どの日程と重み付け（Weight）でスポットレートを観測するか」を定義するのが <strong><code>ObservationTerms</code></strong> および <strong><code>ObservationDates</code></strong>（<span class="cite-badge">product-common-schedule-type.rosetta:L151-L187</span>）です。まず一次ソースの型定義を確認しましょう。
       </p>
 
       <div class="code-header">
-        <span>fx-ex20-avg-rate-option-parametric.json（L18-L151）— USD/MXN Average Rate Call Option の一次ソースJSON</span>
+        <span>product-common-schedule-type.rosetta（L151-L187）— ObservationTerms と ObservationDates の定義</span>
+      </div>
+      <pre><code><span class="kw">type</span> <span class="tp">ObservationTerms</span>: <span class="st">&lt;"Class containing terms that are associated with observing a price/benchmark/index across either single or multiple observations. "&gt;</span>
+    observationTime <span class="tp">BusinessCenterTime</span> (0..1) <span class="st">&lt;"Defines time in respect to a business calendar location that the price/benchmark/index is observed"&gt;</span>
+    observationTimeType <span class="tp">TimeTypeEnum</span> (0..1)
+    informationSource <span class="tp">FxSpotRateSource</span> (0..1) <span class="st">&lt;"The information source where a published or displayed market rate will be obtained, e.g. Telerate Page 3750."&gt;</span>
+    precision <span class="tp">Rounding</span> (0..1)
+    calculationPeriodDates <span class="tp">CalculationPeriodDates</span> (0..1)
+    observationDates <span class="tp">ObservationDates</span> (1..1) <span class="st">&lt;"Describes date details for a set of observation dates in parametric or non-parametric form."&gt;</span>
+    numberOfObservationDates <span class="tp">int</span> (0..1)
+
+<span class="kw">type</span> <span class="tp">ObservationDates</span>: <span class="st">&lt;"Describes date details for a set of observation dates in parametric or non-parametric form."&gt;</span>
+    observationSchedule <span class="tp">ObservationSchedule</span> (0..1) <span class="st">&lt;"Specifies a schedule of dates (non-parametric) on which market observations take place, and allows for the optional definition of weights where applicable. When no weight is specified, then weight of each date is assumed to be 1.0"&gt;</span>
+    periodicSchedule <span class="tp">PeriodicDates</span> (0..1) <span class="st">&lt;"Specifies the date range and frequency on which market observations take place."&gt;</span>
+    parametricDates <span class="tp">ParametricDates</span> (0..1)
+
+<span class="kw">type</span> <span class="tp">ObservationSchedule</span>:
+    observationDate <span class="tp">ObservationDate</span> (0..*)
+    dateAdjustments <span class="tp">BusinessDayAdjustments</span> (0..1)
+    <span class="kw">condition</span> <span class="tp">AdjustedDate</span>:
+        <span class="kw">if</span> observationDate -&gt; adjustedDate is absent
+        <span class="kw">then</span> observationDate -&gt; unadjustedDate exists <span class="kw">and</span> dateAdjustments exists
+
+<span class="kw">type</span> <span class="tp">ObservationDate</span>:
+    [metadata key]
+    unadjustedDate <span class="tp">date</span> (0..1)
+    adjustedDate <span class="tp">date</span> (0..1)
+    weight <span class="tp">number</span> (0..1) <span class="st">&lt;"Specifies the degree of importance of the observation."&gt;</span>
+    observationReference <span class="tp">string</span> (0..1)
+    <span class="kw">condition</span> <span class="tp">ObservationDate</span>:
+        <span class="kw">required choice</span> unadjustedDate, adjustedDate</code></pre>
+
+      <p>
+        この一次ソース定義の通り、CDM の正規スキーマでは、観測条件（<code>ObservationTerms</code>）を以下の<strong>3つの要素</strong>で構成します：
+      </p>
+      <ol>
+        <li>
+          <strong>観測時刻と情報ソース（<code>observationTime</code> &amp; <code>informationSource</code>）</strong>：<br />
+          フィキシングを行う現地時刻と営業日カレンダー（例：メキシコシティ <code>18:00:00 MXMC</code> や東京 <code>15:00:00 JPTO</code>）を <code>observationTime</code>（<code>BusinessCenterTime</code> 型）に設定し、参照する為替レート画面（例：<code>Reuters</code> の <code>BNBX</code> ページ）を <code>informationSource -> primarySource</code>（<code>FxSpotRateSource</code> 型）に設定します。
+        </li>
+        <li>
+          <strong>観測日程の表現パターン①：パラメトリック期間指定（<code>observationDates -> periodicSchedule</code>）</strong>：<br />
+          「2001年11月1日から2001年11月30日まで」のように開始日（<code>startDate</code>）・終了日（<code>endDate</code>）・周期（<code>periodFrequency</code>）で観測期間を定義する場合は、<code>observationDates -> periodicSchedule</code>（<code>PeriodicDates</code> 型）を使用します。各観測日の重み（<code>weight</code>）を個別に指定しない場合、すべての観測日の重みは等しく <code>1.0</code> として扱われます。<br />
+          以下は、このパラメトリック方式を用いた一次ソースの検証済みデータ <span class="cite-badge">fx-ex20-avg-rate-option-parametric.json</span>（USD/MXN アベレージ・レート・コール・オプション、固定ストライク <code>9.82 MXN per USD</code>）の JSON 構造です。
+        </li>
+      </ol>
+
+      <div class="code-header">
+        <span>fx-ex20-avg-rate-option-parametric.json（L18-L113）— パラメトリック期間指定（periodicSchedule）の一次ソースJSON</span>
       </div>
       <pre><code>"payout" : [ {
   "@type" : "cdm.product.template.OptionPayout",
@@ -240,21 +318,46 @@
   }
 } ]</code></pre>
 
+      <ol start="3">
+        <li>
+          <strong>観測日程の表現パターン②：個別観測日・加重ウェイト指定（<code>observationDates -> observationSchedule -> observationDate</code>）</strong>：<br />
+          為替アジアン・オプションの実務（たとえば <span class="cite-badge">fx-ex22-avg-rate-option-specific.xml:L68-L160</span>）では、月曜〜木曜の観測ウェイトを <code>1</code>、金曜日の観測ウェイトを週末（土・日）の2日分を含めて <code>3</code> とするような<strong>日別の重み付き個別観測スケジュール（Specific Observation Schedule）</strong>が広く使われます。<br />
+          これを CDM の正規スキーマで表現する場合は、<code>ObservationTerms -> observationDates -> observationSchedule</code>（<span class="cite-badge">product-common-schedule-type.rosetta:L156-L173</span>）内の <strong><code>observationDate (0..*)</code>（<code>ObservationDate</code> 型）</strong>を使用し、各日付（<code>adjustedDate</code>、または <code>unadjustedDate</code> ＋ <code>dateAdjustments</code>）と重み（<code>weight: 1</code> または <code>3</code>）を列挙します（なお、<code>OptionFeature -> averagingFeature</code> 側で表現する場合は <code>AveragingPeriod -> averagingObservations -> averagingObservation</code> の <code>WeightedAveragingObservation</code>、<code>L238-L266</code> を使用します）。
+        </li>
+      </ol>
+
+      <div class="code-header">
+        <span>個別観測日＋加重ウェイト（月〜木 weight=1、金曜 weight=3）の CDM 正規スキーマ表現（ObservationSchedule）</span>
+      </div>
+      <pre><code>"observationTerms" : {
+  "observationTime" : {
+    "hourMinuteTime" : <span class="st">"18:00:00"</span>,
+    "businessCenter" : { "@data" : <span class="st">"MXMC"</span> }
+  },
+  "informationSource" : {
+    "primarySource" : {
+      "sourceProvider" : { "@data" : <span class="st">"Reuters"</span> },
+      "sourcePage" : { "@data" : <span class="st">"BNBX"</span> }
+    }
+  },
+  "observationDates" : {
+    "observationSchedule" : {                                      <span class="cm">// ★ ノンパラメトリック（個別日付＋重み）スケジュール</span>
+      "observationDate" : [
+        { "adjustedDate" : <span class="st">"2010-11-01"</span>, "weight" : <span class="st">1</span> },           <span class="cm">// 月曜：weight = 1</span>
+        { "adjustedDate" : <span class="st">"2010-11-02"</span>, "weight" : <span class="st">1</span> },           <span class="cm">// 火曜：weight = 1</span>
+        { "adjustedDate" : <span class="st">"2010-11-03"</span>, "weight" : <span class="st">1</span> },           <span class="cm">// 水曜：weight = 1</span>
+        { "adjustedDate" : <span class="st">"2010-11-04"</span>, "weight" : <span class="st">1</span> },           <span class="cm">// 木曜：weight = 1</span>
+        { "adjustedDate" : <span class="st">"2010-11-05"</span>, "weight" : <span class="st">3</span> }            <span class="cm">// 金曜：週末分を含め weight = 3</span>
+      ]
+    }
+  }
+}</code></pre>
+
       <div class="callout callout-warning">
-        <div class="callout-title">⚠️ 一次ソース検証による注意点：個別観測日・加重ウェイト（<code>fx-ex21</code> / <code>fx-ex22</code>）の FpML Ingest 仕様と正規マッピング</div>
-        <p>
-          為替アジアン・オプションの実務（たとえば <span class="cite-badge">fx-ex22-avg-rate-option-specific.xml:L68-L160</span>）では、月曜〜木曜の観測ウェイトを <code>1</code>、金曜日の観測ウェイトを週末分を含めて <code>3</code>（<code>&lt;averageRateWeightingFactor&gt;3&lt;/averageRateWeightingFactor&gt;</code>）とするような<strong>日別の個別観測スケジュール（Specific Observation Schedule）</strong>が頻繁に使われます。
+        <div class="callout-title">⚠️ 補足：現行 FpML Ingest 変換関数（<code>fx-ex21</code> / <code>fx-ex22</code>）における <code>&lt;rateObservation&gt;</code> の未マッピング箇所</div>
+        <p style="margin-bottom: 0;">
+          一次ソースの FpML 変換関数 <code>MapFxOptionFeaturesToObservationTerms</code>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L137-L192</span>）は、現行バージョンでは FpML の <code>&lt;asian&gt; -> &lt;observationSchedule&gt;</code>（パターン①のパラメトリック期間）のみを <code>observationDates -> periodicSchedule</code> にマッピングしており、FpML の日別要素 <code>&lt;rateObservation&gt;</code>（<code>&lt;date&gt;</code> と <code>&lt;averageRateWeightingFactor&gt;</code>）を上記パターン②の <code>observationDates -> observationSchedule -> observationDate</code> へ変換する処理が未実装となっています。そのため、<code>&lt;rateObservation&gt;</code> のみを持つ <span class="cite-badge">fx-ex22-avg-rate-option-specific.json:L38-L55</span> では出力 JSON 上で <code>observationDates</code> が欠落している点に留意してください。
         </p>
-        <ul style="margin-bottom: 0;">
-          <li>
-            <strong>現行 FpML Ingest 関数の未マッピング箇所</strong>：<br />
-            <code>MapFxOptionFeaturesToObservationTerms</code>（<span class="cite-badge">ingest-fpml-confirmation-product-fxoption-func.rosetta:L137-L192</span>）は、FpML の <code>&lt;asian&gt; -> &lt;observationSchedule&gt;</code>（パラメトリック期間）のみを <code>observationDates -> periodicSchedule</code> にマッピングしており、日別の <code>&lt;rateObservation&gt;</code> リストをマッピングするコードが未実装となっています。そのため、<code>&lt;rateObservation&gt;</code> のみを持つ <span class="cite-badge">fx-ex22-avg-rate-option-specific.json:L38-L55</span> では <code>observationDates</code> が欠落した出力になっています。
-          </li>
-          <li>
-            <strong>CDM 正規スキーマでの個別観測日＋ウェイトの表現方法</strong>：<br />
-            実務システムから日別の観測日とウェイト（<code>1</code> や <code>3</code>）を CDM にマッピングする際は、<code>ObservationTerms -> observationDates -> observationSchedule</code>（<span class="cite-badge">product-common-schedule-type.rosetta:L151-L173</span>）内の <strong><code>observationDate (0..*)</code>（<code>ObservationDate</code> 型：<code>adjustedDate</code> / <code>unadjustedDate</code>、および <code>weight: number</code>）</strong>を使用します（または <code>AveragingFeature -> averagingPeriodOut -> averagingObservations -> averagingObservation</code> の <code>WeightedAveragingObservation</code>、<code>L238-L266</code> を使用します）。
-          </li>
-        </ul>
       </div>
     </section>
 
