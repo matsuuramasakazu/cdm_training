@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lesson 0008: シンセティック・マルチフォワードの複合マッピング設計（Call＋Put の合成フォワード × 複数期日 CalculationSchedule / 複数 OptionPayout の設計と
+    Qualification 関数の挙動）</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+
+<body>
+  <div class="page-wrapper">
+    <nav class="workspace-nav">
+      <a class="brand" href="./index.html">FINOS CDM FX Training</a>
+      <div class="nav-links">
+        <a href="./index.html">カリキュラム一覧</a>
+        <a href="./0001-cdm-top-down-overview.html">Lesson 0001</a>
+        <a href="./0002-trade-tradableproduct-party.html">Lesson 0002</a>
+        <a href="./0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>
+        <a href="./0004-fx-spot-forward-swap-settlementpayout.html">Lesson 0004</a>
+        <a href="./0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
+        <a href="./0007-fx-asian-barrier-gap-options.html">Lesson 0007</a>
+        <a href="./0008-synthetic-multi-forward-mapping.html" class="active">Lesson 0008: 複合マルチフォワード</a>
+        <a href="../reference/rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
+        <a href="../reference/glossary.html">Reference: 用語集 (Glossary)</a>
+      </div>
+    </nav>
+
+    <header class="lesson-header">
+      <div class="lesson-meta">Phase 3 · Lesson 0008 · Synthetic Multi-Forward &amp; Multi-Leg FX Option Strategy</div>
+      <h1>シンセティック・マルチフォワードの複合マッピング設計（Call＋Put の合成フォワード × 複数期日 <code>CalculationSchedule</code> / 複数
+        <code>OptionPayout</code> の設計比較と Qualification 関数の挙動）
+      </h1>
+      <p class="lesson-subtitle">
+        Phase 3（為替デリバティブ各論）の総仕上げとして、実務の対顧客為替ヘッジで広く組成される<strong>シンセティック・マルチフォワード（Synthetic Multi-Forward：Call オプションと Put
+          オプションを組み合わせた合成先渡 × 複数期日スケジュール）</strong>を題材に、CDM
+        の一次ソース（<code>product-template-type.rosetta</code>、<code>observable-asset-type.rosetta</code>、<code>product-qualification-func.rosetta</code>、<code>event-common-type.rosetta</code>）の型制約に適合するデータマッピング設計を整理します。
+      </p>
+    </header>
+
+    <div class="callout callout-mission">
+      <div class="callout-title">🎯 このレッスンの到達ゴール（Missionへの接続）</div>
+      <p style="margin-bottom: 0;">
+        ① <strong>シンセティック・フォワード（Call＋Put の合成先渡）</strong>における Call レッグと Put レッグの <code>buyerSeller</code>・約定時の
+        <code>OptionPayout -> payerReceiver</code>・権利行使後の為替決済取引 <code>SettlementPayout -> payerReceiver</code>
+        の対応関係を正確に跡付け、② <strong>複数期日（マルチフォワード）</strong>を表現する3つの設計パターン（単一 <code>Trade</code> 内の複数
+        <code>OptionPayout</code> 展開、<code>CalculationSchedule</code> / <code>datedValue</code>
+        による集約、<code>packageReference</code> によるパッケージ取引分割）を <code>.rosetta</code>
+        の型制約（<code>Price -> condition AmountOnlyExists</code> 等）に基づいて比較・選択でき、③ 複数 <code>OptionPayout</code> 構成時における
+        <code>Qualify_*</code> 関数の <code>only-element</code> 判定挙動と、対になる
+        <code>tradeLot -> priceQuantity</code>（<code>@key:scoped</code> ↔
+        <code>@ref:scoped</code>）の設計・検証を独力で遂行できるようになります。
+      </p>
+    </div>
+
+    <!-- Section 1: Business Structure & Direction Semantics -->
+    <section>
+      <h2>1. シンセティック・マルチフォワードの金融実務構造と方向属性（<code>buyerSeller</code> vs <code>payerReceiver</code>）</h2>
+      <p>
+        まず、為替デリバティブ実務における<strong>シンセティック・フォワード（Synthetic Forward / 合成先渡）</strong>および<strong>シンセティック・マルチフォワード（Synthetic
+          Multi-Forward / 複数期日合成先渡）</strong>の仕組みを確認し、これまで学んだ CDM の方向属性ルールが複合オプション戦略でどのように機能するかを整理します。
+      </p>
+
+      <h3>1-1. シンセティック・フォワードとマルチフォワードの実務バリエーション</h3>
+      <p>
+        為替の<strong>シンセティック・フォワード</strong>とは、同一通貨ペア・同一満期日（Expiration Date）・同一決済日（Value Date）について、<strong>一方の当事者が Call
+          オプションの買手（<code>buyer</code>）になると同時に Put オプションの売手（<code>seller</code>）になる</strong>ことで、為替予約（FX
+        Forward）と同等の損益・受渡プロファイルを合成するオプション戦略です。<br />
+        輸出入企業の継続的な実需ヘッジでは、この Call＋Put のペアを月次や四半期などの<strong>複数期日（$T_1, T_2, \dots,
+          T_N$）にわたるストリップ（スケジュール）</strong>として1本のタームシートに束ねた<strong>シンセティック・マルチフォワード</strong>が頻繁に用いられます。条件の付け方により、実務上は以下のバリエーションが存在します。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 24%;">実務類型（日 / 英）</th>
+            <th style="width: 38%;">契約条件の特徴（顧客 <code>Party1</code> が各期日に基準通貨 <code>USD</code> を受け取り対価通貨 <code>JPY</code>
+              を支払う例）</th>
+            <th style="width: 38%;">CDM マッピング設計上の着眼点</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>① フラット合成マルチフォワード</strong><br />（Symmetric Synthetic Multi-Forward）</td>
+            <td>
+              全期日 $T_1 \dots T_N$ において、Call レッグと Put レッグの<strong>ストライクレート $K$ が同一</strong>（例：全期日
+              <code>148.00 JPY per USD</code>）かつ<strong>名目元本も同一</strong>（例：各期日 <code>1,000,000 USD</code>）。<br />
+              満期レート $S_{T_i} > K$ なら顧客が Call を行使し、$S_{T_i} < K$ なら銀行が Put を行使するため、いずれのケースでもレート $K$ で <code>1,000,000
+                USD</code> と <code>148,000,000 JPY</code> を交換する。
+            </td>
+            <td>
+              同一期日内では Call レッグと Put レッグの基準通貨数量（<code>quantity</code>）および対価通貨数量（<code>derivedQuantity</code>）が一致する。ただし
+              Call と Put で <code>buyerSeller</code> と <code>payerReceiver</code> が逆転する。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>② ステップ・ストライク型 / レンジ・フォワード</strong><br />（Step-Strike / Risk Reversal Collar Strip）</td>
+            <td>
+              ・<strong>ステップ・ストライク</strong>：期日ごとにストライクレートが段階的に変化する（例：$T_1$ は <code>149.00</code>、$T_2$ は
+              <code>147.00</code>、$T_3$ は <code>145.00 JPY per USD</code>）。<br />
+              ・<strong>レンジ・フォワード（リスクリバーサル）</strong>：同一期日内で Call ストライク $K_{\text{call}}$（例：上限 <code>150.00</code>）と Put
+              ストライク $K_{\text{put}}$（例：下限 <code>145.00</code>）に幅を持たせる。
+            </td>
+            <td>
+              期日ごと、あるいは同一期日の Call と Put の間でストライクレート $K$ と対価通貨金額（<code>derivedQuantity</code> $= \text{quantity} \times
+              K$）が異なるため、それぞれ個別の <code>OptionStrike</code> と <code>PriceQuantity</code> が必要になる。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>③ レシオ・マルチフォワード / ノックアウト付</strong><br />（Ratio / Barrier Enhanced Multi-Forward）</td>
+            <td>
+              ・<strong>レシオ（Ratio 1:2 等）</strong>：顧客が買手となる Call レッグの元本を <code>1,000,000 USD</code>、顧客が売手となる Put
+              レッグの元本を2倍の <code>2,000,000 USD</code> とすることで、ストライクレートを市場フォワードより顧客有利に設定する。<br />
+              ・<strong>バリア付</strong>：各期日のレッグにノックアウト・バリア（<code>Barrier -> knockOut</code>）を付与する。
+            </td>
+            <td>
+              同一期日内でも Call レッグと Put レッグで基準通貨数量（<code>quantity</code>）自体が異なるため、Call 用と Put 用で独立した
+              <code>PriceQuantity</code> インスタンスを定義して <code>@ref:scoped</code> で結ぶ必要がある。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>1-2. 推奨される基本表現：Call 用と Put 用の2つの <code>OptionPayout</code> 分離と方向属性（<code>buyerSeller</code> vs <code>payerReceiver</code>）の整合性</h3>
+      <p>
+        シンセティック・フォワードの1期日分（Call 買い＋Put 売りのペア）を CDM で表現する場合、<strong><code>EconomicTerms -> payout (1..*)</code>（<span class="cite-badge">product-template-type.rosetta:L45</span>）の配列内に、Call レッグ用の <code>OptionPayout</code> と Put レッグ用の <code>OptionPayout</code> を別々の要素として並べる構成</strong>が基本となります。<br />
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a> で確認したとおり、CDM では「オプション約定時の <code>OptionPayout -> buyerSeller</code>」「オプション約定時の <code>OptionPayout -> payerReceiver</code>」「権利行使（<code>Create_Exercise</code>）後に新規生成される為替決済取引の <code>SettlementPayout -> payerReceiver</code>」の3つを厳密に区別します。顧客（<code>Party1</code>）が各期日に固定ストライク $K = 148.00\text{ JPY per USD}$（分母＝基準通貨 <code>perUnitOf = USD</code>、分子＝対価通貨 <code>unit = JPY</code>）で<strong>基準通貨 <code>USD</code> を受け取り、対価通貨 <code>JPY</code> を支払う合成フォワード</strong>を組成する場合、2つの <code>OptionPayout</code> の方向属性は以下のとおり設定します。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">確認フェーズ・属性</th>
+            <th style="width: 39%;">① Call レッグ（<code>OptionPayout</code> #1）<br />顧客 <code>Party1</code> による USD Call
+              の買い</th>
+            <th style="width: 39%;">② Put レッグ（<code>OptionPayout</code> #2）<br />顧客 <code>Party1</code> による USD Put
+              の売り（銀行 <code>Party2</code> が買手）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>① オプション権利自体の買手・売手</strong><br /><code>OptionPayout -> buyerSeller</code></td>
+            <td>
+              ・<code>buyer: Party1</code>（顧客が Call 権利の買手）<br />
+              ・<code>seller: Party2</code>（銀行が Call 権利の売手）
+            </td>
+            <td>
+              ・<code>buyer: Party2</code>（銀行が Put 権利の買手）<br />
+              ・<code>seller: Party1</code>（顧客が Put 権利の売手）
+            </td>
+          </tr>
+          <tr>
+            <td><strong>② 約定時のオプション・ペイアウト義務・権利方向</strong><br /><code>OptionPayout -> payerReceiver</code></td>
+            <td>
+              ・<code>payer: Party2</code>（Call ペイアウトの義務負担者＝売手）<br />
+              ・<code>receiver: Party1</code>（Call ペイアウトの権利享受者＝買手）<br />
+              <span style="font-size: 0.85rem; color: var(--text-muted);">※原資産通貨 <code>USD</code> の受渡方向ではなく、この
+                <code>OptionPayout</code> の義務負担者（売手）と権利享受者（買手）を表す。</span>
+            </td>
+            <td>
+              ・<code>payer: Party1</code>（Put ペイアウトの義務負担者＝売手）<br />
+              ・<code>receiver: Party2</code>（Put ペイアウトの権利享受者＝買手）<br />
+              <span style="font-size: 0.85rem; color: var(--text-muted);">※Put レッグでは顧客 <code>Party1</code>
+                がオプションの売手（義務負担者）であるため、約定時の <code>OptionPayout -> payerReceiver</code> は
+                <code>payer: Party1, receiver: Party2</code> となる。</span>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>③ オプション種別と原資産</strong><br /><code>optionType</code> / <code>underlier</code></td>
+            <td>
+              ・<code>optionType: Call</code>（買手 <code>Party1</code> が基準通貨 <code>USD</code> を受け取る権利）<br />
+              ・<code>underlier: Cash (USD)</code>
+            </td>
+            <td>
+              ・<code>optionType: Put</code>（買手 <code>Party2</code> が基準通貨 <code>USD</code> を支払う権利 ＝ 売手
+              <code>Party1</code> が基準通貨 <code>USD</code> を受け取る義務）<br />
+              ・<code>underlier: Cash (USD)</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>④
+                満期権利行使時（<code>Create_Exercise</code>）に新規生成される為替決済取引の受渡方向</strong><br /><code>SettlementPayout -> payerReceiver</code><br /><span
+                class="cite-badge">event-common-func.rosetta:L498-L566</span></td>
+            <td>
+              <strong>満期時に $S_T > K$ で顧客 <code>Party1</code> が Call を行使した場合</strong>：<br />
+              <code>optionType = Call</code> のため、<code>OptionPayout -> payerReceiver</code> がそのまま新しい
+              <code>SettlementPayout -> payerReceiver</code> に引き継がれる。<br />
+              → <strong><code>payer: Party2, receiver: Party1</code></strong><br />
+              （原資産通貨 <code>USD</code> を銀行 <code>Party2</code> が支払い、顧客 <code>Party1</code> が受け取る）
+            </td>
+            <td>
+              <strong>満期時に $S_T < K$ で銀行 <code>Party2</code> が Put を行使した場合</strong>：<br />
+              <code>optionType = Put</code>
+              のため、<code>OptionPayout -> payerReceiver</code>（<code>payer: Party1, receiver: Party2</code>）が
+              <code>Update_ProductDirection</code> で<strong>反転</strong>される。<br />
+              → <strong><code>payer: Party2, receiver: Party1</code></strong><br />
+              （原資産通貨 <code>USD</code> を銀行 <code>Party2</code> が支払い、顧客 <code>Party1</code> が受け取る）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        上の表の④から分かるとおり、<strong>満期日にスポットレート $S_T$ がストライク $K$ を上回って Call レッグ（<code>buyer: Party1</code>）が行使されても、下回って Put
+          レッグ（<code>buyer: Party2</code>）が行使されても、権利行使によって成立する為替決済取引（<code>SettlementPayout</code>：オプションではないため <code>buyerSeller</code> は持たない）の <code>payerReceiver</code> は、いずれも
+          <code>payer: Party2, receiver: Party1</code>（銀行 <code>Party2</code> が基準通貨 <code>USD</code> を支払い、顧客
+          <code>Party1</code> が基準通貨 <code>USD</code> を受け取る）に一致します</strong>。これによって、CDM のイベント関数上でも合成フォワードの経済効果が整合的に表現されます。
+      </p>
+
+      <div class="callout">
+        <div class="callout-title">💡 補足コラム：なぜ <code>optionType: Straddle</code> や <code>StrategyFeature</code> で1つの <code>OptionPayout</code> にまとめないのか？</div>
+        <p>
+          CDM の <code>OptionPayout</code>（<span class="cite-badge">product-template-type.rosetta:L126-L135</span>）には、<code>optionType</code> の列挙値として <code>Straddle</code>（<span class="cite-badge">product-template-enum.rosetta:L11-L15</span>）があり、また <code>feature -> strategyFeature</code> として <code>StrategyFeature</code>（<code>strikeSpread</code> / <code>calendarSpread</code>、<span class="cite-badge">product-template-type.rosetta:L710-L718</span>）も定義されています。しかし、これらを用いてシンセティック・フォワードの Call と Put を1つの <code>OptionPayout</code> に集約しようとすると、以下の型構造上の不整合が生じます。
+        </p>
+        <div class="code-header">
+          <span>product-template-type.rosetta（L126-L135, L710-L718）— OptionPayout の単一 buyerSeller と StrategyFeature</span>
+        </div>
+        <pre><code><span class="kw">type</span> <span class="tp">OptionPayout</span> <span class="kw">extends</span> <span class="tp">PayoutBase</span>:
+    buyerSeller <span class="tp">BuyerSeller</span> (1..1) <span class="cm">// 1つの OptionPayout につき buyer と seller の組は1つだけ</span>
+    feature <span class="tp">OptionFeature</span> (0..1)
+    ...
+    optionType <span class="tp">OptionTypeEnum</span> (0..1) <span class="st">&lt;"... Straddle is used for the case of straddle strategy, that combine a call and a put with the same strike."&gt;</span>
+
+<span class="kw">type</span> <span class="tp">StrategyFeature</span>:
+    strikeSpread <span class="tp">StrikeSpread</span> (0..1)      <span class="cm">// upperStrike (1..1), upperStrikeNumberOfOptions (1..1)</span>
+    calendarSpread <span class="tp">CalendarSpread</span> (0..1)  <span class="cm">// expirationDateTwo (1..1)</span></code></pre>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong><code>optionType: Straddle</code> との違い</strong>：ストラドルは「同一当事者が同一ストライクの <strong>Call と Put の両方を買う（または両方を売る）</strong>」取引であるため、単一の <code>buyerSeller</code>（例：<code>buyer: Party1, seller: Party2</code>）で表せます。一方、シンセティック・フォワードは「一方の当事者が <strong>Call を買い（<code>buyer: Party1, seller: Party2</code>）、同時に Put を売る（<code>buyer: Party2, seller: Party1</code>）</strong>」取引です。1つの <code>OptionPayout</code> は <code>buyerSeller (1..1)</code> を1組しか持てないため、売買方向が逆転する Call と Put は別々の <code>OptionPayout</code> に分ける必要があります。
+          </li>
+          <li>
+            <strong><code>StrategyFeature</code>（<code>StrikeSpread</code> / <code>CalendarSpread</code>）の用途</strong>：<code>StrikeSpread</code> は2つのストライクを持つ垂直スプレッドの上限ストライク（<code>upperStrike</code>）を、<code>CalendarSpread</code> は2つの満期日を持つカレンダー・スプレッドの第2満期日（<code>expirationDateTwo</code>）を補足する型であり、Call と Put の買手・売手逆転や3期日以上のストリップを表現するものではありません。
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 2: Comparison of 3 CDM Modeling Patterns -->
+    <section>
+      <h2>2. シンセティック・マルチフォワードの3つのマッピング設計パターンと <code>.rosetta</code> 型制約の検証</h2>
+      <p>
+        複数期日（$N$ 期日）のシンセティック・マルチフォワードを CDM
+        で表現する場合、一次ソースの型定義に照らして<strong>3つの設計パターン（パターンA・パターンB・パターンC）</strong>が候補となります。それぞれの構造と、<code>.rosetta</code>
+        の制約条件（<code>condition</code>）から導かれる適用可否を比較しましょう。
+      </p>
+
+      <h3>2-1. パターンA：単一 <code>Trade</code> 内の <code>EconomicTerms -> payout (1..*)</code> に $2N$ 個の
+        <code>OptionPayout</code> を展開する設計
+      </h3>
+      <p>
+        <code>EconomicTerms -> payout</code> はカーディナリティ <code>(1..*)</code>（<span
+          class="cite-badge">product-template-type.rosetta:L45</span>）を持ち、対応する <code>TradeLot -> priceQuantity</code> も
+        <code>(1..*)</code>（<span class="cite-badge">product-template-type.rosetta:L319</span>）を持ちます。<br />
+        したがって、$N$ 期日（例：3期日 $T_1, T_2, T_3$）× 各期日の Call レッグ・Put レッグ ＝ <strong>計 $2N$ 個（例：6個）の
+          <code>OptionPayout</code></strong> を <code>economicTerms -> payout</code> 配列に並べる設計がパターンAです。
+      </p>
+      <ul>
+        <li>
+          <strong>期日別・レッグ別の条件を個別に表現可能</strong>：各 <code>OptionPayout</code> が自身の
+          <code>exerciseTerms -> expirationDate</code>、<code>settlementTerms -> settlementDate -> valueDate</code>、<code>strike -> strikePrice</code>、<code>feature -> barrier</code>、および
+          <code>priceQuantity</code>
+          参照（<code>@ref:scoped</code>）を独立して持つため、<strong>ステップ・ストライク（期日別ストライク）、レンジ・フォワード（Call/Put
+            別ストライク）、レシオ・フォワード（Call/Put 別数量）、期日別バリア</strong>のいずれにも型制約違反なく対応できます。
+        </li>
+        <li>
+          <strong>期日別・レッグ別の権利行使（<code>ExerciseInstruction</code>）に対応</strong>：<code>OptionPayout</code> は
+          <code>PayoutBase</code> から <code>[metadata key]</code>（<span
+            class="cite-badge">product-common-settlement-type.rosetta:L66</span>）を継承しているため、各 <code>OptionPayout</code>
+          に一意の <code>@key</code>（例：<code>"opt-t1-call"</code>, <code>"opt-t1-put"</code>
+          等）を付与できます。各期日の満期時には、<code>ExerciseInstruction -> exerciseOption</code>（<code>[metadata reference]</code>、<span
+            class="cite-badge">event-common-type.rosetta:L132-L133</span>）で行使対象の <code>OptionPayout</code> を個別に指定できます。
+        </li>
+      </ul>
+
+      <h3>2-2. パターンB：Call 1個＋Put 1個の計2個の <code>OptionPayout</code> に集約し、<code>CalculationSchedule</code> や
+        <code>datedValue</code> を使う設計の検証
+      </h3>
+      <p>
+        「期日ごとに <code>OptionPayout</code> を分けず、Call 用 <code>OptionPayout</code> 1個と Put 用 <code>OptionPayout</code>
+        1個の計2個だけを定義し、その内部の <code>schedule: CalculationSchedule (0..1)</code> や <code>PriceQuantity</code> の
+        <code>datedValue</code> で複数期日を表せないか？」という設計案がパターンBです。<br />
+        ここで一次ソース（<code>product-template-type.rosetta</code> および <code>observable-asset-type.rosetta</code>）の型定義と
+        <code>condition</code> を確認すると、パターンBには<strong>明確な構造上の制約</strong>があることが分かります。
+      </p>
+
+      <div class="code-header">
+        <span>product-template-type.rosetta（L461-L468, L684-L694）&amp; observable-asset-type.rosetta（L204-L207）</span>
+      </div>
+      <pre><code><span class="cm">// 1. CalculationSchedule と SchedulePeriod の定義（product-template-type.rosetta:L461-L468）</span>
+<span class="kw">type</span> <span class="tp">CalculationSchedule</span>:
+    schedulePeriod <span class="tp">SchedulePeriod</span> (1..*) <span class="st">&lt;"Defines a period of a calculation schedule structure."&gt;</span>
+
+<span class="kw">type</span> <span class="tp">SchedulePeriod</span>:
+    calculationPeriod <span class="tp">DateRange</span> (1..1) <span class="st">&lt;"Period for which the payment is generated."&gt;</span>
+    paymentDate <span class="tp">date</span> (1..1) <span class="st">&lt;"Adjusted payment date."&gt;</span>
+    fixingPeriod <span class="tp">DateRange</span> (1..1) <span class="st">&lt;"Period over which the underlying price is observed."&gt;</span>
+    deliveryPeriod <span class="tp">CalculationScheduleDeliveryPeriods</span> (0..1) <span class="st">&lt;"Period and time profile over which the delivery takes place."&gt;</span>
+
+<span class="cm">// 2. OptionStrike -&gt; strikePrice の型は PriceSchedule ではなく Price（product-template-type.rosetta:L684-L686）</span>
+<span class="kw">type</span> <span class="tp">OptionStrike</span>:
+    strikePrice <span class="tp">Price</span> (0..1) <span class="st">&lt;"Defines the strike of an option in the form of a price..."&gt;</span>
+    ...
+
+<span class="cm">// 3. Price 型は datedValue（日付別ステップ値）を禁止している（observable-asset-type.rosetta:L204-L207）</span>
+<span class="kw">type</span> <span class="tp">Price</span> <span class="kw">extends</span> <span class="tp">PriceSchedule</span>:
+    <span class="kw">condition</span> <span class="tp">AmountOnlyExists</span>: <span class="st">&lt;"The amount must exist when the price represents a single value, and steps must be absent."&gt;</span>
+        value exists <span class="kw">and</span> datedValue is absent</code></pre>
+
+      <p>
+        この一次ソース定義から、パターンBの適用限界として以下の3点が導かれます。
+      </p>
+      <ol>
+        <li>
+          <strong>制約①：<code>OptionStrike -> strikePrice</code> は <code>Price</code>
+            型であり、期日別ステップ・ストライク（<code>datedValue</code>）を持てない</strong>：<br />
+          <code>tradeLot -> priceQuantity -> quantity</code>（<code>NonNegativeQuantitySchedule</code> 型）や
+          <code>price</code>（<code>PriceSchedule</code> 型）は <code>Schedule</code> を継承しているため
+          <code>datedValue: NonNegativeDatedValue (0..*)</code>（日付 <code>date</code> と値 <code>value</code> のペア配列、<span
+            class="cite-badge">base-math-type.rosetta:L54, L65, L79-L86</span>）を持てます。<br />
+          しかし、<code>OptionPayout -> strike -> strikePrice</code> は <code>PriceSchedule</code> を特殊化した
+          <strong><code>Price</code> 型</strong>であり、<code>condition AmountOnlyExists</code>（<span
+            class="cite-badge">observable-asset-type.rosetta:L206-L207</span>）によって
+          <strong><code>value exists and datedValue is absent</code>（単一の <code>value</code> のみ必須、<code>datedValue</code>
+            は禁止）</strong>と定められています。したがって、<strong>期日ごとにストライクレートが異なるステップ・ストライク型マルチフォワードは、1つの
+            <code>OptionPayout</code>（パターンB）では表現できず、期日ごとに <code>OptionPayout</code>
+            を分けるパターンA（またはパターンC）が必須</strong>となります。
+        </li>
+        <li>
+          <strong>制約②：<code>CalculationSchedule -> schedulePeriod</code> が持つ属性の範囲</strong>：<br />
+          <code>SchedulePeriod</code>（<span
+            class="cite-badge">product-template-type.rosetta:L464-L468</span>）は、各期の計算期間（<code>calculationPeriod: DateRange</code>）、決済日（<code>paymentDate: date</code>）、フィキシング観測期間（<code>fixingPeriod: DateRange</code>）、受渡期間プロファイル（<code>deliveryPeriod</code>）を非パラメトリックに列挙する構造です。そのため、<strong>全期日で単一のストライクレート
+            $K$
+            を共有するフラットなマルチフォワード</strong>において、各期の観測期間（<code>fixingPeriod</code>）と決済日（<code>paymentDate</code>）を明示する補助スケジュールとしては機能しますが、期日別のストライクや期日別のノックアウト条件を格納する場所は持っていません。
+        </li>
+        <li>
+          <strong>制約③：<code>ExerciseTerms</code> における複数満期日の表現</strong>：<br />
+          1つの <code>OptionPayout</code> 内で複数の権利行使日を表す場合、<code>ExerciseTerms -> expirationDate (0..*)</code>
+          に複数の満期日を列挙する（<code>condition EuropeanExercise</code> は <code>expirationDate exists</code>
+          のみを要求し、<code>AmericanExercise</code> と異なり <code>count = 1</code> 制約を持たない、<span
+            class="cite-badge">product-template-type.rosetta:L751-L757</span>）か、または <code>style: Bermuda</code> ＋
+          <code>exerciseDates</code> ＋ <code>multipleExercise</code>（<span
+            class="cite-badge">L759-L764</span>）を使用することになります。ただしその場合、各期日の権利行使はすべて同一の <code>OptionPayout</code>
+          に対する部分行使（Partial / Multiple Exercise）として処理する必要があります。
+        </li>
+      </ol>
+
+      <h3>2-3. パターンC：各レッグ（または各期日）を独立した複数の <code>Trade</code>
+        に分け、<code>packageReference</code>（<code>IdentifiedList</code>）で束ねる設計</h3>
+      <p>
+        実務において「顧客向けのタームシートは1枚のパッケージ契約だが、取引管理システムや取引情報蓄積機関（Trade Repository）への報告上は各期日の Call オプション・Put オプションに個別の
+        UTI/USI（取引識別子）を採番して独立した <code>Trade</code>（<code>TradeState</code>）として管理する」というケースがあります（実際、FpML の
+        <code>fx-ex25-option-strategyComponentIdentifier.xml</code> でも、ストラドルの <code>Option1</code> と
+        <code>Option2</code> に別々の UTI/USI <code>...913</code> と <code>...914</code> が割り当てられています）。<br />
+        CDM では、複数の独立した <code>Trade</code> を1つのパッケージ取引として紐づけるために、<strong><code>IdentifiedList</code>
+          型</strong>を用いたパッケージ参照メカニズム（<span
+          class="cite-badge">base-staticdata-identifier-type.rosetta:L28-L33</span>、<span
+          class="cite-badge">event-common-type.rosetta:L316-L318, L497</span>、<span
+          class="cite-badge">event-workflow-type.rosetta:L80</span>）が用意されています。
+      </p>
+
+      <div class="code-header">
+        <span>base-staticdata-identifier-type.rosetta（L28-L33）&amp; event-common-type.rosetta（L316-L318,
+          L492-L497）</span>
+      </div>
+      <pre><code><span class="kw">type</span> <span class="tp">IdentifiedList</span>: <span class="st">&lt;"Attaches an identifier to a collection of objects... One use case is the representation of package transactions, where each component is a separate trade with its own identifier, and those trades are linked together as a package with its own identifier."&gt;</span>
+    [metadata key]
+    listId <span class="tp">Identifier</span> (1..1) <span class="st">&lt;"The identifier for the list. In the case of a package transaction, this would be the package identifier."&gt;</span>
+    componentId <span class="tp">Identifier</span> (2..*) <span class="st">&lt;"Identifiers for each component of the list. Since the data type is used to link multiple identified objects together, at least 2 components are required in the list."&gt;</span>
+    price <span class="tp">Price</span> (0..1) <span class="st">&lt;"The price of the package."&gt;</span>
+
+<span class="kw">type</span> <span class="tp">ExecutionDetails</span>:
+    [metadata key]
+    executionType <span class="tp">ExecutionTypeEnum</span> (1..1)
+    executionVenue <span class="tp">LegalEntity</span> (0..1)
+    packageReference <span class="tp">IdentifiedList</span> (0..1) <span class="st">&lt;"A reference to the package linking the trade with other trades, in case the trade was executed as part of a package..."&gt;</span>
+
+<span class="cm">// Trade 型のパッケージ整合性制約（event-common-type.rosetta:L316-L318）</span>
+<span class="kw">condition</span> <span class="tp">PackageTrade</span>: <span class="st">&lt;"When the trade is part of a package as specified in the execution details, the trade identifier must be found as one of the package components."&gt;</span>
+    <span class="kw">if</span> executionDetails -&gt; packageReference exists
+    <span class="kw">then</span> executionDetails -&gt; packageReference -&gt; componentId -&gt; assignedIdentifier <span class="kw">contains</span> tradeIdentifier -&gt; assignedIdentifier</code></pre>
+
+      <p>
+        パターンCで設計する際は、以下の2つの一次ソース制約を守る必要があります。
+      </p>
+      <ul>
+        <li>
+          <strong><code>componentId</code> の最小カーディナリティ
+            <code>(2..*)</code></strong>：<code>IdentifiedList -> componentId</code> には少なくとも2件以上の構成取引IDを列挙しなければなりません。
+        </li>
+        <li>
+          <strong><code>Trade -> condition PackageTrade</code>（<span
+              class="cite-badge">event-common-type.rosetta:L316-L318</span>）</strong>：各構成 <code>Trade</code> が保持する
+          <code>executionDetails -> packageReference -> componentId -> assignedIdentifier</code> のリストの中に、<strong>その
+            <code>Trade</code> 自身の <code>tradeIdentifier -> assignedIdentifier</code>
+            が必ず含まれていなければなりません</strong>。また、約定イベント（<code>BusinessEvent</code>）レベルでは
+          <code>EventInstruction -> packageInformation: IdentifiedList (0..1)</code>（<span
+            class="cite-badge">event-workflow-type.rosetta:L80</span>）にパッケージ全体情報を1回記録できます。
+        </li>
+      </ul>
+
+      <h3>2-4. 3つのマッピング設計パターンの比較まとめ</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">評価軸</th>
+            <th style="width: 26%;">パターンA：単一 <code>Trade</code> 内に $2N$ 個の <code>OptionPayout</code> を展開</th>
+            <th style="width: 26%;">パターンB：単一 <code>Trade</code> 内に Call 1個＋Put 1個（＋<code>CalculationSchedule</code> /
+              <code>datedValue</code>）
+            </th>
+            <th style="width: 26%;">パターンC：$2N$ 個の独立 <code>Trade</code> に分割し <code>packageReference</code> で紐づけ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>契約ID（<code>tradeIdentifier</code>）の粒度</strong></td>
+            <td>マルチフォワード全体で<strong>1つの <code>Trade</code>（単一取引契約）</strong>として一体管理できる。</td>
+            <td>マルチフォワード全体で<strong>1つの <code>Trade</code>（単一取引契約）</strong>として一体管理できる。</td>
+            <td>各レッグに個別の <code>tradeIdentifier</code> を付与し、<code>packageReference -> listId</code> で共通パッケージIDを共有する。</td>
+          </tr>
+          <tr>
+            <td><strong>期日別ステップ・ストライク / レシオ / バリアへの対応</strong></td>
+            <td><strong>すべて対応可能</strong>（各期日・各レッグの <code>OptionPayout</code> が個別の
+              <code>OptionStrike</code>・<code>Barrier</code>・<code>PriceQuantity</code> を持てる）。
+            </td>
+            <td><strong>ステップ・ストライクは不可</strong>（<code>OptionStrike -> strikePrice</code> は <code>Price</code> 型であり
+              <code>datedValue is absent</code> 制約があるため、全期日同一ストライクのみ）。
+            </td>
+            <td><strong>すべて対応可能</strong>（各 <code>Trade</code> が1個の <code>OptionPayout</code> と1個の
+              <code>PriceQuantity</code> を持つ）。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>期日到来時の権利行使（<code>Create_Exercise</code>）</strong></td>
+            <td><code>ExerciseInstruction -> exerciseOption</code>（<code>@ref</code>）で行使する期日・レッグの
+              <code>OptionPayout</code> を個別に指定可能。
+            </td>
+            <td>同一 <code>OptionPayout</code> に対する複数回の部分行使（Partial / Multiple Exercise）として数量を減額する。</td>
+            <td>各期日の満期時に、該当する <code>TradeState</code> 単体に対して通常の <code>Create_Exercise</code> / Expiry を行う。</td>
+          </tr>
+          <tr>
+            <td><strong>CDM 標準 <code>Qualify_ForeignExchange_*</code> 関数の判定結果</strong></td>
+            <td><code>payout</code> 内の <code>OptionPayout</code> が複数（$2N \ge 2$）のため
+              <strong><code>False</code></strong>（§3で詳述）。
+            </td>
+            <td><code>payout</code> 内の <code>OptionPayout</code> が2個（Call＋Put）のため
+              <strong><code>False</code></strong>（§3で詳述）。
+            </td>
+            <td>各構成 <code>Trade</code> の <code>OptionPayout</code> が1個のみのため、それぞれ
+              <strong><code>True</code>（<code>VanillaOption</code> または <code>NDO</code>）</strong>と自動判定される。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 3: Qualification Functions & Taxonomy -->
+    <section>
+      <h2>3. 複数 <code>OptionPayout</code> に対する Qualification 関数（<code>Qualify_*</code>）の挙動と
+        <code>NonTransferableProduct</code> の分類設計
+      </h2>
+      <p>
+        上の比較表の4行目で触れたとおり、単一 <code>Trade</code> の <code>EconomicTerms -> payout</code> に2個以上の <code>OptionPayout</code>
+        を格納した場合（パターンAおよびパターンB）、CDM の為替プロダクト自動判定関数（<code>Qualify_*</code>）がどのように動作するかを一次ソース（<span
+          class="cite-badge">product-qualification-func.rosetta</span>）で検証します。
+      </p>
+
+      <h3>3-1. <code>only-element</code> 演算子による判定挙動（<code>SettlementPayout</code> との非対称性）</h3>
+      <p>
+        <code>product-qualification-func.rosetta</code> における
+        <code>Qualify_AssetClass_ForeignExchange</code>（L143-L176）、<code>Qualify_ForeignExchange_VanillaOption</code>（L1754-L1769）、および
+        <code>Qualify_ForeignExchange_NDO</code>（L1771-L1785）の定義を確認しましょう。
+      </p>
+
+      <div class="code-header">
+        <span>product-qualification-func.rosetta（L143-L176, L1754-L1785, L1981-L2026）— only-element の挙動</span>
+      </div>
+      <pre><code><span class="kw">func</span> <span class="tp">Qualify_AssetClass_ForeignExchange</span>:
+    <span class="kw">inputs</span>: economicTerms <span class="tp">EconomicTerms</span> (1..1)
+    <span class="kw">output</span>: is_product <span class="tp">boolean</span> (1..1)
+
+    <span class="cm">// 【重要】OptionPayout に対して only-element（要素が厳密に1個のときのみ値を返し、2個以上なら empty を返す）を使用</span>
+    <span class="kw">alias</span> optionUnderlier: economicTerms -&gt; payout <span class="kw">as</span> <span class="tp">OptionPayout</span> <span class="cd">only-element</span> -&gt; underlier
+    <span class="cm">// 一方、SettlementPayout に対しては only-element を使わず全要素のリストとして抽出している</span>
+    <span class="kw">alias</span> settlementUnderliers: economicTerms -&gt; payout <span class="kw">as</span> <span class="tp">SettlementPayout</span> -&gt; underlier
+
+    <span class="kw">set</span> is_product:
+        (<span class="tp">SettlementPayoutOnlyExists</span>(economicTerms -&gt; payout)
+                <span class="kw">and</span> (settlementUnderliers <span class="kw">extract</span> [ item <span class="kw">as</span> <span class="tp">Cash</span> exists ] <span class="kw">all</span> = True ...))
+            <span class="kw">or</span> ...
+            <span class="kw">or</span> (economicTerms -&gt; payout <span class="cd">only-element</span> <span class="kw">as</span> <span class="tp">OptionPayout</span> exists
+                <span class="kw">and</span> (optionUnderlier <span class="kw">as</span> <span class="tp">Cash</span> exists ...))
+
+<span class="kw">func</span> <span class="tp">Qualify_ForeignExchange_VanillaOption</span>:
+    [qualification Product]
+    <span class="kw">inputs</span>: economicTerms <span class="tp">EconomicTerms</span> (1..1)
+    <span class="kw">output</span>: is_product <span class="tp">boolean</span> (1..1)
+    <span class="kw">alias</span> optionPayout: economicTerms -&gt; payout <span class="cd">only-element</span> <span class="kw">as</span> <span class="tp">OptionPayout</span>
+    <span class="kw">set</span> is_product:
+        <span class="tp">Qualify_AssetClass_ForeignExchange</span>(economicTerms)
+            <span class="kw">and</span> optionPayout exists
+            <span class="kw">and</span> (optionPayout -&gt; exerciseTerms -&gt; style &lt;&gt; <span class="tp">OptionExerciseStyleEnum</span> -&gt; Bermuda)
+            <span class="kw">and</span> (optionPayout -&gt; feature is absent
+                <span class="kw">or</span> optionPayout -&gt; feature -&gt; averagingFeature <span class="kw">only exists</span>)
+            <span class="kw">and</span> optionPayout -&gt; settlementTerms -&gt; cashSettlementTerms is absent
+
+<span class="kw">func</span> <span class="tp">Qualify_ForeignExchange_NDO</span>:
+    [qualification Product]
+    <span class="kw">inputs</span>: economicTerms <span class="tp">EconomicTerms</span> (1..1)
+    <span class="kw">output</span>: is_product <span class="tp">boolean</span> (1..1)
+    <span class="kw">alias</span> optionPayout: economicTerms -&gt; payout <span class="cd">only-element</span> <span class="kw">as</span> <span class="tp">OptionPayout</span>
+    <span class="kw">set</span> is_product:
+        <span class="tp">Qualify_AssetClass_ForeignExchange</span>(economicTerms)
+            <span class="kw">and</span> optionPayout exists
+            <span class="kw">and</span> (optionPayout -&gt; exerciseTerms -&gt; style = <span class="tp">OptionExerciseStyleEnum</span> -&gt; European)
+            <span class="kw">and</span> optionPayout -&gt; settlementTerms -&gt; cashSettlementTerms exists</code></pre>
+
+      <p>
+        <a href="../reference/rosetta-reading-guide.html">Rune DSL 読解ガイド</a>で確認したとおり、<code>only-element</code>
+        演算子は「対象のリストの要素数が<strong>ちょうど1個のときだけその要素を評価し、要素数が0個または2個以上のときは空（<code>empty</code> /
+          <code>absent</code>）と評価する</strong>」演算子です。<br />
+        そのため、<code>SettlementPayout</code> を2個持つ FX Swap や NDS は <code>SettlementPayoutOnlyExists</code> と
+        <code>count = 2</code> によって <code>Qualify_AssetClass_ForeignExchange = True</code> かつ
+        <code>Qualify_ForeignExchange_Swap / NDS = True</code> と判定されるのに対し、<strong><code>OptionPayout</code>
+          を2個以上持つ取引（1期日のシンセティック・フォワード、ストラドル、あるいは $2N$ 個の <code>OptionPayout</code>
+          を持つシンセティック・マルチフォワード）では、<code>economicTerms -> payout only-element as OptionPayout</code> が <code>empty</code>
+          となるため、<code>Qualify_AssetClass_ForeignExchange</code>・<code>Qualify_ForeignExchange_VanillaOption</code>・<code>Qualify_ForeignExchange_NDO</code>
+          のすべてが <code>False</code> を返します</strong>（同ファイル L2017 にヘルパー関数 <code>OptionPayoutOnlyExists</code> は定義されていますが、現行の
+        <code>Qualify_AssetClass_ForeignExchange</code> では使われておらず、複数 <code>OptionPayout</code> から成る為替オプション戦略用の
+        <code>Qualify_ForeignExchange_*</code> 関数も未定義です）。
+      </p>
+
+      <h3>3-2. 単一 <code>Trade</code> 設計（パターンA・B）における <code>NonTransferableProduct -> taxonomy</code> と
+        <code>condition PrimaryAssetClass</code>
+      </h3>
+      <p>
+        パターンAやパターンBのように単一 <code>Trade</code> 内に複数の <code>OptionPayout</code> を格納する場合、<code>Qualify_*</code>
+        関数による自動分類（<code>calculated: true</code> の ISDA Taxonomy
+        付与）が行われないため、<code>NonTransferableProduct -> taxonomy</code>
+        に明示的な商品分類（<code>ProductTaxonomy</code>）を設定しておくのが実務上の推奨設計となります。<br />
+        また、非標準的な複合条件を含む取引であることを示すフラグ <code>economicTerms -> nonStandardisedTerms: true</code>
+        を設定する場合、<code>NonTransferableProduct</code>（<span
+          class="cite-badge">product-template-type.rosetta:L307-L315</span>）の以下の制約が発火することに注意してください。
+      </p>
+
+      <div class="code-header">
+        <span>product-template-type.rosetta（L307-L315）— condition PrimaryAssetClass</span>
+      </div>
+      <pre><code><span class="kw">type</span> <span class="tp">NonTransferableProduct</span>:
+    [metadata key]
+    identifier <span class="tp">ProductIdentifier</span> (0..*)
+    taxonomy <span class="tp">ProductTaxonomy</span> (0..*)
+    economicTerms <span class="tp">EconomicTerms</span> (1..1)
+
+    <span class="kw">condition</span> <span class="tp">PrimaryAssetClass</span>: <span class="st">&lt;"Specifies that when nonStandardisedTerms are True that a primary asset class must be specified."&gt;</span>
+        <span class="kw">if</span> economicTerms -&gt; nonStandardisedTerms = True
+        <span class="kw">then</span> taxonomy -&gt; primaryAssetClass exists</code></pre>
+
+      <p>
+        つまり、<code>economicTerms -> nonStandardisedTerms: true</code> を設定したときは、必ず <code>product -> taxonomy</code> に
+        <code>primaryAssetClass: { "@data": "ForeignExchange" }</code>（<code>AssetClassEnum -> ForeignExchange</code>）を含めなければバリデーションエラーとなります。
+      </p>
+
+      <div class="callout callout-discrepancy">
+        <div class="callout-title">⚠️ FpML Ingest 関数における <code>&lt;strategy&gt;</code> および
+          <code>&lt;fxFlexibleForward&gt;</code> の未実装ギャップ（一次ソース確認）
+        </div>
+        <p style="margin-bottom: 0;">
+          CDM のスキーマ（<code>product-template-type.rosetta</code>）自体は <code>EconomicTerms -> payout (1..*)</code> による複数
+          <code>OptionPayout</code> 格納や <code>CalculationSchedule</code> を備えていますが、FpML から CDM への変換関数（<span
+            class="cite-badge">ingest-fpml-confirmation-tradestate-func.rosetta:L256-L358, L417-L450</span> の
+          <code>MapNonTransferableProduct</code> および
+          <code>MapPriceQuantityList</code>）を確認すると、<code>fpmlTrade -> product switch</code> の分岐リストに FpML の複合戦略要素
+          <code>fpml.Strategy</code>（例：<code>fx-ex23-straddle.xml</code>、<code>fx-ex25-option-strategyComponentIdentifier.xml</code>）および期間内分割実行フォワード要素
+          <code>fpml.FxFlexibleForward</code>（例：<code>fx-ex27-flexible-term-forward.xml</code>）が含まれていません。<br />
+          そのため、これらの FpML サンプルを Ingest
+          関数に通したテスト出力（<code>fpml-5-13-incomplete-products-fx-derivatives/fx-ex23-straddle.json</code>、<code>fx-ex25-option-strategyComponentIdentifier.json</code>、<code>fx-ex27-flexible-term-forward.json</code>）では、<code>default</code>
+          分岐に入って <code>product</code> と <code>tradeLot</code>
+          が空になり、<code>tradeIdentifier</code>・<code>tradeDate</code>・<code>party</code>
+          のみが出力されています。実務でシンセティック・マルチフォワードやオプション・ストラテジーを CDM にマッピングする際は、FpML Ingest
+          関数のデフォルト出力に依存せず、本レッスンで整理する正規スキーマ構造（パターンAまたはパターンC）を直接構築してください。
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 4: tradeLot -> priceQuantity Design & Complete JSON -->
+    <section>
+      <h2>4. <code>tradeLot -> priceQuantity</code> の複合マッピング設計とライフサイクル変化</h2>
+      <p>
+        続いて、<code>Product -> economicTerms -> payout</code> と対になる
+        <strong><code>tradeLot -> priceQuantity</code></strong> の設計ルールを確認します。複合為替デリバティブであっても、<a
+          href="./0003-pricequantity-fx-rate-and-scoped-references.html">Lesson 0003</a>〜<a
+          href="./0007-fx-asian-barrier-gap-options.html">Lesson 0007</a> で確立した基本原則はそのまま貫かれます。
+      </p>
+
+      <h3>4-1. クオート基準不変原則と複数 <code>PriceQuantity</code> のスコープ参照（<code>@key:scoped</code> ↔ <code>@ref:scoped</code>）
+      </h3>
+      <ol>
+        <li>
+          <strong>クオート基準不変原則の維持</strong>：<br />
+          各レッグのストライクレート <code>OptionStrike -> strikePrice</code> のクオート基準が <code>JPY per USD</code>（分母＝基準通貨
+          <code>perUnitOf = USD</code>、分子＝対価通貨 <code>unit = JPY</code>）である場合、Call レッグでも Put レッグでも、常に<strong>分母（基準通貨
+            <code>USD</code>）の名目元本が <code>priceQuantity -> quantity</code>（および <code>OptionPayout -> underlier</code> の
+            <code>Cash: USD</code>）</strong>に配置され、<strong>分子（対価通貨 <code>JPY</code>）の交換金額（$\text{quantity} \times K$）が
+            <code>priceQuantity -> price -> derivedQuantity</code></strong> に配置されます。
+        </li>
+        <li>
+          <strong>1 <code>OptionPayout</code> : 1 <code>PriceQuantity</code> の分離結線（パターンAにおける推奨設計）</strong>：<br />
+          単一 <code>Trade</code> 内に $2N$ 個の <code>OptionPayout</code>
+          を並べるパターンAでは、<code>tradeLot[0] -> priceQuantity</code> 配列にも各レッグに対応する <code>PriceQuantity</code>
+          を並べ、<code>@key:scoped</code> と <code>@ref:scoped</code> で結びます。<br />
+          特に、<strong>レシオ・マルチフォワード</strong>（例：期日 $T_1$ の Call レッグは元本 <code>1,000,000 USD</code>、Put レッグは元本2倍の
+          <code>2,000,000 USD</code>）や、<strong>レンジ・フォワード／リスクリバーサル</strong>（例：Call ストライク $K_{\text{call}} = 150.00$ で
+          <code>derivedQuantity = 150,000,000 JPY</code>、Put ストライク $K_{\text{put}} = 145.00$ で
+          <code>derivedQuantity = 290,000,000 JPY</code>）では、同一期日内でも Call と Put で <code>quantity</code> や
+          <code>derivedQuantity</code> が異なるため、<strong>各 <code>OptionPayout</code> ごとに独立した
+            <code>PriceQuantity</code>（<code>quantity-1</code>〜<code>quantity-2N</code>）を1対1で割り当てる設計</strong>が適しています。<br />
+          （なお、全レッグではなく「同一期日の Call と Put が同一元本・同一ストライク」であるフラット合成フォワードに限り、期日ごとに1つの <code>PriceQuantity</code> を定義して同一期日の
+          Call と Put の両方の <code>OptionPayout -> priceQuantity -> quantitySchedule</code> から同じ <code>@ref:scoped</code>
+          を共有参照することも文法上は可能ですが、満期時に片方が行使・他方が消滅する際の個別数量管理を考慮すると、レッグ別に <code>PriceQuantity</code> を分けておく方が見通しが良くなります）。
+        </li>
+        <li>
+          <strong>ゼロコスト（Zero-Cost） vs ネット・プレミアム決済と対顧客マージン</strong>：<br />
+          シンセティック・マルチフォワードは、顧客の初期プレミアム支払をゼロにする<strong>ゼロコスト（Zero-Cost）</strong>で組成されることが一般的です（銀行側の対顧客マージンはストライクレート $K$
+          の水準、または Call/Put のレシオ比率に織り込まれます）。この場合、プレミアム用の <code>TransferState</code> は不要です。<br />
+          一方、約定時にネット・プレミアム（一括または期日・レッグ別）の授受が発生する契約では、<a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson
+            0006</a> と同様に <code>TradeState -> transferHistory</code> に
+          <code>UnscheduledTransfer</code>（<code>transferType: "Premium"</code>、<code>PartyReferencePayerReceiver</code>
+          使用）を追加し、単価や料率を記録する場合は該当する <code>PriceQuantity -> price</code> に <code>priceType: "CashPrice"</code>（必要に応じ理論値
+          <code>baseValue</code> ＋ マージン <code>operand</code> の <code>PriceComposite</code>）を併記します。
+        </li>
+      </ol>
+
+      <h3>4-2. 具体的な JSON マッピング設計例（2期日・ステップストライク＆レシオ 1:2 の USD/JPY シンセティック・マルチフォワード）</h3>
+      <p>
+        実務で頻出する複合条件（<strong>2期日 $T_1, T_2$ × ステップ・ストライク $K_1 = 148.00, K_2 = 146.00\text{ JPY/USD}$ × レシオ 1:2［Call 元本
+          100万USD / Put 元本 200万USD］</strong>、顧客 <code>Party1</code> が各期日に <code>USD</code> を受け取り <code>JPY</code>
+        を支払う合成マルチフォワード）をパターンAで設計した正規の <code>TradeState</code> JSON 構造は以下のとおりです。
+      </p>
+
+      <div class="code-header">
+        <span>2期日・ステップストライク・レシオ(1:2) シンセティック・マルチフォワードの正規 CDM JSON 設計（抜粋）</span>
+      </div>
+      <pre><code>{
+  "@type" : "cdm.event.common.TradeState",
+  "trade" : {
+    "product" : {
+      "taxonomy" : [ {
+        "source" : <span class="st">"Other"</span>,
+        "primaryAssetClass" : { "@data" : <span class="st">"ForeignExchange"</span> }, <span class="cm">// condition PrimaryAssetClass を満たす主資産クラス</span>
+        "value" : { "name" : { "@data" : <span class="st">"SyntheticMultiForward_RatioStrip"</span> } }
+      } ],
+      "economicTerms" : {
+        "effectiveDate" : { "adjustableDate" : { "unadjustedDate" : <span class="st">"2026-11-24"</span> } },
+        "terminationDate" : { "adjustableDate" : { "unadjustedDate" : <span class="st">"2027-02-26"</span> } },
+        "nonStandardisedTerms" : <span class="kw">true</span>,
+        "payout" : [
+          <span class="cm">// ===== 期日 T1 (満期 2027-01-26 / 決済 2027-01-28, Strike K1 = 148.00 JPY/USD) =====</span>
+          <span class="cm">// [1] T1 Call Leg: 顧客 Party1 が 1,000,000 USD の Call を買う (buyer=Party1, seller=Party2)</span>
+          {
+            "@type" : "cdm.product.template.OptionPayout",
+            <span class="mt">"@key" : "opt-t1-call"</span>,
+            "payerReceiver" : { "payer" : <span class="st">"Party2"</span>, "receiver" : <span class="st">"Party1"</span> }, <span class="cm">// Call 売手 Party2 が義務負担者</span>
+            "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t1-call"</span> } },
+            "settlementTerms" : {
+              "settlementType" : <span class="st">"Physical"</span>,
+              "settlementDate" : { "valueDate" : <span class="st">"2027-01-28"</span> }
+            },
+            "buyerSeller" : { "buyer" : <span class="st">"Party1"</span>, "seller" : <span class="st">"Party2"</span> },
+            "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-1"</span> },
+            "optionType" : <span class="st">"Call"</span>,
+            "exerciseTerms" : {
+              "style" : <span class="st">"European"</span>,
+              "expirationDate" : [ { "adjustableDate" : { "unadjustedDate" : <span class="st">"2027-01-26"</span> } } ],
+              "expirationTime" : { "hourMinuteTime" : <span class="st">"15:00:00"</span>, "businessCenter" : { "@data" : <span class="st">"JPTO"</span> } },
+              "expirationTimeType" : <span class="st">"SpecificTime"</span>
+            },
+            "strike" : {
+              "strikePrice" : {
+                "value" : <span class="st">148.00</span>,
+                "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } },
+                "perUnitOf" : { "currency" : { "@data" : <span class="st">"USD"</span> } },
+                "priceType" : <span class="st">"ExchangeRate"</span>
+              }
+            }
+          },
+          <span class="cm">// [2] T1 Put Leg: 顧客 Party1 が 2,000,000 USD の Put を売る (buyer=Party2, seller=Party1)</span>
+          {
+            "@type" : "cdm.product.template.OptionPayout",
+            <span class="mt">"@key" : "opt-t1-put"</span>,
+            "payerReceiver" : { "payer" : <span class="st">"Party1"</span>, "receiver" : <span class="st">"Party2"</span> }, <span class="cm">// Put 売手 Party1 が義務負担者（行使時に反転）</span>
+            "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t1-put"</span> } },
+            "settlementTerms" : {
+              "settlementType" : <span class="st">"Physical"</span>,
+              "settlementDate" : { "valueDate" : <span class="st">"2027-01-28"</span> }
+            },
+            "buyerSeller" : { "buyer" : <span class="st">"Party2"</span>, "seller" : <span class="st">"Party1"</span> },
+            "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-2"</span> },
+            "optionType" : <span class="st">"Put"</span>,
+            "exerciseTerms" : {
+              "style" : <span class="st">"European"</span>,
+              "expirationDate" : [ { "adjustableDate" : { "unadjustedDate" : <span class="st">"2027-01-26"</span> } } ],
+              "expirationTime" : { "hourMinuteTime" : <span class="st">"15:00:00"</span>, "businessCenter" : { "@data" : <span class="st">"JPTO"</span> } },
+              "expirationTimeType" : <span class="st">"SpecificTime"</span>
+            },
+            "strike" : {
+              "strikePrice" : {
+                "value" : <span class="st">148.00</span>,
+                "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } },
+                "perUnitOf" : { "currency" : { "@data" : <span class="st">"USD"</span> } },
+                "priceType" : <span class="st">"ExchangeRate"</span>
+              }
+            }
+          },
+          <span class="cm">// ===== 期日 T2 (満期 2027-02-24 / 決済 2027-02-26, Strike K2 = 146.00 JPY/USD) =====</span>
+          <span class="cm">// [3] T2 Call Leg: 顧客 Party1 が 1,000,000 USD の Call を買う (K2 = 146.00)</span>
+          {
+            "@type" : "cdm.product.template.OptionPayout",
+            <span class="mt">"@key" : "opt-t2-call"</span>,
+            "payerReceiver" : { "payer" : <span class="st">"Party2"</span>, "receiver" : <span class="st">"Party1"</span> },
+            "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t2-call"</span> } },
+            "settlementTerms" : {
+              "settlementType" : <span class="st">"Physical"</span>,
+              "settlementDate" : { "valueDate" : <span class="st">"2027-02-26"</span> }
+            },
+            "buyerSeller" : { "buyer" : <span class="st">"Party1"</span>, "seller" : <span class="st">"Party2"</span> },
+            "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-3"</span> },
+            "optionType" : <span class="st">"Call"</span>,
+            "exerciseTerms" : {
+              "style" : <span class="st">"European"</span>,
+              "expirationDate" : [ { "adjustableDate" : { "unadjustedDate" : <span class="st">"2027-02-24"</span> } } ],
+              "expirationTime" : { "hourMinuteTime" : <span class="st">"15:00:00"</span>, "businessCenter" : { "@data" : <span class="st">"JPTO"</span> } },
+              "expirationTimeType" : <span class="st">"SpecificTime"</span>
+            },
+            "strike" : {
+              "strikePrice" : {
+                "value" : <span class="st">146.00</span>,
+                "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } },
+                "perUnitOf" : { "currency" : { "@data" : <span class="st">"USD"</span> } },
+                "priceType" : <span class="st">"ExchangeRate"</span>
+              }
+            }
+          },
+          <span class="cm">// [4] T2 Put Leg: 顧客 Party1 が 2,000,000 USD の Put を売る (K2 = 146.00)</span>
+          {
+            "@type" : "cdm.product.template.OptionPayout",
+            <span class="mt">"@key" : "opt-t2-put"</span>,
+            "payerReceiver" : { "payer" : <span class="st">"Party1"</span>, "receiver" : <span class="st">"Party2"</span> },
+            "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t2-put"</span> } },
+            "settlementTerms" : {
+              "settlementType" : <span class="st">"Physical"</span>,
+              "settlementDate" : { "valueDate" : <span class="st">"2027-02-26"</span> }
+            },
+            "buyerSeller" : { "buyer" : <span class="st">"Party2"</span>, "seller" : <span class="st">"Party1"</span> },
+            "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-4"</span> },
+            "optionType" : <span class="st">"Put"</span>,
+            "exerciseTerms" : {
+              "style" : <span class="st">"European"</span>,
+              "expirationDate" : [ { "adjustableDate" : { "unadjustedDate" : <span class="st">"2027-02-24"</span> } } ],
+              "expirationTime" : { "hourMinuteTime" : <span class="st">"15:00:00"</span>, "businessCenter" : { "@data" : <span class="st">"JPTO"</span> } },
+              "expirationTimeType" : <span class="st">"SpecificTime"</span>
+            },
+            "strike" : {
+              "strikePrice" : {
+                "value" : <span class="st">146.00</span>,
+                "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } },
+                "perUnitOf" : { "currency" : { "@data" : <span class="st">"USD"</span> } },
+                "priceType" : <span class="st">"ExchangeRate"</span>
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tradeLot" : [ {
+      "priceQuantity" : [
+        <span class="cm">// [1] T1 Call 用 PriceQuantity (1,000,000 USD × 148.00 = 148,000,000 JPY)</span>
+        {
+          "price" : [ { "derivedQuantity" : { "value" : <span class="st">148000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } } } ],
+          "quantity" : { <span class="mt">"@key:scoped" : "quantity-t1-call"</span>, "value" : <span class="st">1000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } } },
+          "observable" : { <span class="mt">"@key:scoped" : "observable-usd-1"</span>, "@data" : { "@type" : "cdm.base.staticdata.asset.common.Cash", "assetType" : "Cash", "identifier" : [ { "identifier" : { "@data" : "USD" }, "identifierType" : "CurrencyCode" } ] } }
+        },
+        <span class="cm">// [2] T1 Put 用 PriceQuantity (2,000,000 USD × 148.00 = 296,000,000 JPY：レシオ 2倍)</span>
+        {
+          "price" : [ { "derivedQuantity" : { "value" : <span class="st">296000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } } } ],
+          "quantity" : { <span class="mt">"@key:scoped" : "quantity-t1-put"</span>, "value" : <span class="st">2000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } } },
+          "observable" : { <span class="mt">"@key:scoped" : "observable-usd-2"</span>, "@data" : { "@type" : "cdm.base.staticdata.asset.common.Cash", "assetType" : "Cash", "identifier" : [ { "identifier" : { "@data" : "USD" }, "identifierType" : "CurrencyCode" } ] } }
+        },
+        <span class="cm">// [3] T2 Call 用 PriceQuantity (1,000,000 USD × 146.00 = 146,000,000 JPY)</span>
+        {
+          "price" : [ { "derivedQuantity" : { "value" : <span class="st">146000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } } } ],
+          "quantity" : { <span class="mt">"@key:scoped" : "quantity-t2-call"</span>, "value" : <span class="st">1000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } } },
+          "observable" : { <span class="mt">"@key:scoped" : "observable-usd-3"</span>, "@data" : { "@type" : "cdm.base.staticdata.asset.common.Cash", "assetType" : "Cash", "identifier" : [ { "identifier" : { "@data" : "USD" }, "identifierType" : "CurrencyCode" } ] } }
+        },
+        <span class="cm">// [4] T2 Put 用 PriceQuantity (2,000,000 USD × 146.00 = 292,000,000 JPY：レシオ 2倍)</span>
+        {
+          "price" : [ { "derivedQuantity" : { "value" : <span class="st">292000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } } } ],
+          "quantity" : { <span class="mt">"@key:scoped" : "quantity-t2-put"</span>, "value" : <span class="st">2000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } } },
+          "observable" : { <span class="mt">"@key:scoped" : "observable-usd-4"</span>, "@data" : { "@type" : "cdm.base.staticdata.asset.common.Cash", "assetType" : "Cash", "identifier" : [ { "identifier" : { "@data" : "USD" }, "identifierType" : "CurrencyCode" } ] } }
+        }
+      ]
+    } ]
+  }
+}</code></pre>
+    </section>
+
+    <!-- Section 5: Interactive Top-Down Hierarchy Explorer -->
+    <section>
+      <h2>5. インタラクティブ図解：シンセティック・マルチフォワードのトップダウン階層＆一次ソース対比ビューア</h2>
+      <p>
+        左側のツリーから構成要素をクリックし、右側のタブで「① 金融実務での意味と設計上の役割」「② <code>.rosetta</code> 一次ソース定義と <code>condition</code>」「③ 正規の JSON
+        表現」を切り替えて確認してください。
+      </p>
+
+      <div class="hierarchy-explorer" data-component="hierarchy-explorer">
+        <div class="hierarchy-tree">
+          <button class="tree-node-btn active" data-node="node-product-tax">
+            <span class="node-level">1. Product &amp; Taxonomy</span>
+            <span class="node-name">NonTransferableProduct</span>
+            <span class="node-ja">明示的 Taxonomy と <code>condition PrimaryAssetClass</code></span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-multi-payout">
+            <span class="node-level">2. EconomicTerms &amp; Qualification</span>
+            <span class="node-name">payout: OptionPayout (2N)</span>
+            <span class="node-ja">複数 <code>OptionPayout</code> 展開と <code>only-element</code> 挙動</span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-call-legs">
+            <span class="node-level">3. Call Legs (T1..TN)</span>
+            <span class="node-name">OptionPayout [Call]</span>
+            <span class="node-ja">顧客買手（<code>buyer: Party1, payer: Party2</code>）</span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-put-legs">
+            <span class="node-level">4. Put Legs (T1..TN)</span>
+            <span class="node-name">OptionPayout [Put]</span>
+            <span class="node-ja">顧客売手（<code>buyer: Party2, payer: Party1</code>）と行使時反転</span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-schedule-vs-price">
+            <span class="node-level">5. Schedule &amp; Strike Constraint</span>
+            <span class="node-name">CalculationSchedule vs Price</span>
+            <span class="node-ja"><code>SchedulePeriod</code> と <code>Price -> AmountOnlyExists</code></span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-multi-pq">
+            <span class="node-level">6. TradeLot PriceQuantity</span>
+            <span class="node-name">priceQuantity (1..2N)</span>
+            <span class="node-ja">レッグ別 <code>@key:scoped</code> 結線（レシオ・ステップ対応）</span>
+          </button>
+          <div class="tree-arrow">↓</div>
+          <button class="tree-node-btn" data-node="node-package-ref">
+            <span class="node-level">7. Alternative: Package Trade</span>
+            <span class="node-name">packageReference (IdentifiedList)</span>
+            <span class="node-ja">独立 <code>Trade</code> 分割時の <code>condition PackageTrade</code></span>
+          </button>
+        </div>
+
+        <div class="hierarchy-detail">
+          <div class="detail-tabs">
+            <button class="detail-tab-btn active" data-tab="tab-domain">① 金融実務での意味と設計役割</button>
+            <button class="detail-tab-btn" data-tab="tab-rosetta">② .rosetta 一次ソース定義</button>
+            <button class="detail-tab-btn" data-tab="tab-json">③ JSON マッピング構造</button>
+          </div>
+
+          <!-- Node 1: NonTransferableProduct & taxonomy -->
+          <div class="node-detail-card" data-node-content="node-product-tax" style="display: block;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3><code>NonTransferableProduct -> taxonomy</code> と <code>nonStandardisedTerms</code></h3>
+              <p>
+                <strong>金融実務での意味</strong>：シンセティック・マルチフォワードは複数のオプション・レッグを組み合わせた複合為替デリバティブ（Structured FX / Strategy）です。
+              </p>
+              <p>
+                <strong>CDM での役割</strong>：単一 <code>Trade</code> 内に複数の <code>OptionPayout</code> を持つ場合、CDM 標準の
+                <code>Qualify_AssetClass_ForeignExchange</code> 等が <code>only-element</code> により <code>False</code>
+                となるため、<code>product -> taxonomy</code>
+                に明示的に資産クラス（<code>primaryAssetClass: ForeignExchange</code>）と商品分類名を格納します。特に
+                <code>economicTerms -> nonStandardisedTerms = True</code>
+                を設定する際は、<code>condition PrimaryAssetClass</code> により <code>taxonomy -> primaryAssetClass</code>
+                が必須となります。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta（L307-L315）</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="tp">NonTransferableProduct</span>:
+    [metadata key]
+    identifier <span class="tp">ProductIdentifier</span> (0..*)
+    taxonomy <span class="tp">ProductTaxonomy</span> (0..*)
+    economicTerms <span class="tp">EconomicTerms</span> (1..1)
+
+    <span class="kw">condition</span> <span class="tp">PrimaryAssetClass</span>:
+        <span class="kw">if</span> economicTerms -&gt; nonStandardisedTerms = True
+        <span class="kw">then</span> taxonomy -&gt; primaryAssetClass exists</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>condition PrimaryAssetClass に適合する taxonomy と nonStandardisedTerms の設定例</span>
+              </div>
+              <pre><code>"product" : {
+  "taxonomy" : [ {
+    "source" : <span class="st">"Other"</span>,
+    "primaryAssetClass" : {
+      "@data" : <span class="st">"ForeignExchange"</span>
+    },
+    "value" : {
+      "name" : {
+        "@data" : <span class="st">"SyntheticMultiForward"</span>
+      }
+    }
+  } ],
+  "economicTerms" : {
+    "nonStandardisedTerms" : <span class="kw">true</span>,
+    "payout" : [ ... ]
+  }
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 2: EconomicTerms -> payout (2N) & Qualification -->
+          <div class="node-detail-card" data-node-content="node-multi-payout" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3><code>EconomicTerms -> payout (1..*)</code> と Qualification の <code>only-element</code> 挙動</h3>
+              <p>
+                <strong>金融実務での意味</strong>：$N$ 期日の各決済日について Call レッグと Put レッグのペアが存在するため、契約全体は $2N$ 個のオプション・レッグで構成されます。
+              </p>
+              <p>
+                <strong>CDM での役割</strong>：<code>EconomicTerms -> payout</code> は <code>Payout (1..*)</code>
+                の複数カーディナリティを持つため、$2N$ 個の <code>OptionPayout</code> を格納できます。ただし
+                <code>Qualify_AssetClass_ForeignExchange</code> や <code>Qualify_ForeignExchange_VanillaOption</code> は
+                <code>economicTerms -> payout only-element as OptionPayout</code> と記述されているため、<code>OptionPayout</code>
+                が2個以上存在すると <code>only-element</code> が <code>empty</code> を返し、判定結果は <code>False</code> になります。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta（L45）&amp; product-qualification-func.rosetta（L149, L170,
+                  L1762）</span>
+              </div>
+              <pre><code><span class="cm">// EconomicTerms は 1個以上の任意の Payout を保持可能</span>
+<span class="kw">type</span> <span class="tp">EconomicTerms</span>:
+    ...
+    payout <span class="tp">Payout</span> (1..*)
+
+<span class="cm">// Qualification 関数は OptionPayout に only-element を使用している</span>
+<span class="kw">func</span> <span class="tp">Qualify_AssetClass_ForeignExchange</span>:
+    <span class="kw">alias</span> optionUnderlier: economicTerms -&gt; payout <span class="kw">as</span> <span class="tp">OptionPayout</span> <span class="cd">only-element</span> -&gt; underlier
+    ...
+    <span class="kw">or</span> (economicTerms -&gt; payout <span class="cd">only-element</span> <span class="kw">as</span> <span class="tp">OptionPayout</span> exists
+        <span class="kw">and</span> (optionUnderlier <span class="kw">as</span> <span class="tp">Cash</span> exists ...))</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>economicTerms.payout に期日×Call/Put の OptionPayout を並べる構造</span>
+              </div>
+              <pre><code>"economicTerms" : {
+  "payout" : [
+    { "@type" : "cdm.product.template.OptionPayout", <span class="mt">"@key" : "opt-t1-call"</span>, "optionType" : <span class="st">"Call"</span>, ... },
+    { "@type" : "cdm.product.template.OptionPayout", <span class="mt">"@key" : "opt-t1-put"</span>,  "optionType" : <span class="st">"Put"</span>,  ... },
+    { "@type" : "cdm.product.template.OptionPayout", <span class="mt">"@key" : "opt-t2-call"</span>, "optionType" : <span class="st">"Call"</span>, ... },
+    { "@type" : "cdm.product.template.OptionPayout", <span class="mt">"@key" : "opt-t2-put"</span>,  "optionType" : <span class="st">"Put"</span>,  ... }
+  ]
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 3: Call Legs -->
+          <div class="node-detail-card" data-node-content="node-call-legs" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3>各期日の Call レッグ（<code>OptionPayout</code>：顧客が買手）</h3>
+              <p>
+                <strong>金融実務での意味</strong>：各期日 $T_i$ の満期時スポットレート $S_{T_i}$ がストライク $K_i$ を上回った（$S_{T_i} >
+                K_i$）ときに、顧客（<code>Party1</code>）が権利行使して基準通貨 <code>USD</code> をレート $K_i$ で受け取り、対価通貨 <code>JPY</code>
+                を支払うコール・オプションです。
+              </p>
+              <p>
+                <strong>CDM での役割</strong>：オプション権利の買手・売手は <code>buyerSeller: { buyer: Party1, seller: Party2 }</code>、この
+                <code>OptionPayout</code> の義務負担者・権利享受者は
+                <code>payerReceiver: { payer: Party2, receiver: Party1 }</code>、<code>optionType: Call</code>
+                となります。権利行使（<code>Create_Exercise</code>）時には、生成される為替決済取引（<code>SettlementPayout</code>）に
+                <code>payer: Party2, receiver: Party1</code> がそのまま引き継がれます。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta（L126-L135）&amp;
+                  ingest-fpml-confirmation-product-fxoption-func.rosetta（L92-L122）</span>
+              </div>
+              <pre><code><span class="tp">OptionPayout</span> {
+    payerReceiver: <span class="tp">PayerReceiver</span> {
+        payer: Party2,    <span class="cm">// Call オプションの売手（義務負担者）</span>
+        receiver: Party1  <span class="cm">// Call オプションの買手（権利享受者）</span>
+    },
+    buyerSeller: <span class="tp">BuyerSeller</span> {
+        buyer: Party1,    <span class="cm">// Call オプションの買手＝顧客 Party1</span>
+        seller: Party2    <span class="cm">// Call オプションの売手＝銀行 Party2</span>
+    },
+    optionType: <span class="tp">OptionTypeEnum</span> -&gt; Call
+}</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>期日 T1 Call レッグの JSON 抜粋</span>
+              </div>
+              <pre><code>{
+  "@type" : "cdm.product.template.OptionPayout",
+  <span class="mt">"@key" : "opt-t1-call"</span>,
+  "payerReceiver" : { "payer" : <span class="st">"Party2"</span>, "receiver" : <span class="st">"Party1"</span> },
+  "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t1-call"</span> } },
+  "settlementTerms" : {
+    "settlementType" : <span class="st">"Physical"</span>,
+    "settlementDate" : { "valueDate" : <span class="st">"2027-01-28"</span> }
+  },
+  "buyerSeller" : { "buyer" : <span class="st">"Party1"</span>, "seller" : <span class="st">"Party2"</span> },
+  "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-1"</span> },
+  "optionType" : <span class="st">"Call"</span>
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 4: Put Legs -->
+          <div class="node-detail-card" data-node-content="node-put-legs" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3>各期日の Put レッグ（<code>OptionPayout</code>：顧客が売手・銀行が買手）</h3>
+              <p>
+                <strong>金融実務での意味</strong>：各期日 $T_i$ の満期時スポットレート $S_{T_i}$ がストライク $K_i$ を下回った（$S_{T_i} <
+                  K_i$）ときに、買手である銀行（<code>Party2</code>）が権利行使して基準通貨 <code>USD</code> を顧客（<code>Party1</code>）へレート $K_i$
+                  で支払い（売り渡し）、顧客が <code>USD</code> を受け取って <code>JPY</code> を支払うプット・オプションです。
+              </p>
+              <p>
+                <strong>CDM での役割</strong>：銀行が買手・顧客が売手であるため、<code>buyerSeller: { buyer: Party2, seller: Party1 }</code>
+                となり、約定時の <code>OptionPayout -> payerReceiver</code> は売手＝義務負担者の原則に従い
+                <strong><code>{ payer: Party1, receiver: Party2 }</code></strong> となります。そして満期に銀行がこの Put
+                を行使（<code>Create_Exercise</code>）すると、<code>optionType = Put</code> により
+                <code>Update_ProductDirection</code> で方向が反転され、成立する為替決済取引（<code>SettlementPayout</code>）の
+                <code>payerReceiver</code> は Call 行使時と同じ <strong><code>{ payer: Party2, receiver: Party1 }</code>（銀行が
+                  <code>USD</code> を支払い、顧客が <code>USD</code> を受け取る）</strong>になります。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>event-common-func.rosetta（L520-L527）— Put 行使時の方向反転ロジック</span>
+              </div>
+              <pre><code><span class="cm">// 約定時の Put OptionPayout</span>
+<span class="tp">OptionPayout</span> {
+    payerReceiver: <span class="tp">PayerReceiver</span> { payer: Party1, receiver: Party2 }, <span class="cm">// Put 売手 Party1 が payer</span>
+    buyerSeller:   <span class="tp">BuyerSeller</span>   { buyer: Party2, seller: Party1 },   <span class="cm">// Put 買手 Party2 が buyer</span>
+    optionType:    <span class="tp">OptionTypeEnum</span> -&gt; Put
+}
+
+<span class="cm">// Create_Exercise 実行時（optionType = Put のため payer と receiver が反転される）</span>
+<span class="kw">alias</span> productWithDirection:
+    <span class="kw">if</span> optionPayout -&gt; optionType = Put
+    <span class="kw">then</span> <span class="tp">Update_ProductDirection</span>(
+                resultProduct,
+                optionPayout -&gt; payerReceiver -&gt; payer,    <span class="cm">// Party1</span>
+                optionPayout -&gt; payerReceiver -&gt; receiver  <span class="cm">// Party2</span>
+            ) <span class="cm">// → 新規為替決済取引では payer: Party2, receiver: Party1（Call 行使時と同一方向）になる</span></code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>期日 T1 Put レッグの JSON 抜粋</span>
+              </div>
+              <pre><code>{
+  "@type" : "cdm.product.template.OptionPayout",
+  <span class="mt">"@key" : "opt-t1-put"</span>,
+  "payerReceiver" : { "payer" : <span class="st">"Party1"</span>, "receiver" : <span class="st">"Party2"</span> },
+  "priceQuantity" : { "quantitySchedule" : { <span class="mt">"@ref:scoped" : "quantity-t1-put"</span> } },
+  "settlementTerms" : {
+    "settlementType" : <span class="st">"Physical"</span>,
+    "settlementDate" : { "valueDate" : <span class="st">"2027-01-28"</span> }
+  },
+  "buyerSeller" : { "buyer" : <span class="st">"Party2"</span>, "seller" : <span class="st">"Party1"</span> },
+  "underlier" : { "@type" : "cdm.observable.asset.Observable", <span class="mt">"@ref:scoped" : "observable-usd-2"</span> },
+  "optionType" : <span class="st">"Put"</span>
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 5: CalculationSchedule vs Price -->
+          <div class="node-detail-card" data-node-content="node-schedule-vs-price" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3><code>CalculationSchedule</code> と <code>Price -> condition AmountOnlyExists</code></h3>
+              <p>
+                <strong>一次ソースの型制約</strong>：<code>OptionPayout -> schedule</code>（<code>CalculationSchedule</code>
+                型）は、複数の <code>SchedulePeriod</code>（計算期間 <code>calculationPeriod</code>、フィキシング期間
+                <code>fixingPeriod</code>、決済日 <code>paymentDate</code>）を保持できます。
+              </p>
+              <p>
+                <strong>設計上の注意点</strong>：一方、<code>OptionPayout -> strike -> strikePrice</code> は
+                <code>PriceSchedule</code> を継承した <code>Price</code>
+                型であり、<code>condition AmountOnlyExists: value exists and datedValue is absent</code> が課されています。そのため、1つの
+                <code>OptionPayout</code> の <code>strikePrice</code>
+                内に日付別ステップ・ストライク（<code>datedValue</code>）を格納することはできず、期日ごとにストライクが異なる場合は必ず期日ごとに <code>OptionPayout</code>
+                を分割します。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta（L461-L468, L684-L686）&amp;
+                  observable-asset-type.rosetta（L204-L207）</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="tp">CalculationSchedule</span>:
+    schedulePeriod <span class="tp">SchedulePeriod</span> (1..*)
+
+<span class="kw">type</span> <span class="tp">SchedulePeriod</span>:
+    calculationPeriod <span class="tp">DateRange</span> (1..1)
+    paymentDate <span class="tp">date</span> (1..1)
+    fixingPeriod <span class="tp">DateRange</span> (1..1)
+    deliveryPeriod <span class="tp">CalculationScheduleDeliveryPeriods</span> (0..1)
+
+<span class="kw">type</span> <span class="tp">Price</span> <span class="kw">extends</span> <span class="tp">PriceSchedule</span>:
+    <span class="kw">condition</span> <span class="tp">AmountOnlyExists</span>:
+        value exists <span class="kw">and</span> datedValue is absent</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>単一ストライク型（フラット）において schedulePeriod を併用する場合の JSON 構造</span>
+              </div>
+              <pre><code>"schedule" : {
+  "schedulePeriod" : [ {
+    "calculationPeriod" : { "startDate" : <span class="st">"2026-11-24"</span>, "endDate" : <span class="st">"2027-01-26"</span> },
+    "fixingPeriod"      : { "startDate" : <span class="st">"2027-01-26"</span>, "endDate" : <span class="st">"2027-01-26"</span> },
+    "paymentDate"       : <span class="st">"2027-01-28"</span>
+  }, {
+    "calculationPeriod" : { "startDate" : <span class="st">"2027-01-26"</span>, "endDate" : <span class="st">"2027-02-24"</span> },
+    "fixingPeriod"      : { "startDate" : <span class="st">"2027-02-24"</span>, "endDate" : <span class="st">"2027-02-24"</span> },
+    "paymentDate"       : <span class="st">"2027-02-26"</span>
+  } ]
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 6: TradeLot -> priceQuantity -->
+          <div class="node-detail-card" data-node-content="node-multi-pq" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3><code>tradeLot -> priceQuantity (1..*)</code> の多レッグ結線</h3>
+              <p>
+                <strong>不変原則と1対1結線</strong>：ストライクレートのクオート基準（例：<code>JPY per USD</code>）に従い、分母（基準通貨
+                <code>USD</code>）の名目元本を常に <code>quantity</code> に、分子（対価通貨 <code>JPY</code>）の交換金額（$\text{quantity} \times
+                K_i$）を <code>price -> derivedQuantity</code> に格納します。
+              </p>
+              <p>
+                <strong>レシオ・ステップストライクへの対応</strong>：各 <code>OptionPayout</code> に対応する <code>PriceQuantity</code>
+                を分離し、それぞれに固有の <code>@key:scoped</code>（例：<code>"quantity-t1-call"</code>, <code>"quantity-t1-put"</code>
+                等）を振ることで、Call と Put の元本比率が異なるレシオ・フォワードや、期日ごとにストライクレートが異なるステップ・ストライクの対価通貨額を正確に表現できます。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>product-template-type.rosetta（L317-L320）&amp;
+                  product-common-settlement-type.rosetta（L47-L60）</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="tp">TradeLot</span>:
+    lotIdentifier <span class="tp">Identifier</span> (0..*)
+    priceQuantity <span class="tp">PriceQuantity</span> (1..*) <span class="st">&lt;"This attribute has a multiple cardinality to allow to specify the price, quantity and observable of different legs in a single, composite product..."&gt;</span>
+
+<span class="kw">type</span> <span class="tp">ResolvablePriceQuantity</span>:
+    [metadata key]
+    ...
+    quantitySchedule <span class="tp">NonNegativeQuantitySchedule</span> (0..1)
+        [metadata address <span class="st">"pointsTo"</span>=<span class="tp">PriceQuantity</span>-&gt;quantity]
+    priceSchedule <span class="tp">PriceSchedule</span> (0..*)
+        [metadata address <span class="st">"pointsTo"</span>=<span class="tp">PriceQuantity</span>-&gt;price]</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>期日 T1 の Call（100万USD）と Put（200万USD：レシオ2倍）の PriceQuantity JSON</span>
+              </div>
+              <pre><code>"priceQuantity" : [ {
+  "price" : [ {
+    "derivedQuantity" : { "value" : <span class="st">148000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } }
+  } ],
+  "quantity" : {
+    <span class="mt">"@key:scoped" : "quantity-t1-call"</span>,
+    "value" : <span class="st">1000000</span>,
+    "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } }
+  },
+  "observable" : { <span class="mt">"@key:scoped" : "observable-usd-1"</span>, "@data" : { "assetType" : "Cash", ... } }
+}, {
+  "price" : [ {
+    "derivedQuantity" : { "value" : <span class="st">296000000</span>, "unit" : { "currency" : { "@data" : <span class="st">"JPY"</span> } } }
+  } ],
+  "quantity" : {
+    <span class="mt">"@key:scoped" : "quantity-t1-put"</span>,
+    "value" : <span class="st">2000000</span>,
+    "unit" : { "currency" : { "@data" : <span class="st">"USD"</span> } }
+  },
+  "observable" : { <span class="mt">"@key:scoped" : "observable-usd-2"</span>, "@data" : { "assetType" : "Cash", ... } }
+} ]</code></pre>
+            </div>
+          </div>
+
+          <!-- Node 7: Package Trade (IdentifiedList) -->
+          <div class="node-detail-card" data-node-content="node-package-ref" style="display: none;">
+            <div class="detail-pane active" data-pane="tab-domain">
+              <h3>パッケージ取引設計（<code>ExecutionDetails -> packageReference</code>）</h3>
+              <p>
+                <strong>金融実務での意味</strong>：シンセティック・マルチフォワードの各レッグに個別の取引ID（UTI/USI）を付与して独立した <code>Trade</code>
+                として管理しつつ、「これら複数のオプション取引は1つのパッケージ契約として同時約定されたものである」という紐づけを保持する方式（パターンC）です。
+              </p>
+              <p>
+                <strong>CDM での役割</strong>：各構成 <code>Trade</code> は単一の <code>OptionPayout</code>
+                のみを持つため、<code>Qualify_ForeignExchange_VanillaOption</code>（または <code>NDO</code>）がすべて <code>True</code>
+                と判定されます。その上で <code>trade -> executionDetails -> packageReference</code>（<code>IdentifiedList</code>
+                型）に共通の <code>listId</code>（パッケージID）と2件以上の
+                <code>componentId</code>（構成取引ID一覧）を設定し、<code>condition PackageTrade</code> を満たします。
+              </p>
+            </div>
+            <div class="detail-pane" data-pane="tab-rosetta">
+              <div class="code-header">
+                <span>base-staticdata-identifier-type.rosetta（L28-L33）&amp; event-common-type.rosetta（L316-L318）</span>
+              </div>
+              <pre><code><span class="kw">type</span> <span class="tp">IdentifiedList</span>:
+    [metadata key]
+    listId <span class="tp">Identifier</span> (1..1)
+    componentId <span class="tp">Identifier</span> (2..*)
+    price <span class="tp">Price</span> (0..1)
+
+<span class="kw">condition</span> <span class="tp">PackageTrade</span>:
+    <span class="kw">if</span> executionDetails -&gt; packageReference exists
+    <span class="kw">then</span> executionDetails -&gt; packageReference -&gt; componentId -&gt; assignedIdentifier <span class="kw">contains</span> tradeIdentifier -&gt; assignedIdentifier</code></pre>
+            </div>
+            <div class="detail-pane" data-pane="tab-json">
+              <div class="code-header">
+                <span>condition PackageTrade を満たす executionDetails.packageReference の JSON 例</span>
+              </div>
+              <pre><code>"tradeIdentifier" : [ {
+  "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> },
+  "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"MFWD-2026-LEG1-CALL"</span> } } ]
+} ],
+"executionDetails" : {
+  "executionType" : <span class="st">"OffFacility"</span>,
+  "packageReference" : {
+    "listId" : {
+      "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> },
+      "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"PKG-MFWD-2026-001"</span> } } ]
+    },
+    "componentId" : [
+      { "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> }, "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"MFWD-2026-LEG1-CALL"</span> } } ] },
+      { "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> }, "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"MFWD-2026-LEG1-PUT"</span> } } ] },
+      { "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> }, "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"MFWD-2026-LEG2-CALL"</span> } } ] },
+      { "issuerReference" : { <span class="mt">"@ref:external" : "party1"</span> }, "assignedIdentifier" : [ { "identifier" : { "@data" : <span class="st">"MFWD-2026-LEG2-PUT"</span> } } ] }
+    ]
+  }
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Interactive Mapping Challenge -->
+    <section>
+      <h2>6. 実践演習①：シンセティック・マルチフォワード実務タームシート → CDM マッピング設計チャレンジ</h2>
+      <p>
+        以下の複合為替デリバティブ契約を CDM の <code>TradeState</code> にマッピングする際、一次ソースの型定義と <code>condition</code>
+        に適合する正しい設計を選択して「検証」ボタンを押してください。
+      </p>
+
+      <div class="callout">
+        <div class="callout-title">📄 演習対象タームシート（USD/JPY 3期日ステップストライク・レシオ・シンセティック・マルチフォワード）</div>
+        <ul style="margin-bottom: 0;">
+          <li><strong>当事者</strong>：輸入企業 <code>Party1</code>（各期日に <code>USD</code> を受け取り <code>JPY</code>
+            を支払うヘッジを行いたい顧客）、銀行 <code>Party2</code></li>
+          <li><strong>期日構成（全3期日・ヨーロピアン行使・現物受渡決済）</strong>：
+            <ul>
+              <li><strong>第1期（$T_1$）</strong>：満期日 <code>2027-01-26</code> / 決済日 <code>2027-01-28</code>、ストライク $K_1 =
+                148.00\text{ JPY per USD}$</li>
+              <li><strong>第2期（$T_2$）</strong>：満期日 <code>2027-02-24</code> / 決済日 <code>2027-02-26</code>、ストライク $K_2 =
+                146.00\text{ JPY per USD}$</li>
+              <li><strong>第3期（$T_3$）</strong>：満期日 <code>2027-03-29</code> / 決済日 <code>2027-03-31</code>、ストライク $K_3 =
+                144.00\text{ JPY per USD}$</li>
+            </ul>
+          </li>
+          <li><strong>各期日の Call / Put 条件（レシオ 1 : 2、ゼロコスト）</strong>：
+            <ul>
+              <li><strong>Call レッグ</strong>：顧客 <code>Party1</code> が基準通貨 <code>1,000,000 USD</code> をストライク $K_i$ で受け取り
+                <code>JPY</code> を支払う権利を買う。
+              </li>
+              <li><strong>Put レッグ</strong>：銀行 <code>Party2</code> が基準通貨 <code>2,000,000 USD</code> をストライク $K_i$ で顧客
+                <code>Party1</code> に支払い <code>JPY</code> を受け取る権利を買う（顧客 <code>Party1</code> が売手）。
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="mapping-challenge">
+        <!-- Item 1 -->
+        <div class="mapping-item"
+          data-answer="Call レッグは buyer = Party1, seller = Party2、OptionPayout -> payerReceiver は payer = Party2, receiver = Party1 とし、Put レッグは buyer = Party2, seller = Party1、OptionPayout -> payerReceiver は payer = Party1, receiver = Party2 とする"
+          data-explanation="各期日の Call レッグは顧客 <code>Party1</code> が買手・銀行 <code>Party2</code> が売手であるため、<code>buyerSeller: { buyer: Party1, seller: Party2 }</code>、<code>OptionPayout -> payerReceiver: { payer: Party2, receiver: Party1 }</code>（売手＝義務負担者）となります。一方、Put レッグは銀行 <code>Party2</code> が買手・顧客 <code>Party1</code> が売手であるため、<code>buyerSeller: { buyer: Party2, seller: Party1 }</code>、<code>OptionPayout -> payerReceiver: { payer: Party1, receiver: Party2 }</code> となり、Put 行使時（<code>Create_Exercise</code>）に <code>Update_ProductDirection</code> で反転されて Call 行使時と同じ為替受渡方向（<code>payer: Party2, receiver: Party1</code>）に帰着します。">
+          <div class="mapping-prompt">
+            問1.【方向属性の設計】各期日の Call レッグ（<code>optionType: Call</code>）と Put レッグ（<code>optionType: Put</code>）における
+            <code>buyerSeller</code> および約定時の <code>OptionPayout -> payerReceiver</code> の設定として正しいものはどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- Call レッグと Put レッグの方向属性を選択 --</option>
+              <option
+                value="Call レッグも Put レッグも両方とも buyer = Party1, seller = Party2 とし、payerReceiver も両方とも payer = Party2, receiver = Party1 とする">
+                Call レッグも Put レッグも両方とも buyer = Party1, seller = Party2 とし、payerReceiver も両方とも payer = Party2, receiver =
+                Party1 とする</option>
+              <option
+                value="Call レッグは buyer = Party1, seller = Party2、OptionPayout -> payerReceiver は payer = Party2, receiver = Party1 とし、Put レッグは buyer = Party2, seller = Party1、OptionPayout -> payerReceiver は payer = Party1, receiver = Party2 とする">
+                Call レッグは buyer = Party1, seller = Party2、OptionPayout -> payerReceiver は payer = Party2, receiver =
+                Party1 とし、Put レッグは buyer = Party2, seller = Party1、OptionPayout -> payerReceiver は payer = Party1,
+                receiver = Party2 とする</option>
+              <option
+                value="Call レッグと Put レッグを1つの OptionPayout に統合し、optionType = Straddle、buyer = Party1, seller = Party2 とする">
+                Call レッグと Put レッグを1つの OptionPayout に統合し、optionType = Straddle、buyer = Party1, seller = Party2 とする
+              </option>
+              <option
+                value="Call レッグは buyerSeller を設定せず payerReceiver のみ設定し、Put レッグは payerReceiver を設定せず buyerSeller のみ設定する">
+                Call レッグは buyerSeller を設定せず payerReceiver のみ設定し、Put レッグは payerReceiver を設定せず buyerSeller のみ設定する</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 2 -->
+        <div class="mapping-item"
+          data-answer="OptionStrike -> strikePrice は Price 型であり condition AmountOnlyExists（value exists and datedValue is absent）によって datedValue が禁止されているため、期日ごとに OptionPayout を分けて計6個（3期日×Call/Put）定義する必要がある"
+          data-explanation="<code>OptionStrike -> strikePrice</code> は <code>Price</code> 型（<code>product-template-type.rosetta:L686</code>）であり、<code>observable-asset-type.rosetta:L204-L207</code> の <code>condition AmountOnlyExists: value exists and datedValue is absent</code> によりステップ配列（<code>datedValue</code>）を持つことが禁止されています。したがって、期日ごとにストライクレートが異なる（$148.00, 146.00, 144.00$）本案件を単一 <code>Trade</code> で表現する場合は、期日×Call/Put ごとに計6個の <code>OptionPayout</code> を展開する設計（パターンA）が必要です。">
+          <div class="mapping-prompt">
+            問2.【ステップ・ストライクと <code>.rosetta</code> 型制約】本案件（$K_1 = 148.00, K_2 = 146.00, K_3 = 144.00$）を単一
+            <code>Trade</code> で表現する際、「Call 1個・Put 1個の計2個の <code>OptionPayout</code>
+            にまとめ、<code>strike -> strikePrice -> datedValue</code> に3期日のストライクを並べる」設計が<strong>できない理由</strong>はどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- .rosetta 一次ソース上の制約理由を選択 --</option>
+              <option
+                value="OptionStrike -> strikePrice は Price 型であり condition AmountOnlyExists（value exists and datedValue is absent）によって datedValue が禁止されているため、期日ごとに OptionPayout を分けて計6個（3期日×Call/Put）定義する必要がある">
+                OptionStrike -> strikePrice は Price 型であり condition AmountOnlyExists（value exists and datedValue is
+                absent）によって datedValue が禁止されているため、期日ごとに OptionPayout を分けて計6個（3期日×Call/Put）定義する必要がある</option>
+              <option value="DatedValue 型には date 属性しか存在せず、数値を格納する value 属性が存在しないため">
+                DatedValue 型には date 属性しか存在せず、数値を格納する value 属性が存在しないため</option>
+              <option value="EconomicTerms -> payout のカーディナリティが (6..6) に固定されており、2個の OptionPayout ではバリデーションエラーになるため">
+                EconomicTerms -> payout のカーディナリティが (6..6) に固定されており、2個の OptionPayout ではバリデーションエラーになるため</option>
+              <option value="ExerciseTerms -> style が European の場合は strike 属性自体を設定することが禁止されているため">
+                ExerciseTerms -> style が European の場合は strike 属性自体を設定することが禁止されているため</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 3 -->
+        <div class="mapping-item"
+          data-answer="Call 用 PriceQuantity は quantity = 1,000,000 USD、price -> derivedQuantity = 146,000,000 JPY とし、Put 用 PriceQuantity は quantity = 2,000,000 USD、price -> derivedQuantity = 292,000,000 JPY として別々の @key:scoped で結ぶ"
+          data-explanation="第2期（$T_2$）のストライクは $K_2 = 146.00\text{ JPY per USD}$（分母 <code>perUnitOf = USD</code>、分子 <code>unit = JPY</code>）です。不変原則に従い、常に分母通貨 <code>USD</code> が <code>quantity</code>、分子通貨 <code>JPY</code> が <code>price -> derivedQuantity</code> となります。レシオ 1:2 のため、第2期 Call 用は <code>quantity = 1,000,000 USD</code>・<code>derivedQuantity = 146,000,000 JPY</code>、第2期 Put 用は <code>quantity = 2,000,000 USD</code>・<code>derivedQuantity = 292,000,000 JPY</code> と個別の <code>PriceQuantity</code> に分離して <code>@ref:scoped</code> で参照します。">
+          <div class="mapping-prompt">
+            問3.【<code>tradeLot -> priceQuantity</code> の設計】第2期（$T_2$：ストライク $K_2 = 146.00\text{ JPY per USD}$）の Call
+            レッグ（元本100万USD）と Put レッグ（元本200万USD）に対応する <code>PriceQuantity</code> はどう設定すべきか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 第2期（T2）の Call / Put の PriceQuantity 設定を選択 --</option>
+              <option
+                value="Call 用は quantity = 1,000,000 USD・derivedQuantity = 146,000,000 JPY とし、Put 用は通貨が逆転するため quantity = 292,000,000 JPY・derivedQuantity = 2,000,000 USD とする">
+                Call 用は quantity = 1,000,000 USD・derivedQuantity = 146,000,000 JPY とし、Put 用は通貨が逆転するため quantity =
+                292,000,000 JPY・derivedQuantity = 2,000,000 USD とする</option>
+              <option
+                value="Call 用 PriceQuantity は quantity = 1,000,000 USD、price -> derivedQuantity = 146,000,000 JPY とし、Put 用 PriceQuantity は quantity = 2,000,000 USD、price -> derivedQuantity = 292,000,000 JPY として別々の @key:scoped で結ぶ">
+                Call 用 PriceQuantity は quantity = 1,000,000 USD、price -> derivedQuantity = 146,000,000 JPY とし、Put 用
+                PriceQuantity は quantity = 2,000,000 USD、price -> derivedQuantity = 292,000,000 JPY として別々の @key:scoped
+                で結ぶ</option>
+              <option
+                value="Call と Put の差額である quantity = 1,000,000 USD のみを1つの PriceQuantity に設定し、derivedQuantity は空（absent）とする">
+                Call と Put の差額である quantity = 1,000,000 USD のみを1つの PriceQuantity に設定し、derivedQuantity は空（absent）とする
+              </option>
+              <option
+                value="3期日の合計である quantity = 9,000,000 USD を1つの PriceQuantity にまとめ、全6個の OptionPayout から同じ @ref:scoped を参照する">
+                3期日の合計である quantity = 9,000,000 USD を1つの PriceQuantity にまとめ、全6個の OptionPayout から同じ @ref:scoped を参照する
+              </option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 4 -->
+        <div class="mapping-item"
+          data-answer="Qualify_AssetClass_ForeignExchange と Qualify_ForeignExchange_VanillaOption はともに only-element 演算子で OptionPayout を抽出するため False となる。economicTerms -> nonStandardisedTerms = True を設定する場合は taxonomy -> primaryAssetClass に ForeignExchange を明示する"
+          data-explanation="<code>Qualify_AssetClass_ForeignExchange</code>（<code>product-qualification-func.rosetta:L149, L170</code>）および <code>Qualify_ForeignExchange_VanillaOption</code>（<code>L1762</code>）は <code>economicTerms -> payout only-element as OptionPayout</code> を条件としているため、<code>OptionPayout</code> が6個存在すると <code>only-element</code> が <code>empty</code> となり両方とも <code>False</code> と評価されます。また <code>nonStandardisedTerms = True</code> とする場合は <code>NonTransferableProduct -> condition PrimaryAssetClass</code>（<code>product-template-type.rosetta:L313-L315</code>）により <code>taxonomy -> primaryAssetClass</code> の設定が必須です。">
+          <div class="mapping-prompt">
+            問4.【Qualification 関数と Taxonomy 制約】単一 <code>Trade</code> の <code>economicTerms -> payout</code> に6個の
+            <code>OptionPayout</code> を格納した場合、<code>Qualify_*</code> 関数の判定結果と
+            <code>NonTransferableProduct -> taxonomy</code> の設計はどうなるか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- Qualification の挙動と taxonomy 設計を選択 --</option>
+              <option
+                value="6個すべてが OptionPayout であるため Qualify_ForeignExchange_VanillaOption が自動的に True と判定され、taxonomy の設定は禁止される">
+                6個すべてが OptionPayout であるため Qualify_ForeignExchange_VanillaOption が自動的に True と判定され、taxonomy の設定は禁止される
+              </option>
+              <option value="OptionPayout の個数が偶数であるため Qualify_ForeignExchange_Swap が True と判定される">
+                OptionPayout の個数が偶数であるため Qualify_ForeignExchange_Swap が True と判定される</option>
+              <option
+                value="Qualify_AssetClass_ForeignExchange と Qualify_ForeignExchange_VanillaOption はともに only-element 演算子で OptionPayout を抽出するため False となる。economicTerms -> nonStandardisedTerms = True を設定する場合は taxonomy -> primaryAssetClass に ForeignExchange を明示する">
+                Qualify_AssetClass_ForeignExchange と Qualify_ForeignExchange_VanillaOption はともに only-element 演算子で
+                OptionPayout を抽出するため False となる。economicTerms -> nonStandardisedTerms = True を設定する場合は taxonomy ->
+                primaryAssetClass に ForeignExchange を明示する</option>
+              <option
+                value="Qualify_AssetClass_ForeignExchange は True となるが、6個の OptionPayout のうち最後の1個だけが VanillaOption として判定される">
+                Qualify_AssetClass_ForeignExchange は True となるが、6個の OptionPayout のうち最後の1個だけが VanillaOption として判定される
+              </option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 5 -->
+        <div class="mapping-item"
+          data-answer="ExerciseInstruction -> exerciseOption（[metadata reference]）で第1期 Put レッグの OptionPayout（@key = opt-t1-put）を参照指定して Create_Exercise を実行する。生成される為替決済取引（SettlementPayout）の payerReceiver は Update_ProductDirection により payer = Party2, receiver = Party1 となる"
+          data-explanation="第1期満期日に $S_{T_1} = 142.00 < K_1 = 148.00$ となった場合、銀行 <code>Party2</code> が買手である第1期 Put レッグ（<code>opt-t1-put</code>、元本 <code>2,000,000 USD</code>）が In-the-Money となり権利行使されます。<code>ExerciseInstruction -> exerciseOption</code>（<code>event-common-type.rosetta:L132-L133</code>）で <code>opt-t1-put</code> を指定して <code>Create_Exercise</code> を実行すると、<code>optionType = Put</code> のため約定時の <code>payerReceiver</code>（<code>payer: Party1, receiver: Party2</code>）が <code>Update_ProductDirection</code> で反転し、新規生成される為替決済取引（<code>SettlementPayout</code>）では <code>payer: Party2, receiver: Party1</code>（銀行が <code>2,000,000 USD</code> を支払い、顧客が受け取って <code>296,000,000 JPY</code> を支払う）となります。">
+          <div class="mapping-prompt">
+            問5.【第1期満期日の権利行使】第1期満期日（<code>2027-01-26</code>）に市場レートが <code>142.00 JPY/USD</code>（$< K_1=148.00$）となった場合、CDM
+              上でどのレッグがどう行使され、生成される為替決済取引の <code>SettlementPayout -> payerReceiver</code> はどうなるか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- 第1期満期時（142.00 JPY/USD）の権利行使処理を選択 --</option>
+              <option
+                value="第1期 Call レッグ（opt-t1-call）が行使され、生成される SettlementPayout の payerReceiver は payer = Party1, receiver = Party2 となる">
+                第1期 Call レッグ（opt-t1-call）が行使され、生成される SettlementPayout の payerReceiver は payer = Party1, receiver =
+                Party2 となる</option>
+              <option
+                value="ExerciseInstruction -> exerciseOption（[metadata reference]）で第1期 Put レッグの OptionPayout（@key = opt-t1-put）を参照指定して Create_Exercise を実行する。生成される為替決済取引（SettlementPayout）の payerReceiver は Update_ProductDirection により payer = Party2, receiver = Party1 となる">
+                ExerciseInstruction -> exerciseOption（[metadata reference]）で第1期 Put レッグの OptionPayout（@key =
+                opt-t1-put）を参照指定して Create_Exercise を実行する。生成される為替決済取引（SettlementPayout）の payerReceiver は
+                Update_ProductDirection により payer = Party2, receiver = Party1 となる</option>
+              <option
+                value="第1期 Put レッグが行使されるが、Update_ProductDirection は実行されず、銀行 Party2 が USD を受け取り顧客 Party1 が USD を支払う決済取引が生成される">
+                第1期 Put レッグが行使されるが、Update_ProductDirection は実行されず、銀行 Party2 が USD を受け取り顧客 Party1 が USD を支払う決済取引が生成される
+              </option>
+              <option value="第1期〜第3期の全6個の OptionPayout が同時に一括行使され、契約全体が即座に Closed となる">
+                第1期〜第3期の全6個の OptionPayout が同時に一括行使され、契約全体が即座に Closed となる</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Item 6 -->
+        <div class="mapping-item"
+          data-answer="各構成 Trade の executionDetails -> packageReference（IdentifiedList 型）にパッケージ全体の listId と全6件の取引IDを並べた componentId（2..*）を設定し、各 Trade 自身の tradeIdentifier -> assignedIdentifier が componentId に含まれるようにする（condition PackageTrade）"
+          data-explanation="パターンC（独立した6件の <code>Trade</code> に分割して各取引で <code>Qualify_ForeignExchange_VanillaOption = True</code> を得る設計）では、<code>Trade -> executionDetails -> packageReference</code>（<code>IdentifiedList</code> 型、<code>base-staticdata-identifier-type.rosetta:L28-L33</code>）を使用し、<code>condition PackageTrade</code>（<code>event-common-type.rosetta:L316-L318</code>）に従って <code>componentId</code>（2件以上必須）の中に各 <code>Trade</code> 自身の <code>tradeIdentifier -> assignedIdentifier</code> が含まれるように設定します。">
+          <div class="mapping-prompt">
+            問6.【パッケージ取引分割（パターンC）】もし本案件の6つのレッグに個別の取引IDを採番して6件の独立した <code>Trade</code> に分割し、パッケージとして紐づける場合、一次ソースの
+            <code>condition PackageTrade</code> に適合する設定はどれか？
+          </div>
+          <div class="mapping-controls">
+            <select class="mapping-select">
+              <option value="">-- パターンC（packageReference）の正しい設定を選択 --</option>
+              <option
+                value="各構成 Trade の executionDetails -> packageReference（IdentifiedList 型）にパッケージ全体の listId と全6件の取引IDを並べた componentId（2..*）を設定し、各 Trade 自身の tradeIdentifier -> assignedIdentifier が componentId に含まれるようにする（condition PackageTrade）">
+                各構成 Trade の executionDetails -> packageReference（IdentifiedList 型）にパッケージ全体の listId と全6件の取引IDを並べた
+                componentId（2..*）を設定し、各 Trade 自身の tradeIdentifier -> assignedIdentifier が componentId
+                に含まれるようにする（condition PackageTrade）</option>
+              <option
+                value="各構成 Trade の executionDetails -> packageReference -> componentId には、自身の tradeIdentifier を除いた残り5件の取引IDのみを設定する">
+                各構成 Trade の executionDetails -> packageReference -> componentId には、自身の tradeIdentifier
+                を除いた残り5件の取引IDのみを設定する</option>
+              <option value="OptionPayout -> feature -> strategyFeature -> calendarSpread に6件すべての取引IDを文字列として格納する">
+                OptionPayout -> feature -> strategyFeature -> calendarSpread に6件すべての取引IDを文字列として格納する</option>
+              <option value="TradeLot -> lotIdentifier にパッケージIDを設定し、trade -> tradeIdentifier はすべて空（absent）にする">
+                TradeLot -> lotIdentifier にパッケージIDを設定し、trade -> tradeIdentifier はすべて空（absent）にする</option>
+            </select>
+            <button class="btn-check">検証</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 7: Retrieval Practice Quiz -->
+    <section>
+      <h2>7. 実践演習②：記憶定着4択クイズ（Retrieval Practice）</h2>
+      <p>
+        上の解説を見ずに、記憶から引き出して回答してください（選択肢をクリックすると即座にフィードバックが表示されます）。
+      </p>
+
+      <div class="quiz-container">
+        <!-- Q1: Correct = index 2 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="2"
+          data-explanation="顧客（<code>Party1</code>）が基準通貨を受け取る合成フォワードでは、Call レッグは顧客が買手（<code>buyer: Party1, seller: Party2</code>、<code>payerReceiver: { payer: Party2, receiver: Party1 }</code>）、Put レッグは顧客が売手（<code>buyer: Party2, seller: Party1</code>、<code>payerReceiver: { payer: Party1, receiver: Party2 }</code>）となります。<code>buyerSeller</code> が逆転するため1つの <code>OptionPayout</code>（<code>Straddle</code>）には統合できず、2つの <code>OptionPayout</code> に分けます。">
+          <div class="quiz-q-title">
+            Q1. 顧客（<code>Party1</code>）が各期日に固定ストライクで基準通貨 <code>USD</code> を受け取り <code>JPY</code> を支払う合成フォワードを組成する際、Call
+            レッグと Put レッグの約定時設定はどうなるか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">コールとプットの両方で買手を顧客としペイアウト支払者も顧客に</button>
+            <button class="quiz-option-btn">コールとプットを１個のストラドルにまとめ買手を顧客に設定する</button>
+            <button class="quiz-option-btn">コールは顧客を買手としプットは顧客を売手兼支払者として分ける</button>
+            <button class="quiz-option-btn">コールは銀行を買手としプットは顧客を買手兼受取者として分ける</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q2: Correct = index 0 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="0"
+          data-explanation="<code>OptionStrike -> strikePrice</code> は <code>Price</code> 型（<code>product-template-type.rosetta:L686</code>）であり、<code>observable-asset-type.rosetta:L204-L207</code> の <code>condition AmountOnlyExists: value exists and datedValue is absent</code> により単一値（<code>value</code>）のみが許容され、日付別ステップ配列（<code>datedValue</code>）は禁止されています。">
+          <div class="quiz-q-title">
+            Q2. 期日ごとにストライクレートが異なる（ステップ・ストライクの）マルチフォワードを、単一の <code>OptionPayout -> strike -> strikePrice</code> 内の
+            <code>datedValue</code> で表現できない一次ソース上の理由はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">ストライクのプライス型は単一値のみを許容し日付別配列を禁じる</button>
+            <button class="quiz-option-btn">トレードロットの数量型が単一値のみを許容し日付別配列を禁じる</button>
+            <button class="quiz-option-btn">経済条件のペイアウト配列が最大１個までの要素しか保持できない</button>
+            <button class="quiz-option-btn">計算スケジュール内の期間配列が最大２個の要素しか保持できない</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q3: Correct = index 3 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="3"
+          data-explanation="<code>Qualify_AssetClass_ForeignExchange</code>（<code>product-qualification-func.rosetta:L149, L170</code>）および <code>Qualify_ForeignExchange_VanillaOption</code>（<code>L1762</code>）は <code>economicTerms -> payout only-element as OptionPayout</code> を使用しています。Rune DSL の <code>only-element</code> 演算子は要素が2個以上あるとき空（<code>empty</code>）を返すため、両方とも <code>False</code>（偽）と判定されます。">
+          <div class="quiz-q-title">
+            Q3. 単一 <code>Trade</code> の <code>EconomicTerms -> payout</code> に複数の <code>OptionPayout</code>
+            を格納した取引を、<code>Qualify_AssetClass_ForeignExchange</code> および
+            <code>Qualify_ForeignExchange_VanillaOption</code> に渡すとどう判定されるか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">単一要素演算子が先頭要素を抽出するため両方とも真と判定される</button>
+            <button class="quiz-option-btn">資産クラス判定のみ真となりバニラオプション判定は偽と返される</button>
+            <button class="quiz-option-btn">自動的に為替スワップ判定関数が呼ばれスワップとして分類される</button>
+            <button class="quiz-option-btn">単一要素演算子が複数要素で空を返すため両方とも偽と判定される</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q4: Correct = index 1 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="1"
+          data-explanation="Put レッグ約定時の <code>OptionPayout -> payerReceiver</code> は売手＝義務負担者の原則により <code>payer: Party1（顧客）, receiver: Party2（銀行）</code> ですが、<code>Create_Exercise</code>（<code>event-common-func.rosetta:L520-L527</code>）において <code>optionType = Put</code> のとき <code>Update_ProductDirection</code> で方向が反転されるため、新規生成される為替決済取引（<code>SettlementPayout</code>）では <code>payer: Party2（銀行が基準通貨 USD を支払う）, receiver: Party1（顧客が USD を受け取る）</code> となります。">
+          <div class="quiz-q-title">
+            Q4. シンセティック・フォワードの Put レッグ（買手＝銀行 <code>Party2</code>、売手＝顧客
+            <code>Party1</code>、<code>optionType = Put</code>、基準通貨
+            <code>USD</code>）が満期に行使（<code>Create_Exercise</code>）された場合、生成される為替決済取引（<code>SettlementPayout</code>）の
+            <code>payerReceiver</code> はどうなるか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">方向は反転せず顧客が基準通貨を支払い銀行が受け取る決済となる</button>
+            <button class="quiz-option-btn">プット判定で方向が反転し銀行が基準通貨を支払い顧客が受け取る</button>
+            <button class="quiz-option-btn">決済ペイアウトではなく新しいコールオプション取引が生成される</button>
+            <button class="quiz-option-btn">決済ペイアウトの中に買手と売手の両属性がそのまま引き継がれる</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q5: Correct = index 2 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="2"
+          data-explanation="<code>IdentifiedList</code>（<code>base-staticdata-identifier-type.rosetta:L32</code>）では <code>componentId Identifier (2..*)</code> により2件以上の構成取引識別子が必須であり、さらに <code>Trade -> condition PackageTrade</code>（<code>event-common-type.rosetta:L316-L318</code>）により <code>packageReference -> componentId -> assignedIdentifier</code> の中にその <code>Trade</code> 自身の <code>tradeIdentifier -> assignedIdentifier</code> が含まれていなければなりません。">
+          <div class="quiz-q-title">
+            Q5. シンセティック・マルチフォワードの各レッグを独立した複数の <code>Trade</code>
+            に分割し、<code>ExecutionDetails -> packageReference</code>（<code>IdentifiedList</code>
+            型）で束ねる場合、満たすべき制約（<code>condition</code>）はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">構成取引リストは１件のみでよく自身の取引識別子は除外しておく</button>
+            <button class="quiz-option-btn">パッケージ価格は必須属性であり全ての構成取引で同一番号を使う</button>
+            <button class="quiz-option-btn">構成取引識別子は２件以上必要であり自身の取引識別子を含むこと</button>
+            <button class="quiz-option-btn">パッケージ参照を使う取引では経済条件のペイアウトを空欄にする</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+
+        <!-- Q6: Correct = index 1 (All 4 options = 30 chars) -->
+        <div class="quiz-question-card" data-correct-index="1"
+          data-explanation="<code>NonTransferableProduct</code>（<code>product-template-type.rosetta:L313-L315</code>）の <code>condition PrimaryAssetClass: if economicTerms -> nonStandardisedTerms = True then taxonomy -> primaryAssetClass exists</code> により、<code>nonStandardisedTerms = True</code> のときは <code>taxonomy -> primaryAssetClass</code> の存在が必須となります。">
+          <div class="quiz-q-title">
+            Q6. <code>NonTransferableProduct</code> において <code>economicTerms -> nonStandardisedTerms = True</code>
+            を設定した場合に発火する制約（<code>condition PrimaryAssetClass</code>）の内容はどれか？
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-option-btn">経済条件のペイアウト配列を１個だけに制限しなければ違反になる</button>
+            <button class="quiz-option-btn">プロダクト分類の主資産クラス属性が必ず存在しなければならない</button>
+            <button class="quiz-option-btn">計算代理人の属性に独立計算代理人を必ず設定しなければならない</button>
+            <button class="quiz-option-btn">取引ロット内の価格数量に複合価格を必ず設定しなければならない</button>
+          </div>
+          <div class="feedback-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer: Primary Source Recommendation & Agent Reminder -->
+    <footer class="lesson-footer">
+      <div class="callout">
+        <div class="callout-title">📚 今回の推奨一次ソース（直接開いて確認してください）</div>
+        <ul style="margin-bottom: 0;">
+          <li>
+            <strong><code>EconomicTerms -> payout (1..*)</code>・<code>OptionPayout</code>・<code>NonTransferableProduct -> condition PrimaryAssetClass</code>・<code>CalculationSchedule</code>・<code>StrategyFeature</code>
+              定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-template-type.rosetta</code>（L30-L50,
+            L126-L144, L307-L320, L461-L468, L684-L694, L710-L718）
+          </li>
+          <li>
+            <strong><code>Price -> condition AmountOnlyExists</code> と <code>Schedule -> datedValue</code>
+              定義</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/observable-asset-type.rosetta</code>（L204-L207）および
+            <code>base-math-type.rosetta</code>（L52-L86）
+          </li>
+          <li>
+            <strong>為替プロダクト Qualification 関数（<code>only-element</code> による <code>OptionPayout</code>
+              判定）</strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/product-qualification-func.rosetta</code>（L143-L176,
+            L1754-L1785, L2017-L2026）
+          </li>
+          <li>
+            <strong>パッケージ取引（<code>IdentifiedList</code>・<code>ExecutionDetails -> packageReference</code>・<code>Trade -> condition PackageTrade</code>）および
+              <code>ExerciseInstruction -> exerciseOption</code></strong>：<code>common-domain-model/rosetta-source/src/main/rosetta/base-staticdata-identifier-type.rosetta</code>（L28-L33）、<code>event-common-type.rosetta</code>（L129-L143,
+            L316-L318, L492-L497）、および <code>event-common-func.rosetta</code>（L498-L566）
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout callout-mission">
+        <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
+        <p style="margin-bottom: 0;">
+          これで <strong>Phase 3（為替系デリバティブ各論：FX Spot / Forward / Swap、NDF / NDS、Vanilla Option / NDO、Asian / Barrier / Gap
+            Option、およびシンセティック・マルチフォワード）</strong>の全5レッスンが完了しました。今回の内容（Call＋Put 合成フォワードの方向属性と行使時反転の整合、3つのマッピング設計パターンと
+          <code>Price -> condition AmountOnlyExists</code>、複数 <code>OptionPayout</code> 時の <code>Qualify_*</code>
+          の挙動など）で疑問点や実務データへの適用相談があれば、いつでもチャットで質問してください。<br />
+          理解が固まったら、次は取引ライフサイクルを動かすイベント関数群を体系的に読み解く <strong>Phase 4・Lesson
+            0009（ライフサイクルイベント共通基盤と横断イベント：<code>BusinessEvent</code> / <code>Instruction</code> /
+            <code>PrimitiveInstruction</code> / <code>Create_TradeState</code> の実行順序、約定 <code>Execution</code> +
+            <code>ContractFormation</code>、増額・一部/全解約 <code>QuantityChange</code>、更改・分割 <code>Split</code> +
+            <code>PartyChange</code> と <code>Qualify_*</code> 関数）</strong>へ進みましょう。
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="../assets/cdm-learning.js"></script>
+</body>
+
+</html>

@@ -19,6 +19,7 @@
         <a href="../lessons/0005-ndf-nds-cashsettlementterms-fixing.html">Lesson 0005</a>
         <a href="../lessons/0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a>
         <a href="../lessons/0007-fx-asian-barrier-gap-options.html">Lesson 0007</a>
+        <a href="../lessons/0008-synthetic-multi-forward-mapping.html">Lesson 0008</a>
         <a href="./rosetta-reading-guide.html">Reference: .rosetta 読解ガイド</a>
         <a href="./glossary.html" class="active">Reference: 用語集 (Glossary)</a>
       </div>
@@ -79,7 +80,7 @@
         <tr>
           <td><strong>取引（トレード）</strong><br />Trade</td>
           <td><code>Trade</code><br />(<code>extends TradableProduct</code>)</td>
-          <td>当事者間で合意された取引そのもの。<code>TradableProduct</code> を継承し、そこに約定日（<code>tradeDate</code>）、取引ID（<code>tradeIdentifier</code>：UTI/USIや社内ID）、取引当事者実体（<code>party</code>）、契約詳細（<code>contractDetails</code>）、担保（<code>collateral</code>）を付加したもの。</td>
+          <td>当事者間で合意された取引。<code>TradableProduct</code> を継承し、そこに約定日（<code>tradeDate</code>）、取引ID（<code>tradeIdentifier</code>：UTI/USIや社内ID）、取引当事者実体（<code>party</code>）、契約詳細（<code>contractDetails</code>）、担保（<code>collateral</code>）を付加したもの。</td>
           <td><span class="cite-badge">event-common-type.rosetta:L295-L309</span></td>
         </tr>
         <tr>
@@ -237,6 +238,24 @@
           <td><code>strike -> strikePrice</code> ($K_1$)<br /><code>feature -> barrier -> knockIn -> trigger -> level</code> ($K_2$)</td>
           <td>権利が有効化される発動閾値（トリガー $K_2$）と、発動した際の2通貨交換・差額精算の基準レート（ストライク $K_1$, $K_1 \neq K_2$）が分離しているオプション。CDM では精算基準の $K_1$ を <code>strike -> strikePrice</code> に、発動閾値の $K_2$ を <code>feature -> barrier -> knockIn -> trigger -> level</code> に分離配置し、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク $K_1$ で換算した対価通貨金額（$\text{quantity} \times K_1$）を格納する。</td>
           <td><span class="cite-badge">product-template-type.rosetta:L126-L136, L635-L638, L684-L694</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29</span></td>
+        </tr>
+        <tr>
+          <td><strong>シンセティック・マルチフォワード（複数期日合成先渡）</strong><br />Synthetic Multi-Forward (Call + Put Strip)</td>
+          <td><code>EconomicTerms -> payout (1..*)</code><br /><code>OptionPayout</code> × $2N$<br /><code>TradeLot -> priceQuantity (1..*)</code></td>
+          <td>各期日について同一当事者が Call の買手（<code>buyer</code>）かつ Put の売手（<code>seller</code>）となる合成フォワードを複数期日（$N$ 期日）にわたり束ねた複合為替デリバティブ。Call と Put で <code>buyerSeller</code>（および約定時の <code>OptionPayout -> payerReceiver</code>）が逆転するため <code>Straddle</code> で1つにまとめることはできず、単一 <code>Trade</code> で表現する場合は $2N$ 個の <code>OptionPayout</code> と対応する <code>PriceQuantity</code> を展開する。複数 <code>OptionPayout</code> 時は <code>Qualify_AssetClass_ForeignExchange</code> 等の <code>only-element</code> が空になるため自動判定は <code>False</code> となり、<code>nonStandardisedTerms = True</code> 設定時は <code>condition PrimaryAssetClass</code> に従い <code>taxonomy -> primaryAssetClass</code> を明示する。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L45, L126-L135, L307-L320</span><br /><span class="cite-badge">product-qualification-func.rosetta:L143-L176, L1754-L1785</span></td>
+        </tr>
+        <tr>
+          <td><strong>計算スケジュールとストライク価格の単一値制約</strong><br />Calculation Schedule &amp; Strike Price Single-Value Constraint</td>
+          <td><code>CalculationSchedule</code> / <code>SchedulePeriod</code><br /><code>Price -> condition AmountOnlyExists</code><br /><code>Schedule -> datedValue</code></td>
+          <td><code>CalculationSchedule -> schedulePeriod</code> は計算期間（<code>calculationPeriod</code>）・決済日（<code>paymentDate</code>）・フィキシング期間（<code>fixingPeriod</code>）を非パラメトリックに列挙する型。一方、<code>OptionStrike -> strikePrice</code> は <code>PriceSchedule</code> を特殊化した <code>Price</code> 型であり、<code>condition AmountOnlyExists: value exists and datedValue is absent</code> により日付別ステップ値（<code>datedValue</code>）が禁止されているため、期日ごとにストライクが異なるステップ・ストライク取引では期日ごとに <code>OptionPayout</code> を分割する必要がある。</td>
+          <td><span class="cite-badge">product-template-type.rosetta:L461-L468, L684-L686</span><br /><span class="cite-badge">observable-asset-type.rosetta:L204-L207</span><br /><span class="cite-badge">base-math-type.rosetta:L52-L86</span></td>
+        </tr>
+        <tr>
+          <td><strong>パッケージ取引参照（識別子付きリスト）</strong><br />Package Reference &amp; Identified List</td>
+          <td><code>ExecutionDetails -> packageReference</code><br /><code>EventInstruction -> packageInformation</code><br /><code>IdentifiedList</code> / <code>condition PackageTrade</code></td>
+          <td>複合戦略の各レッグを個別の取引IDを持つ独立した複数の <code>Trade</code> に分割した上で、それらを1つのパッケージ取引として紐づける構造。<code>IdentifiedList</code> はパッケージ全体の <code>listId (1..1)</code> と2件以上の構成取引ID <code>componentId (2..*)</code> を持ち、<code>Trade -> condition PackageTrade</code> により各 <code>Trade</code> 自身の <code>tradeIdentifier -> assignedIdentifier</code> が <code>componentId -> assignedIdentifier</code> に含まれていなければならない。</td>
+          <td><span class="cite-badge">base-staticdata-identifier-type.rosetta:L28-L33</span><br /><span class="cite-badge">event-common-type.rosetta:L316-L318, L492-L497</span><br /><span class="cite-badge">event-workflow-type.rosetta:L80</span></td>
         </tr>
         <tr>
           <td><strong>法的契約・担保規定</strong><br />Legal Agreement &amp; Collateral</td>
