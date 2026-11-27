@@ -68,8 +68,8 @@
 
       <h3>1-1. アジアン・オプションの金融実務概念：アベレージ・レート（Out）vs アベレージ・ストライク（In）</h3>
       <p>
-        バニラ・オプションは満期日（1時点）の為替スポットレート $S_T$ だけで権利行使価値が決まりますが、<strong>アジアン・オプション</strong>はあらかじめ定めた観測期間（Observation
-        Period）における複数回の為替レート観測値 $S_{t_1}, S_{t_2}, \dots, S_{t_n}$ の<strong>平均値（Average Rate：算術平均
+        バニラ・オプションは満期日（1時点）の為替スポットレート <i>S</i><sub>T</sub> だけで権利行使価値が決まりますが、<strong>アジアン・オプション</strong>はあらかじめ定めた観測期間（Observation
+        Period）における複数回の為替レート観測値 <i>S</i><sub><i>t</i><sub>1</sub></sub>, <i>S</i><sub><i>t</i><sub>2</sub></sub>, &hellip;, <i>S</i><sub><i>t</i><sub><i>n</i></sub></sub> の<strong>平均値（Average Rate：算術平均
           <code>Arithmetic</code> または幾何平均 <code>Geometric</code>、単純平均 <code>Unweighted</code> または加重平均
           <code>Weighted</code>）</strong>を参照する経路依存型（Path-Dependent）オプションです。<br />
         輸出入企業の月次・四半期平均建値ヘッジなどに適しており、「平均レートを<strong>決済時の参照レート（Out）</strong>に使うか、それとも<strong>ストライク価格自体（In）</strong>に使うか」によって以下の2種類に分かれます。
@@ -88,35 +88,35 @@
           <tr>
             <td><strong>実務での仕組み</strong></td>
             <td>
-              <strong>ストライク価格 $K$ は約定時に固定値として合意</strong>される。<br />
-              観測期間中の市場為替レートの<strong>平均値 $\bar{S}_{\text{out}}$ を満期時の最終決済参照レート（Expiration / Settlement
-                Price）</strong>として用い、固定ストライク $K$ と比較して差金決済（または受渡精算）を行う。
+              <strong>ストライク価格 <i>K</i> は約定時に固定値として合意</strong>される。<br />
+              観測期間中の市場為替レートの<strong>平均値 <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>out</mtext></msub></math> を満期時の最終決済参照レート（Expiration / Settlement
+                Price）</strong>として用い、固定ストライク <i>K</i> と比較して差金決済（または受渡精算）を行う。
             </td>
             <td>
-              <strong>約定時点ではストライク価格が固定されておらず、観測期間中の市場為替レートの平均値 $\bar{S}_{\text{in}}$
+              <strong>約定時点ではストライク価格が固定されておらず、観測期間中の市場為替レートの平均値 <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math>
                 がそのままストライク価格（変動ストライク）</strong>になる。<br />
-              満期日のスポットレート $S_T$ と、確定した平均ストライク $\bar{S}_{\text{in}}$ を比較して精算する。
+              満期日のスポットレート <i>S</i><sub>T</sub> と、確定した平均ストライク <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math> を比較して精算する。
             </td>
           </tr>
           <tr>
             <td><strong>ペイオフ数式<br />（基準通貨 1単位あたり）</strong></td>
             <td>
-              ・<code>Call</code>：$\max(\bar{S}_{\text{out}} - K,\; 0)$<br />
-              ・<code>Put</code>：$\max(K - \bar{S}_{\text{out}},\; 0)$
+              ・<code>Call</code>：max(<math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>out</mtext></msub></math> &minus; <i>K</i>, 0)<br />
+              ・<code>Put</code>：max(<i>K</i> &minus; <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>out</mtext></msub></math>, 0)
             </td>
             <td>
-              ・<code>Call</code>：$\max(S_T - \bar{S}_{\text{in}},\; 0)$<br />
-              ・<code>Put</code>：$\max(\bar{S}_{\text{in}} - S_T,\; 0)$
+              ・<code>Call</code>：max(<i>S</i><sub>T</sub> &minus; <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math>, 0)<br />
+              ・<code>Put</code>：max(<math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math> &minus; <i>S</i><sub>T</sub>, 0)
             </td>
           </tr>
           <tr>
             <td><strong>約定時点で確定している数量・価格</strong></td>
             <td>
-              固定ストライク $K$ が約定時に確定しているため、<strong>基準通貨数量（<code>quantity</code>）と対価通貨数量（<code>derivedQuantity</code> $=
-                \text{quantity} \times K$）の両方が約定時に確定</strong>する。
+              固定ストライク <i>K</i> が約定時に確定しているため、<strong>基準通貨数量（<code>quantity</code>）と対価通貨数量（<code>derivedQuantity</code> =
+                quantity &times; <i>K</i>）の両方が約定時に確定</strong>する。
             </td>
             <td>
-              ストライク $\bar{S}_{\text{in}}$
+              ストライク <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math>
               が観測期間終了まで未確定であるため、<strong>約定時点では基準通貨の名目元本（<code>quantity</code>）のみが確定</strong>し、対価通貨数量（<code>derivedQuantity</code>）は約定時点では未確定（<code>absent</code>）となる。
             </td>
           </tr>
@@ -189,7 +189,7 @@
           <strong>排他制約①：<code>OptionStrike</code> 内の
             <code>condition: one-of</code>（<code>L692-L693</code>）</strong>：<br />
           <code>OptionStrike</code> は <code>strikePrice</code>（固定ストライク価格）と
-          <code>averagingStrikeFeature</code>（平均観測による変動ストライク条件）のどちらか1つしか持てません。したがって、<strong>アベレージ・レート・オプション（固定ストライク $K$
+          <code>averagingStrikeFeature</code>（平均観測による変動ストライク条件）のどちらか1つしか持てません。したがって、<strong>アベレージ・レート・オプション（固定ストライク <i>K</i>
             がある取引）では必ず <code>strike -> strikePrice</code> を使用し、<code>strike -> averagingStrikeFeature</code>
             は空（<code>absent</code>）</strong>になります。逆に、<code>strike -> averagingStrikeFeature</code>
           を使用するアベレージ・ストライク・オプションでは、<code>strike -> strikePrice</code> を同時に設定することはできません。
@@ -296,8 +296,8 @@
           <li>
             <strong>③ <code>AveragingInOutEnum -> Both</code> は排他制約に違反しないのか？FX で使われることはあるか？</strong><br />
             <ul>
-              <li><strong>排他制約との関係（違反せずに表現可能）</strong>：<code>Both</code>（入口期間の平均レートでストライク $\bar{S}_{\text{in}}$
-                を決め、出口期間の平均レートで満期決済レート $\bar{S}_{\text{out}}$ を決める<strong>ダブル・アジアン / Double Asian
+              <li><strong>排他制約との関係（違反せずに表現可能）</strong>：<code>Both</code>（入口期間の平均レートでストライク <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math>
+                を決め、出口期間の平均レートで満期決済レート <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>out</mtext></msub></math> を決める<strong>ダブル・アジアン / Double Asian
                   Option</strong>）を表現する場合、<strong><code>strike -> averagingStrikeFeature</code>
                   は使用せず（<code>absent</code> にし）、<code>OptionPayout -> feature -> averagingFeature</code>
                   1箇所の中だけ</strong>で <code>averagingInOut: Both</code> と
@@ -722,7 +722,7 @@
 
     <!-- Section 3: Gap Options -->
     <section>
-      <h2>3. ギャップ・オプション（Gap Option）の一次ソース導出：ストライク $K_1$ vs トリガー $K_2$ の分離表現</h2>
+      <h2>3. ギャップ・オプション（Gap Option）の一次ソース導出：ストライク <i>K</i><sub>1</sub> vs トリガー <i>K</i><sub>2</sub> の分離表現</h2>
       <p>
         続いて、<strong>ギャップ・オプション（Gap
           Option）</strong>について、金融実務での意味（バニラ・オプションおよび通常のノックイン・バリア・オプションとの比較）を整理し、一次ソースの型制約（<code>product-template-type.rosetta</code>
@@ -732,30 +732,30 @@
       <h3>3-1. バニラ vs 連続監視ノックイン・バリア vs ギャップ・オプションの3者比較</h3>
       <p>
         通常のバニラ・オプションでは、「<strong>権利が行使されるかどうかの発動閾値</strong>」と「<strong>権利が行使されたときにいくらで交換・精算するかの計算基準レート</strong>」が同一のストライクレート
-        $K$ です。<br />
-        これに対し、<strong>ギャップ・オプション（Gap Option）</strong>では、<strong>① ペイオフ計算（または2通貨交換金額）の基準となるストライク価格 $K_1$（Strike
-          Price）</strong>と、<strong>② 満期時に権利が有効化・行使されるかを決めるトリガー価格 $K_2$（Trigger Level, $K_1 \neq
-          K_2$）</strong>が別々の値として分離しています。
+        <i>K</i> です。<br />
+        これに対し、<strong>ギャップ・オプション（Gap Option）</strong>では、<strong>① ペイオフ計算（または2通貨交換金額）の基準となるストライク価格 <i>K</i><sub>1</sub>（Strike
+          Price）</strong>と、<strong>② 満期時に権利が有効化・行使されるかを決めるトリガー価格 <i>K</i><sub>2</sub>（Trigger Level, <i>K</i><sub>1</sub> &ne;
+          <i>K</i><sub>2</sub>）</strong>が別々の値として分離しています。
       </p>
 
       <table>
         <thead>
           <tr>
             <th style="width: 18%;">オプション種別</th>
-            <th style="width: 28%;">発動条件と満期ペイオフ<br />（Call の場合、満期レート $S_T$）</th>
-            <th style="width: 27%;">ストライク $K_1$（<code>strike -> strikePrice</code>）の役割</th>
-            <th style="width: 27%;">トリガー $K_2$（<code>feature -> barrier -> knockIn</code>）の役割</th>
+            <th style="width: 28%;">発動条件と満期ペイオフ<br />（Call の場合、満期レート <i>S</i><sub>T</sub>）</th>
+            <th style="width: 27%;">ストライク <i>K</i><sub>1</sub>（<code>strike -> strikePrice</code>）の役割</th>
+            <th style="width: 27%;">トリガー <i>K</i><sub>2</sub>（<code>feature -> barrier -> knockIn</code>）の役割</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><strong>① バニラ・オプション</strong><br />（Vanilla Option）</td>
             <td>
-              満期時に $S_T &gt; K_1$ のとき行使され、<br />
-              ペイオフは $S_T - K_1$
+              満期時に <i>S</i><sub>T</sub> &gt; <i>K</i><sub>1</sub> のとき行使され、<br />
+              ペイオフは <i>S</i><sub>T</sub> &minus; <i>K</i><sub>1</sub>
             </td>
             <td>
-              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
+              <strong>あり</strong>（<code>strikePrice</code> = <i>K</i><sub>1</sub>）<br />
               発動閾値と精算・交換基準の両方を兼ねる
             </td>
             <td>
@@ -766,30 +766,30 @@
             <td><strong>② 連続監視ノックイン・バリア</strong><br />（Continuous Knock-in Barrier, <span
                 class="cite-badge">fx-ex12</span>）</td>
             <td>
-              <strong>観測期間中に一度でも $S_t \ge K_2$ に到達</strong>すれば有効化され、満期時は $\max(S_T - K_1,\; 0)$
+              <strong>観測期間中に一度でも <i>S</i><sub><i>t</i></sub> &ge; <i>K</i><sub>2</sub> に到達</strong>すれば有効化され、満期時は max(<i>S</i><sub>T</sub> &minus; <i>K</i><sub>1</sub>, 0)
             </td>
             <td>
-              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
+              <strong>あり</strong>（<code>strikePrice</code> = <i>K</i><sub>1</sub>）<br />
               有効化された後のバニラ・オプションとしての行使価格
             </td>
             <td>
-              <strong>あり</strong>（<code>Trigger -> level</code> = $K_2$、<code>triggerTimeType: Anytime</code>、観測期間
+              <strong>あり</strong>（<code>Trigger -> level</code> = <i>K</i><sub>2</sub>、<code>triggerTimeType: Anytime</code>、観測期間
               <code>schedule</code>）
             </td>
           </tr>
           <tr>
             <td><strong>③ ギャップ・オプション</strong><br />（Gap Option）</td>
             <td>
-              <strong>満期判定時に $S_T \ge K_2$ のときのみ発動</strong>し、<br />
-              発動時のペイオフは <strong>$S_T - K_1$</strong><br />
-              （$S_T = K_2$ 到達時点で $K_2 - K_1$ の不連続な飛び値＝ギャップが発生）
+              <strong>満期判定時に <i>S</i><sub>T</sub> &ge; <i>K</i><sub>2</sub> のときのみ発動</strong>し、<br />
+              発動時のペイオフは <strong><i>S</i><sub>T</sub> &minus; <i>K</i><sub>1</sub></strong><br />
+              （<i>S</i><sub>T</sub> = <i>K</i><sub>2</sub> 到達時点で <i>K</i><sub>2</sub> &minus; <i>K</i><sub>1</sub> の不連続な飛び値＝ギャップが発生）
             </td>
             <td>
-              <strong>あり</strong>（<code>strikePrice</code> = $K_1$）<br />
+              <strong>あり</strong>（<code>strikePrice</code> = <i>K</i><sub>1</sub>）<br />
               <strong>発動した際の2通貨交換レート（または差額計算の基準レート）</strong>を表す
             </td>
             <td>
-              <strong>あり</strong>（<code>Trigger -> level</code> = $K_2$、満期判定
+              <strong>あり</strong>（<code>Trigger -> level</code> = <i>K</i><sub>2</sub>、満期判定
               <code>triggerTimeType: Closing</code>、<code>triggerDates</code> = 満期日）
             </td>
           </tr>
@@ -801,8 +801,8 @@
         <p>
           ギャップ・オプションと混同しやすい商品に<strong>デジタル（バイナリー／ワンタッチ）オプション</strong>（<span
             class="cite-badge">fx-ex14-euro-digital-option.xml</span> 〜 <span
-            class="cite-badge">fx-ex19-double-no-touch-option.xml</span>）があります。デジタル・オプションは、トリガー $K_2$ に到達したときに「原資産交換や
-          $S_T - K_1$ の差額精算」を行わず、「あらかじめ定めた<strong>固定金額 $M$</strong>（例：<code>750,000 GBP</code>）のみを支払う」取引です。<br />
+            class="cite-badge">fx-ex19-double-no-touch-option.xml</span>）があります。デジタル・オプションは、トリガー <i>K</i><sub>2</sub> に到達したときに「原資産交換や
+          <i>S</i><sub>T</sub> &minus; <i>K</i><sub>1</sub> の差額精算」を行わず、「あらかじめ定めた<strong>固定金額 <i>M</i></strong>（例：<code>750,000 GBP</code>）のみを支払う」取引です。<br />
           このデジタル・オプションを CDM の <code>OptionPayout</code> でどう表現するかについては、現在も FINOS CDM で議論・改修途上（GitHub Issue #4957 <em>"Add
             support for Digital Options"</em> が Open、サンプル <code>fx-ex14</code>〜<code>fx-ex19</code> はすべて
           <code>incomplete-products-fx-derivatives</code> 配置）であり、一次ソース上で以下の未解決課題が存在します：
@@ -833,43 +833,43 @@
           </li>
           <li>
             <strong>ギャップ・オプションは既存スキーマで問題なく表現可能</strong>：<br />
-            これに対し、本節で扱う<strong>ギャップ・オプション</strong>は「トリガー $K_2$ で有効化され、ストライク $K_1$
+            これに対し、本節で扱う<strong>ギャップ・オプション</strong>は「トリガー <i>K</i><sub>2</sub> で有効化され、ストライク <i>K</i><sub>1</sub>
             で2通貨交換（または差額精算）を行うコール／プット・オプション」であるため、<code>underlier</code>（<code>Cash</code>）・<code>optionType</code>（<code>Call</code>
             /
-            <code>Put</code>）・<code>strike -> strikePrice</code>（$K_1$）・<code>feature -> barrier -> knockIn</code>（$K_2$）がすべて揃い、現行
+            <code>Put</code>）・<code>strike -> strikePrice</code>（<i>K</i><sub>1</sub>）・<code>feature -> barrier -> knockIn</code>（<i>K</i><sub>2</sub>）がすべて揃い、現行
             CDM のバリデーション制約をすべて満たして表現できます。
           </li>
         </ul>
       </div>
 
-      <h3>3-2. ギャップ・オプションの CDM スキーマ導出（$K_1$ と $K_2$ のマッピング）</h3>
+      <h3>3-2. ギャップ・オプションの CDM スキーマ導出（<i>K</i><sub>1</sub> と <i>K</i><sub>2</sub> のマッピング）</h3>
       <p>
-        実務における為替ギャップ・オプション（例：基準通貨名目元本 <code>10,000,000 USD</code>、<strong>ストライク $K_1 = 150.00\text{
-          JPY/USD}$</strong>、<strong>満期トリガー $K_2 = 155.00\text{ JPY/USD}$</strong> の USD/JPY Gap Call
-        Option）は、実質的に「満期日（<code>expirationDate</code>）の判定時刻において $S_T \ge
-        K_2$（<code>155.00 JPY/USD</code>）となった場合にのみ有効化（Knock-in）され、有効化された場合はストライク $K_1$（<code>150.00 JPY/USD</code>）で
+        実務における為替ギャップ・オプション（例：基準通貨名目元本 <code>10,000,000 USD</code>、<strong>ストライク <i>K</i><sub>1</sub> = 150.00
+          JPY/USD</strong>、<strong>満期トリガー <i>K</i><sub>2</sub> = 155.00 JPY/USD</strong> の USD/JPY Gap Call
+        Option）は、実質的に「満期日（<code>expirationDate</code>）の判定時刻において <i>S</i><sub>T</sub> &ge;
+        <i>K</i><sub>2</sub>（<code>155.00 JPY/USD</code>）となった場合にのみ有効化（Knock-in）され、有効化された場合はストライク <i>K</i><sub>1</sub>（<code>150.00 JPY/USD</code>）で
         <code>10,000,000 USD</code> と <code>1,500,000,000 JPY</code>
         を交換（または差金決済）するヨーロピアン・ノックイン・オプション」と同じ経済構造を持ちます。<br />
         したがって、一次ソースの <code>OptionPayout</code> スキーマでは以下の3箇所を組み合わせて表現します：
       </p>
       <ol>
         <li>
-          <strong>ストライク価格 $K_1$（<code>150.00 JPY per USD</code>）の配置</strong>：<br />
+          <strong>ストライク価格 <i>K</i><sub>1</sub>（<code>150.00 JPY per USD</code>）の配置</strong>：<br />
           <code>OptionPayout -> strike -> strikePrice</code> に
-          $K_1$（<code>value: 150.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）を設定します。
+          <i>K</i><sub>1</sub>（<code>value: 150.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）を設定します。
         </li>
         <li>
-          <strong>トリガー価格 $K_2$（<code>155.00 JPY per USD</code>）の配置</strong>：<br />
+          <strong>トリガー価格 <i>K</i><sub>2</sub>（<code>155.00 JPY per USD</code>）の配置</strong>：<br />
           <code>OptionPayout -> feature -> barrier -> knockIn[0]</code>（<code>TriggerEvent</code> 型）に以下を設定します：
           <ul>
             <li><code>triggerDates</code>：満期判定日（例：<code>date: ["2026-12-17"]</code>）※期間中の連続監視ギャップであれば
               <code>schedule</code> を設定。
             </li>
             <li>
-              <code>trigger -> level[0]</code>：$K_2$（<code>value: 155.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）。
+              <code>trigger -> level[0]</code>：<i>K</i><sub>2</sub>（<code>value: 155.00, unit: JPY, perUnitOf: USD, priceType: ExchangeRate</code>）。
             </li>
-            <li><code>trigger -> triggerType</code>：Gap Call（$S_T \ge K_2$ で発動）なら
-              <strong><code>"EqualOrGreater"</code></strong>（または <code>"Greater"</code>）、Gap Put（$S_T \le K_2$ で発動）なら
+            <li><code>trigger -> triggerType</code>：Gap Call（<i>S</i><sub>T</sub> &ge; <i>K</i><sub>2</sub> で発動）なら
+              <strong><code>"EqualOrGreater"</code></strong>（または <code>"Greater"</code>）、Gap Put（<i>S</i><sub>T</sub> &le; <i>K</i><sub>2</sub> で発動）なら
               <strong><code>"EqualOrLess"</code></strong>（または <code>"Less"</code>）。
             </li>
             <li><code>trigger -> triggerTimeType</code>：満期日カットオフ判定なら <strong><code>"Closing"</code></strong>（期間中常時判定なら
@@ -878,11 +878,11 @@
           </ul>
         </li>
         <li>
-          <strong><code>tradeLot -> priceQuantity</code> における2通貨金額（$K_1$ 基準）</strong>：<br />
-          権利が発動して決済される際に実際に交換される対価通貨（<code>JPY</code>）の金額は、トリガー $K_2$（<code>155.00</code>）ではなく<strong>ストライク
-            $K_1$（<code>150.00</code>）</strong>に基づきます。そのため、<code>tradeLot -> priceQuantity</code> には基準通貨
-          <code>quantity = 10,000,000 USD</code> に対し、<strong>$K_1$ を掛けた
-            <code>price -> derivedQuantity = 1,500,000,000 JPY</code>（$= 10,000,000 \times 150.00$）</strong>を格納します。
+          <strong><code>tradeLot -> priceQuantity</code> における2通貨金額（<i>K</i><sub>1</sub> 基準）</strong>：<br />
+          権利が発動して決済される際に実際に交換される対価通貨（<code>JPY</code>）の金額は、トリガー <i>K</i><sub>2</sub>（<code>155.00</code>）ではなく<strong>ストライク
+            <i>K</i><sub>1</sub>（<code>150.00</code>）</strong>に基づきます。そのため、<code>tradeLot -> priceQuantity</code> には基準通貨
+          <code>quantity = 10,000,000 USD</code> に対し、<strong><i>K</i><sub>1</sub> を掛けた
+            <code>price -> derivedQuantity = 1,500,000,000 JPY</code>（= 10,000,000 &times; 150.00）</strong>を格納します。
         </li>
       </ol>
 
@@ -987,13 +987,13 @@
               <span class="cite-badge">fx-ex22</span>
             </td>
             <td>
-              ・<code>strike -> strikePrice</code>：固定ストライク $K$<br />
+              ・<code>strike -> strikePrice</code>：固定ストライク <i>K</i><br />
               ・<code>observationTerms</code>（または <code>feature -> averagingFeature [Out]</code>）：平均観測スケジュールと情報ソース
             </td>
             <td>
-              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$<br />
-              ・<code>price -> derivedQuantity</code>：分子通貨（<code>unit</code>）の名目元本 $N \times K$<br />
-              ・期中の観測値と最終平均レート $\bar{S}_{\text{out}}$ は <code>observationHistory</code> / <code>resetHistory</code> に記録
+              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 <i>N</i><br />
+              ・<code>price -> derivedQuantity</code>：分子通貨（<code>unit</code>）の名目元本 <i>N</i> &times; <i>K</i><br />
+              ・期中の観測値と最終平均レート <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>out</mtext></msub></math> は <code>observationHistory</code> / <code>resetHistory</code> に記録
             </td>
             <td>
               <strong><code>True</code></strong><br />
@@ -1007,9 +1007,9 @@
               ・<code>strike -> strikePrice</code> は <code>one-of</code> 制約により <strong><code>absent</code></strong>
             </td>
             <td>
-              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$ のみ確定<br />
+              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 <i>N</i> のみ確定<br />
               ・<code>price -> derivedQuantity</code>：約定時はストライク未確定のため <strong><code>absent</code></strong><br />
-              ・観測期間終了時に平均ストライク $\bar{S}_{\text{in}}$ が <code>resetHistory</code> で確定
+              ・観測期間終了時に平均ストライク <math><msub><mover><mi>S</mi><mo>&macr;</mo></mover><mtext>in</mtext></msub></math> が <code>resetHistory</code> で確定
             </td>
             <td>
               ・<code>strike -> averagingStrikeFeature</code> 使用（<code>feature</code> 空）または
@@ -1020,12 +1020,12 @@
             <td><strong>③ バリア・オプション</strong><br />（Barrier Option）<br /><span class="cite-badge">fx-ex12</span> / <span
                 class="cite-badge">fx-ex13</span></td>
             <td>
-              ・<code>strike -> strikePrice</code>：固定ストライク $K$（約定時参照スポットは <code>composite -> baseValue</code>）<br />
+              ・<code>strike -> strikePrice</code>：固定ストライク <i>K</i>（約定時参照スポットは <code>composite -> baseValue</code>）<br />
               ・<code>feature -> barrier</code>：<code>knockIn</code> / <code>knockOut</code>（<code>TriggerEvent</code>）
             </td>
             <td>
-              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$<br />
-              ・<code>price -> derivedQuantity</code>：バリア水準ではなく<strong>ストライク $K$ で換算した分子通貨元本 $N \times K$</strong><br />
+              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 <i>N</i><br />
+              ・<code>price -> derivedQuantity</code>：バリア水準ではなく<strong>ストライク <i>K</i> で換算した分子通貨元本 <i>N</i> &times; <i>K</i></strong><br />
               ・Knock-out 到達時は <code>QuantityChange</code> で <code>quantity = 0</code>（<code>Closed</code>）へ遷移（リベートがあれば
               <code>transferHistory</code> に追加）
             </td>
@@ -1035,16 +1035,16 @@
             </td>
           </tr>
           <tr>
-            <td><strong>④ ギャップ・オプション</strong><br />（Gap Option：$K_1 \neq K_2$）</td>
+            <td><strong>④ ギャップ・オプション</strong><br />（Gap Option：<i>K</i><sub>1</sub> &ne; <i>K</i><sub>2</sub>）</td>
             <td>
-              ・<code>strike -> strikePrice</code>：精算・交換基準の<strong>ストライク $K_1$</strong><br />
+              ・<code>strike -> strikePrice</code>：精算・交換基準の<strong>ストライク <i>K</i><sub>1</sub></strong><br />
               ・<code>feature -> barrier -> knockIn</code>：発動閾値の<strong>トリガー
-                $K_2$</strong>（<code>Trigger -> level</code>）
+                <i>K</i><sub>2</sub></strong>（<code>Trigger -> level</code>）
             </td>
             <td>
-              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 $N$<br />
-              ・<code>price -> derivedQuantity</code>：トリガー $K_2$ ではなく<strong>ストライク $K_1$ で換算した分子通貨元本 $N \times
-                K_1$</strong>
+              ・<code>quantity</code>：分母通貨（<code>perUnitOf</code>）の名目元本 <i>N</i><br />
+              ・<code>price -> derivedQuantity</code>：トリガー <i>K</i><sub>2</sub> ではなく<strong>ストライク <i>K</i><sub>1</sub> で換算した分子通貨元本 <i>N</i> &times;
+                <i>K</i><sub>1</sub></strong>
             </td>
             <td>
               <strong><code>False</code></strong><br />
@@ -1455,14 +1455,14 @@
           <!-- Node 6: Gap Option -->
           <div class="node-detail-card" data-node-content="node-gap-option" style="display: none;">
             <div class="detail-pane active" data-pane="tab-domain">
-              <h3>ギャップ・オプション（ストライク $K_1$ vs トリガー $K_2$）の構造</h3>
+              <h3>ギャップ・オプション（ストライク <i>K</i><sub>1</sub> vs トリガー <i>K</i><sub>2</sub>）の構造</h3>
               <p>
-                <strong>金融実務での意味</strong>：満期時（または観測時）のレート $S_T$ がトリガー水準 $K_2$ を超えた（Call の場合 $S_T \ge
-                K_2$）ときに限り発動し、発動時の交換・精算レートには $K_2$ ではなくストライク価格 $K_1$（$K_1 \neq K_2$）を用いるオプションです。
+                <strong>金融実務での意味</strong>：満期時（または観測時）のレート <i>S</i><sub>T</sub> がトリガー水準 <i>K</i><sub>2</sub> を超えた（Call の場合 <i>S</i><sub>T</sub> &ge;
+                <i>K</i><sub>2</sub>）ときに限り発動し、発動時の交換・精算レートには <i>K</i><sub>2</sub> ではなくストライク価格 <i>K</i><sub>1</sub>（<i>K</i><sub>1</sub> &ne; <i>K</i><sub>2</sub>）を用いるオプションです。
               </p>
               <p>
-                <strong>CDM での役割</strong>：精算・交換基準となるストライク $K_1$ を <code>OptionPayout -> strike -> strikePrice</code>
-                に配置し、発動閾値となるトリガー $K_2$ を
+                <strong>CDM での役割</strong>：精算・交換基準となるストライク <i>K</i><sub>1</sub> を <code>OptionPayout -> strike -> strikePrice</code>
+                に配置し、発動閾値となるトリガー <i>K</i><sub>2</sub> を
                 <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level[0]</code>
                 に配置することで、2つのレート水準の役割を曖昧さなく分離して表現します。
               </p>
@@ -1524,9 +1524,9 @@
                 <code>unit</code>）が <code>price -> derivedQuantity</code> になります。
               </p>
               <p>
-                <strong>バリア・ギャップ・アベレージストライクでの注意点</strong>：バリアやギャップでは、<code>derivedQuantity</code> はトリガー水準 $K_2$
-                ではなく<strong>ストライクレート $K_1$（$\text{quantity} \times
-                  K_1$）</strong>で算出された金額を格納します。一方、アベレージ・ストライクでは約定時にストライクが未確定であるため、<code>quantity</code>（基準通貨額）のみを設定し
+                <strong>バリア・ギャップ・アベレージストライクでの注意点</strong>：バリアやギャップでは、<code>derivedQuantity</code> はトリガー水準 <i>K</i><sub>2</sub>
+                ではなく<strong>ストライクレート <i>K</i><sub>1</sub>（quantity &times;
+                  <i>K</i><sub>1</sub>）</strong>で算出された金額を格納します。一方、アベレージ・ストライクでは約定時にストライクが未確定であるため、<code>quantity</code>（基準通貨額）のみを設定し
                 <code>derivedQuantity</code> は空（<code>absent</code>）とします。また、バリアの約定時参照スポットレートは
                 <code>strike -> strikePrice -> composite -> baseValue</code> に格納します（<span
                   class="cite-badge">fx-ex12-fx-barrier-option.json:L74-L76</span>）。
@@ -1616,8 +1616,8 @@
           <li>
             <strong>案件C（USD/JPY ギャップ・コール・オプション &amp; ノックアウト・バリア）</strong>：買手 <code>Party1</code>、売手
             <code>Party2</code>、基準通貨名目元本 <code>10,000,000 USD</code>。満期日 <code>2026-12-17</code>
-            の終値時点でスポットレートが<strong>トリガー $K_2 = 155.00\text{ JPY per USD}$
-              以上</strong>であれば権利が有効化（Knock-in）され、有効化された場合は<strong>ストライク $K_1 = 150.00\text{ JPY per USD}$</strong>
+            の終値時点でスポットレートが<strong>トリガー <i>K</i><sub>2</sub> = 155.00 JPY per USD
+              以上</strong>であれば権利が有効化（Knock-in）され、有効化された場合は<strong>ストライク <i>K</i><sub>1</sub> = 150.00 JPY per USD</strong>
             で精算・交換する。
           </li>
         </ul>
@@ -1713,9 +1713,9 @@
         <!-- Item 4 -->
         <div class="mapping-item"
           data-answer="strike -> strikePrice に K1 = 150.00 JPY/USD を設定し、feature -> barrier -> knockIn[0] -> trigger に level = 155.00 JPY/USD（K2）、triggerType = EqualOrGreater、triggerTimeType = Closing を設定する"
-          data-explanation="ギャップ・コール・オプション（案件C）では、発動した際の精算・交換基準レートであるストライク $K_1$（<code>150.00 JPY/USD</code>）を <code>OptionPayout -> strike -> strikePrice</code> に配置し、権利が有効化される発動閾値であるトリガー $K_2$（<code>155.00 JPY/USD</code>）を <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level</code>（<code>triggerType: EqualOrGreater</code>, <code>triggerTimeType: Closing</code>）に配置します。">
+          data-explanation="ギャップ・コール・オプション（案件C）では、発動した際の精算・交換基準レートであるストライク <i>K</i><sub>1</sub>（<code>150.00 JPY/USD</code>）を <code>OptionPayout -> strike -> strikePrice</code> に配置し、権利が有効化される発動閾値であるトリガー <i>K</i><sub>2</sub>（<code>155.00 JPY/USD</code>）を <code>OptionPayout -> feature -> barrier -> knockIn[0] -> trigger -> level</code>（<code>triggerType: EqualOrGreater</code>, <code>triggerTimeType: Closing</code>）に配置します。">
           <div class="mapping-prompt">
-            問4.【案件C：ギャップ・オプション】ストライク $K_1 = 150.00\text{ JPY/USD}$ と満期トリガー $K_2 = 155.00\text{ JPY/USD}$
+            問4.【案件C：ギャップ・オプション】ストライク <i>K</i><sub>1</sub> = 150.00 JPY/USD と満期トリガー <i>K</i><sub>2</sub> = 155.00 JPY/USD
             は、<code>OptionPayout</code> のどこにどう分離して設定すべきか？
           </div>
           <div class="mapping-controls">
@@ -1746,9 +1746,9 @@
         <!-- Item 5 -->
         <div class="mapping-item"
           data-answer="quantity = 10,000,000 USD、price -> derivedQuantity = 1,500,000,000 JPY（ストライク K1 = 150.00 で換算した対価通貨金額）を設定する"
-          data-explanation="ギャップ・オプションやバリア・オプションにおいて、権利が有効化されて行使された際に実際に交換（または差額計算）される対価通貨額は、トリガー $K_2$（<code>155.00</code>）ではなくストライク $K_1$（<code>150.00</code>）に基づきます。したがって <code>tradeLot -> priceQuantity</code> には <code>quantity = 10,000,000 USD</code>、<code>price -> derivedQuantity = 1,500,000,000 JPY</code>（$= 10,000,000 \times 150.00$）を設定します。">
+          data-explanation="ギャップ・オプションやバリア・オプションにおいて、権利が有効化されて行使された際に実際に交換（または差額計算）される対価通貨額は、トリガー <i>K</i><sub>2</sub>（<code>155.00</code>）ではなくストライク <i>K</i><sub>1</sub>（<code>150.00</code>）に基づきます。したがって <code>tradeLot -> priceQuantity</code> には <code>quantity = 10,000,000 USD</code>、<code>price -> derivedQuantity = 1,500,000,000 JPY</code>（= 10,000,000 &times; 150.00）を設定します。">
           <div class="mapping-prompt">
-            問5.【案件C：ギャップ・オプション】基準通貨元本 <code>10,000,000 USD</code>、ストライク $K_1 = 150.00$、トリガー $K_2 = 155.00$
+            問5.【案件C：ギャップ・オプション】基準通貨元本 <code>10,000,000 USD</code>、ストライク <i>K</i><sub>1</sub> = 150.00、トリガー <i>K</i><sub>2</sub> = 155.00
             のとき、<strong><code>tradeLot -> priceQuantity</code></strong> の <code>quantity</code> と
             <code>derivedQuantity</code> はどう設定すべきか？
           </div>
@@ -1878,10 +1878,10 @@
 
         <!-- Q5: Correct = index 1 (All 4 options = 30 chars) -->
         <div class="quiz-question-card" data-correct-index="1"
-          data-explanation="ギャップ・オプションでは、ペイオフ・交換金額の基準レートであるストライク $K_1 = 150.00$ を <code>strike -> strikePrice</code> に置き、発動閾値であるトリガー $K_2 = 155.00$ を <code>feature -> barrier -> knockIn -> trigger -> level</code> に置き、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク $K_1$ で換算した対価通貨額（$10,000,000 \times 150.00 = 15\text{億円}$）を設定します。">
+          data-explanation="ギャップ・オプションでは、ペイオフ・交換金額の基準レートであるストライク <i>K</i><sub>1</sub> = 150.00 を <code>strike -> strikePrice</code> に置き、発動閾値であるトリガー <i>K</i><sub>2</sub> = 155.00 を <code>feature -> barrier -> knockIn -> trigger -> level</code> に置き、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク <i>K</i><sub>1</sub> で換算した対価通貨額（10,000,000 &times; 150.00 = 15億円）を設定します。">
           <div class="quiz-q-title">
-            Q5. 元本 <code>1,000万USD</code>、ストライク $K_1 = 150\text{円}$、トリガー $K_2 = 155\text{円}$ のギャップ・コール・オプションにおける
-            $K_1$・$K_2$・<code>derivedQuantity</code> の設定はどれか？
+            Q5. 元本 <code>1,000万USD</code>、ストライク <i>K</i><sub>1</sub> = 150円、トリガー <i>K</i><sub>2</sub> = 155円 のギャップ・コール・オプションにおける
+            <i>K</i><sub>1</sub>・<i>K</i><sub>2</sub>・<code>derivedQuantity</code> の設定はどれか？
           </div>
           <div class="quiz-options">
             <button class="quiz-option-btn">ストライクに１５５を置きトリガーに１５０を置き１５億５千万円</button>
@@ -1944,8 +1944,8 @@
         <div class="callout-title">💬 講師（エージェント）への質問・次のステップ</div>
         <p style="margin-bottom: 0;">
           今回の内容（アベレージ・レートとアベレージ・ストライクの排他制約、<code>ObservationTerms</code>
-          による重み付き観測スケジュール、<code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> の構造、ギャップ・オプションの $K_1$ vs
-          $K_2$ と <code>priceQuantity</code> の関係など）で疑問点や深掘りしたい箇所があれば、いつでもチャットで質問してください。<br />
+          による重み付き観測スケジュール、<code>Barrier -> TriggerEvent -> Trigger / FeaturePayment</code> の構造、ギャップ・オプションの <i>K</i><sub>1</sub> vs
+          <i>K</i><sub>2</sub> と <code>priceQuantity</code> の関係など）で疑問点や深掘りしたい箇所があれば、いつでもチャットで質問してください。<br />
           理解が固まったら、次は Phase 3（為替デリバティブ各論）の総仕上げとなる <a href="./0008-synthetic-multi-forward-mapping.html"><strong>Lesson 0008（シンセティック・マルチフォワードの複合マッピング設計：Call＋Put の合成フォワード ×
             複数期日 <code>CalculationSchedule</code> / 複数 <code>OptionPayout</code> の設計比較と Qualification
             関数の挙動）</strong></a>へ進みましょう。

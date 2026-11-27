@@ -506,45 +506,62 @@
       <h3>3-2. NDF の差金決済額（Net Cash Settlement Amount）の計算式と支払方向の決定</h3>
       <p>
         <code>fx-ex07-non-deliverable-forward.json</code> の取引条件を使って、フィキシング日（<code>2002-04-09</code>）に観測されたスポットレート
-        $S_{\text{fix}}$（INR per USD）から、決済日（<code>2002-04-11</code>）にどちらがいくらの <code>USD</code> を支払うかがどう決まるかを確認しましょう。
+        <i>S</i><sub>fix</sub>（INR per USD）から、決済日（<code>2002-04-11</code>）にどちらがいくらの <code>USD</code> を支払うかがどう決まるかを確認しましょう。
       </p>
       <ul>
         <li>
           <strong>約定時の計算上の支払・受取義務の整理（<code>fx-ex07</code>）</strong>：<br />
-          ・基準通貨（<code>perUnitOf = USD</code>）名目元本 $N_{\text{USD}} = 10,000,000\text{
-          USD}$（<code>quantity-1</code>）<br />
-          ・約定フォワードレート $F = 43.40\text{ INR/USD}$（<code>price-1 -> value</code>）<br />
-          ・対価通貨（<code>unit = INR</code>）名目元本 $N_{\text{INR}} = N_{\text{USD}} \times F = 434,000,000\text{
-          INR}$（<code>price-1 -> derivedQuantity</code>）<br />
+          ・基準通貨（<code>perUnitOf = USD</code>）名目元本 <i>N</i><sub>USD</sub> = 10,000,000 USD（<code>quantity-1</code>）<br />
+          ・約定フォワードレート <i>F</i> = 43.40 INR/USD（<code>price-1 -> value</code>）<br />
+          ・対価通貨（<code>unit = INR</code>）名目元本 <i>N</i><sub>INR</sub> = <i>N</i><sub>USD</sub> &times; <i>F</i> = 434,000,000 INR（<code>price-1 -> derivedQuantity</code>）<br />
           ・方向（<code>payerReceiver</code>）：<code>underlier</code> は基準通貨 <code>Cash: USD</code>
           であり、<code>payer = Party1, receiver = Party2</code> です。つまり、満期における計算上のグロス支払・受取義務は：
           <ul>
             <li><strong><code>Party1</code>（基準通貨 <code>USD</code> の <code>payer</code>）</strong>：計算上
               <code>10,000,000 USD</code>
-              を支払う義務を負い、対価通貨 <code>434,000,000 INR</code>（＝フィキシングレート $S_{\text{fix}}$ で米ドル換算すると
-              $\dfrac{434,000,000}{S_{\text{fix}}}\text{ USD}$）を受け取る権利を持つ立場。
+              を支払う義務を負い、対価通貨 <code>434,000,000 INR</code>（＝フィキシングレート <i>S</i><sub>fix</sub> で米ドル換算すると
+              <math><mfrac><mn>434,000,000</mn><msub><mi>S</mi><mtext>fix</mtext></msub></mfrac><mtext>&nbsp;USD</mtext></math>）を受け取る権利を持つ立場。
             </li>
             <li><strong><code>Party2</code>（基準通貨 <code>USD</code> の <code>receiver</code>）</strong>：計算上
               <code>10,000,000 USD</code>
-              を受け取る権利を持ち、対価通貨 <code>434,000,000 INR</code>（＝米ドル換算で $\dfrac{434,000,000}{S_{\text{fix}}}\text{
-              USD}$）を支払う義務を負う立場。
+              を受け取る権利を持ち、対価通貨 <code>434,000,000 INR</code>（＝米ドル換算で <math><mfrac><mn>434,000,000</mn><msub><mi>S</mi><mtext>fix</mtext></msub></mfrac><mtext>&nbsp;USD</mtext></math>）を支払う義務を負う立場。
             </li>
           </ul>
         </li>
         <li>
-          <strong>ケースA：フィキシングレートが $S_{\text{fix}} = 44.00\text{ INR/USD}$（ドル高・ルピー安）になった場合</strong><br />
+          <strong>ケースA：フィキシングレートが <i>S</i><sub>fix</sub> = 44.00 INR/USD（ドル高・ルピー安）になった場合</strong><br />
           参照通貨 <code>434,000,000 INR</code> のフィキシング時点での米ドル換算価値は：
-          $$\frac{N_{\text{INR}}}{S_{\text{fix}}} = \frac{434,000,000}{44.00} = 9,863,636.36\text{ USD}$$
+          <math display="block">
+            <mfrac>
+              <msub><mi>N</mi><mtext>INR</mtext></msub>
+              <msub><mi>S</mi><mtext>fix</mtext></msub>
+            </mfrac>
+            <mo>=</mo>
+            <mfrac>
+              <mn>434,000,000</mn>
+              <mn>44.00</mn>
+            </mfrac>
+            <mo>=</mo>
+            <mn>9,863,636.36</mn>
+            <mtext>&nbsp;USD</mtext>
+          </math>
           <code>Party1</code> は計算上 <code>10,000,000 USD</code> を支払って <code>9,863,636.36 USD</code>
           相当のルピーを受け取る立場なので、ネット差額：
-          $$10,000,000 - 9,863,636.36 = \mathbf{136,363.64\text{ USD}}$$
+          <math display="block">
+            <mn>10,000,000</mn>
+            <mo>-</mo>
+            <mn>9,863,636.36</mn>
+            <mo>=</mo>
+            <mn>136,363.64</mn>
+            <mtext>&nbsp;USD</mtext>
+          </math>
           を <strong><code>Party1</code>（payer）から <code>Party2</code>（receiver）へ支払います</strong>。
         </li>
         <li>
-          <strong>ケースB：フィキシングレートが $S_{\text{fix}} = 42.50\text{ INR/USD}$（ドル安・ルピー高）になった場合</strong><br />
-          参照通貨 <code>434,000,000 INR</code> の米ドル換算価値は $\dfrac{434,000,000}{42.50} = 10,211,764.71\text{ USD}$ となり、約定額
-          <code>10,000,000 USD</code> を上回ります。したがって、ネット差額 <strong>$\mathbf{211,764.71\text{ USD}}$ を
-            <code>Party2</code>（payer）から <code>Party1</code>（receiver）へ支払います</strong>。
+          <strong>ケースB：フィキシングレートが <i>S</i><sub>fix</sub> = 42.50 INR/USD（ドル安・ルピー高）になった場合</strong><br />
+          参照通貨 <code>434,000,000 INR</code> の米ドル換算価値は <math><mfrac><mn>434,000,000</mn><mn>42.50</mn></mfrac><mo>=</mo><mn>10,211,764.71</mn><mtext>&nbsp;USD</mtext></math> となり、約定額
+          <code>10,000,000 USD</code> を上回ります。したがって、ネット差額 <strong>211,764.71 USD</strong> を
+            <code>Party2</code>（payer）から <code>Party1</code>（receiver）へ支払います。
         </li>
       </ul>
 

@@ -68,8 +68,8 @@
         為替の<strong>シンセティック・フォワード</strong>とは、同一通貨ペア・同一満期日（Expiration Date）・同一決済日（Value Date）について、<strong>一方の当事者が Call
           オプションの買手（<code>buyer</code>）になると同時に Put オプションの売手（<code>seller</code>）になる</strong>ことで、為替予約（FX
         Forward）と同等の損益・受渡プロファイルを合成するオプション戦略です。<br />
-        輸出入企業の継続的な実需ヘッジでは、この Call＋Put のペアを月次や四半期などの<strong>複数期日（$T_1, T_2, \dots,
-          T_N$）にわたるストリップ（スケジュール）</strong>として1本のタームシートに束ねた<strong>シンセティック・マルチフォワード</strong>が頻繁に用いられます。条件の付け方により、実務上は以下のバリエーションが存在します。
+        輸出入企業の継続的な実需ヘッジでは、この Call＋Put のペアを月次や四半期などの<strong>複数期日（<i>T</i><sub>1</sub>, <i>T</i><sub>2</sub>, &hellip;,
+          <i>T</i><sub><i>N</i></sub>）にわたるストリップ（スケジュール）</strong>として1本のタームシートに束ねた<strong>シンセティック・マルチフォワード</strong>が頻繁に用いられます。条件の付け方により、実務上は以下のバリエーションが存在します。
       </p>
 
       <table>
@@ -85,9 +85,9 @@
           <tr>
             <td><strong>① フラット合成マルチフォワード</strong><br />（Symmetric Synthetic Multi-Forward）</td>
             <td>
-              全期日 $T_1 \dots T_N$ において、Call レッグと Put レッグの<strong>ストライクレート $K$ が同一</strong>（例：全期日
+              全期日 <i>T</i><sub>1</sub> &hellip; <i>T</i><sub><i>N</i></sub> において、Call レッグと Put レッグの<strong>ストライクレート <i>K</i> が同一</strong>（例：全期日
               <code>148.00 JPY per USD</code>）かつ<strong>名目元本も同一</strong>（例：各期日 <code>1,000,000 USD</code>）。<br />
-              満期レート $S_{T_i} > K$ なら顧客が Call を行使し、$S_{T_i} < K$ なら銀行が Put を行使するため、いずれのケースでもレート $K$ で <code>1,000,000
+              満期レート <i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> &gt; <i>K</i> なら顧客が Call を行使し、<i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> &lt; <i>K</i> なら銀行が Put を行使するため、いずれのケースでもレート <i>K</i> で <code>1,000,000
                 USD</code> と <code>148,000,000 JPY</code> を交換する。
             </td>
             <td>
@@ -98,14 +98,14 @@
           <tr>
             <td><strong>② ステップ・ストライク型 / レンジ・フォワード</strong><br />（Step-Strike / Risk Reversal Collar Strip）</td>
             <td>
-              ・<strong>ステップ・ストライク</strong>：期日ごとにストライクレートが段階的に変化する（例：$T_1$ は <code>149.00</code>、$T_2$ は
-              <code>147.00</code>、$T_3$ は <code>145.00 JPY per USD</code>）。<br />
-              ・<strong>レンジ・フォワード（リスクリバーサル）</strong>：同一期日内で Call ストライク $K_{\text{call}}$（例：上限 <code>150.00</code>）と Put
-              ストライク $K_{\text{put}}$（例：下限 <code>145.00</code>）に幅を持たせる。
+              ・<strong>ステップ・ストライク</strong>：期日ごとにストライクレートが段階的に変化する（例：<i>T</i><sub>1</sub> は <code>149.00</code>、<i>T</i><sub>2</sub> は
+              <code>147.00</code>、<i>T</i><sub>3</sub> は <code>145.00 JPY per USD</code>）。<br />
+              ・<strong>レンジ・フォワード（リスクリバーサル）</strong>：同一期日内で Call ストライク <i>K</i><sub>call</sub>（例：上限 <code>150.00</code>）と Put
+              ストライク <i>K</i><sub>put</sub>（例：下限 <code>145.00</code>）に幅を持たせる。
             </td>
             <td>
-              期日ごと、あるいは同一期日の Call と Put の間でストライクレート $K$ と対価通貨金額（<code>derivedQuantity</code> $= \text{quantity} \times
-              K$）が異なるため、それぞれ個別の <code>OptionStrike</code> と <code>PriceQuantity</code> が必要になる。
+              期日ごと、あるいは同一期日の Call と Put の間でストライクレート <i>K</i> と対価通貨金額（<code>derivedQuantity</code> = quantity &times;
+              <i>K</i>）が異なるため、それぞれ個別の <code>OptionStrike</code> と <code>PriceQuantity</code> が必要になる。
             </td>
           </tr>
           <tr>
@@ -126,7 +126,7 @@
       <h3>1-2. 推奨される基本表現：Call 用と Put 用の2つの <code>OptionPayout</code> 分離と方向属性（<code>buyerSeller</code> vs <code>payerReceiver</code>）の整合性</h3>
       <p>
         シンセティック・フォワードの1期日分（Call 買い＋Put 売りのペア）を CDM で表現する場合、<strong><code>EconomicTerms -> payout (1..*)</code>（<span class="cite-badge">product-template-type.rosetta:L45</span>）の配列内に、Call レッグ用の <code>OptionPayout</code> と Put レッグ用の <code>OptionPayout</code> を別々の要素として並べる構成</strong>が基本となります。<br />
-        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a> で確認したとおり、CDM では「オプション約定時の <code>OptionPayout -> buyerSeller</code>」「オプション約定時の <code>OptionPayout -> payerReceiver</code>」「権利行使（<code>Create_Exercise</code>）後に新規生成される為替決済取引の <code>SettlementPayout -> payerReceiver</code>」の3つを厳密に区別します。顧客（<code>Party1</code>）が各期日に固定ストライク $K = 148.00\text{ JPY per USD}$（分母＝基準通貨 <code>perUnitOf = USD</code>、分子＝対価通貨 <code>unit = JPY</code>）で<strong>基準通貨 <code>USD</code> を受け取り、対価通貨 <code>JPY</code> を支払う合成フォワード</strong>を組成する場合、2つの <code>OptionPayout</code> の方向属性は以下のとおり設定します。
+        <a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson 0006</a> で確認したとおり、CDM では「オプション約定時の <code>OptionPayout -> buyerSeller</code>」「オプション約定時の <code>OptionPayout -> payerReceiver</code>」「権利行使（<code>Create_Exercise</code>）後に新規生成される為替決済取引の <code>SettlementPayout -> payerReceiver</code>」の3つを厳密に区別します。顧客（<code>Party1</code>）が各期日に固定ストライク <i>K</i> = 148.00 JPY per USD（分母＝基準通貨 <code>perUnitOf = USD</code>、分子＝対価通貨 <code>unit = JPY</code>）で<strong>基準通貨 <code>USD</code> を受け取り、対価通貨 <code>JPY</code> を支払う合成フォワード</strong>を組成する場合、2つの <code>OptionPayout</code> の方向属性は以下のとおり設定します。
       </p>
 
       <table>
@@ -184,14 +184,14 @@
                 満期権利行使時（<code>Create_Exercise</code>）に新規生成される為替決済取引の受渡方向</strong><br /><code>SettlementPayout -> payerReceiver</code><br /><span
                 class="cite-badge">event-common-func.rosetta:L498-L566</span></td>
             <td>
-              <strong>満期時に $S_T > K$ で顧客 <code>Party1</code> が Call を行使した場合</strong>：<br />
+              <strong>満期時に <i>S</i><sub>T</sub> &gt; <i>K</i> で顧客 <code>Party1</code> が Call を行使した場合</strong>：<br />
               <code>optionType = Call</code> のため、<code>OptionPayout -> payerReceiver</code> がそのまま新しい
               <code>SettlementPayout -> payerReceiver</code> に引き継がれる。<br />
               → <strong><code>payer: Party2, receiver: Party1</code></strong><br />
               （原資産通貨 <code>USD</code> を銀行 <code>Party2</code> が支払い、顧客 <code>Party1</code> が受け取る）
             </td>
             <td>
-              <strong>満期時に $S_T < K$ で銀行 <code>Party2</code> が Put を行使した場合</strong>：<br />
+              <strong>満期時に <i>S</i><sub>T</sub> &lt; <i>K</i> で銀行 <code>Party2</code> が Put を行使した場合</strong>：<br />
               <code>optionType = Put</code>
               のため、<code>OptionPayout -> payerReceiver</code>（<code>payer: Party1, receiver: Party2</code>）が
               <code>Update_ProductDirection</code> で<strong>反転</strong>される。<br />
@@ -203,7 +203,7 @@
       </table>
 
       <p>
-        上の表の④から分かるとおり、<strong>満期日にスポットレート $S_T$ がストライク $K$ を上回って Call レッグ（<code>buyer: Party1</code>）が行使されても、下回って Put
+        上の表の④から分かるとおり、<strong>満期日にスポットレート <i>S</i><sub>T</sub> がストライク <i>K</i> を上回って Call レッグ（<code>buyer: Party1</code>）が行使されても、下回って Put
           レッグ（<code>buyer: Party2</code>）が行使されても、権利行使によって成立する為替決済取引（<code>SettlementPayout</code>：オプションではないため <code>buyerSeller</code> は持たない）の <code>payerReceiver</code> は、いずれも
           <code>payer: Party2, receiver: Party1</code>（銀行 <code>Party2</code> が基準通貨 <code>USD</code> を支払い、顧客
           <code>Party1</code> が基準通貨 <code>USD</code> を受け取る）に一致します</strong>。これによって、CDM のイベント関数上でも合成フォワードの経済効果が整合的に表現されます。
@@ -241,19 +241,19 @@
     <section>
       <h2>2. シンセティック・マルチフォワードの3つのマッピング設計パターンと <code>.rosetta</code> 型制約の検証</h2>
       <p>
-        複数期日（$N$ 期日）のシンセティック・マルチフォワードを CDM
+        複数期日（<i>N</i> 期日）のシンセティック・マルチフォワードを CDM
         で表現する場合、一次ソースの型定義に照らして<strong>3つの設計パターン（パターンA・パターンB・パターンC）</strong>が候補となります。それぞれの構造と、<code>.rosetta</code>
         の制約条件（<code>condition</code>）から導かれる適用可否を比較しましょう。
       </p>
 
-      <h3>2-1. パターンA：単一 <code>Trade</code> 内の <code>EconomicTerms -> payout (1..*)</code> に $2N$ 個の
+      <h3>2-1. パターンA：単一 <code>Trade</code> 内の <code>EconomicTerms -> payout (1..*)</code> に 2<i>N</i> 個の
         <code>OptionPayout</code> を展開する設計
       </h3>
       <p>
         <code>EconomicTerms -> payout</code> はカーディナリティ <code>(1..*)</code>（<span
           class="cite-badge">product-template-type.rosetta:L45</span>）を持ち、対応する <code>TradeLot -> priceQuantity</code> も
         <code>(1..*)</code>（<span class="cite-badge">product-template-type.rosetta:L319</span>）を持ちます。<br />
-        したがって、$N$ 期日（例：3期日 $T_1, T_2, T_3$）× 各期日の Call レッグ・Put レッグ ＝ <strong>計 $2N$ 個（例：6個）の
+        したがって、<i>N</i> 期日（例：3期日 <i>T</i><sub>1</sub>, <i>T</i><sub>2</sub>, <i>T</i><sub>3</sub>）× 各期日の Call レッグ・Put レッグ ＝ <strong>計 2<i>N</i> 個（例：6個）の
           <code>OptionPayout</code></strong> を <code>economicTerms -> payout</code> 配列に並べる設計がパターンAです。
       </p>
       <ul>
@@ -331,7 +331,7 @@
           <strong>制約②：<code>CalculationSchedule -> schedulePeriod</code> が持つ属性の範囲</strong>：<br />
           <code>SchedulePeriod</code>（<span
             class="cite-badge">product-template-type.rosetta:L464-L468</span>）は、各期の計算期間（<code>calculationPeriod: DateRange</code>）、決済日（<code>paymentDate: date</code>）、フィキシング観測期間（<code>fixingPeriod: DateRange</code>）、受渡期間プロファイル（<code>deliveryPeriod</code>）を非パラメトリックに列挙する構造です。そのため、<strong>全期日で単一のストライクレート
-            $K$
+            <i>K</i>
             を共有するフラットなマルチフォワード</strong>において、各期の観測期間（<code>fixingPeriod</code>）と決済日（<code>paymentDate</code>）を明示する補助スケジュールとしては機能しますが、期日別のストライクや期日別のノックアウト条件を格納する場所は持っていません。
         </li>
         <li>
@@ -405,11 +405,11 @@
         <thead>
           <tr>
             <th style="width: 22%;">評価軸</th>
-            <th style="width: 26%;">パターンA：単一 <code>Trade</code> 内に $2N$ 個の <code>OptionPayout</code> を展開</th>
+            <th style="width: 26%;">パターンA：単一 <code>Trade</code> 内に 2<i>N</i> 個の <code>OptionPayout</code> を展開</th>
             <th style="width: 26%;">パターンB：単一 <code>Trade</code> 内に Call 1個＋Put 1個（＋<code>CalculationSchedule</code> /
               <code>datedValue</code>）
             </th>
-            <th style="width: 26%;">パターンC：$2N$ 個の独立 <code>Trade</code> に分割し <code>packageReference</code> で紐づけ</th>
+            <th style="width: 26%;">パターンC：2<i>N</i> 個の独立 <code>Trade</code> に分割し <code>packageReference</code> で紐づけ</th>
           </tr>
         </thead>
         <tbody>
@@ -441,7 +441,7 @@
           </tr>
           <tr>
             <td><strong>CDM 標準 <code>Qualify_ForeignExchange_*</code> 関数の判定結果</strong></td>
-            <td><code>payout</code> 内の <code>OptionPayout</code> が複数（$2N \ge 2$）のため
+            <td><code>payout</code> 内の <code>OptionPayout</code> が複数（2<i>N</i> &ge; 2）のため
               <strong><code>False</code></strong>（§3で詳述）。
             </td>
             <td><code>payout</code> 内の <code>OptionPayout</code> が2個（Call＋Put）のため
@@ -523,7 +523,7 @@
         そのため、<code>SettlementPayout</code> を2個持つ FX Swap や NDS は <code>SettlementPayoutOnlyExists</code> と
         <code>count = 2</code> によって <code>Qualify_AssetClass_ForeignExchange = True</code> かつ
         <code>Qualify_ForeignExchange_Swap / NDS = True</code> と判定されるのに対し、<strong><code>OptionPayout</code>
-          を2個以上持つ取引（1期日のシンセティック・フォワード、ストラドル、あるいは $2N$ 個の <code>OptionPayout</code>
+          を2個以上持つ取引（1期日のシンセティック・フォワード、ストラドル、あるいは 2<i>N</i> 個の <code>OptionPayout</code>
           を持つシンセティック・マルチフォワード）では、<code>economicTerms -> payout only-element as OptionPayout</code> が <code>empty</code>
           となるため、<code>Qualify_AssetClass_ForeignExchange</code>・<code>Qualify_ForeignExchange_VanillaOption</code>・<code>Qualify_ForeignExchange_NDO</code>
           のすべてが <code>False</code> を返します</strong>（同ファイル L2017 にヘルパー関数 <code>OptionPayoutOnlyExists</code> は定義されていますが、現行の
@@ -602,17 +602,17 @@
           各レッグのストライクレート <code>OptionStrike -> strikePrice</code> のクオート基準が <code>JPY per USD</code>（分母＝基準通貨
           <code>perUnitOf = USD</code>、分子＝対価通貨 <code>unit = JPY</code>）である場合、Call レッグでも Put レッグでも、常に<strong>分母（基準通貨
             <code>USD</code>）の名目元本が <code>priceQuantity -> quantity</code>（および <code>OptionPayout -> underlier</code> の
-            <code>Cash: USD</code>）</strong>に配置され、<strong>分子（対価通貨 <code>JPY</code>）の交換金額（$\text{quantity} \times K$）が
+            <code>Cash: USD</code>）</strong>に配置され、<strong>分子（対価通貨 <code>JPY</code>）の交換金額（quantity &times; <i>K</i>）が
             <code>priceQuantity -> price -> derivedQuantity</code></strong> に配置されます。
         </li>
         <li>
           <strong>1 <code>OptionPayout</code> : 1 <code>PriceQuantity</code> の分離結線（パターンAにおける推奨設計）</strong>：<br />
-          単一 <code>Trade</code> 内に $2N$ 個の <code>OptionPayout</code>
+          単一 <code>Trade</code> 内に 2<i>N</i> 個の <code>OptionPayout</code>
           を並べるパターンAでは、<code>tradeLot[0] -> priceQuantity</code> 配列にも各レッグに対応する <code>PriceQuantity</code>
           を並べ、<code>@key:scoped</code> と <code>@ref:scoped</code> で結びます。<br />
-          特に、<strong>レシオ・マルチフォワード</strong>（例：期日 $T_1$ の Call レッグは元本 <code>1,000,000 USD</code>、Put レッグは元本2倍の
-          <code>2,000,000 USD</code>）や、<strong>レンジ・フォワード／リスクリバーサル</strong>（例：Call ストライク $K_{\text{call}} = 150.00$ で
-          <code>derivedQuantity = 150,000,000 JPY</code>、Put ストライク $K_{\text{put}} = 145.00$ で
+          特に、<strong>レシオ・マルチフォワード</strong>（例：期日 <i>T</i><sub>1</sub> の Call レッグは元本 <code>1,000,000 USD</code>、Put レッグは元本2倍の
+          <code>2,000,000 USD</code>）や、<strong>レンジ・フォワード／リスクリバーサル</strong>（例：Call ストライク <i>K</i><sub>call</sub> = 150.00 で
+          <code>derivedQuantity = 150,000,000 JPY</code>、Put ストライク <i>K</i><sub>put</sub> = 145.00 で
           <code>derivedQuantity = 290,000,000 JPY</code>）では、同一期日内でも Call と Put で <code>quantity</code> や
           <code>derivedQuantity</code> が異なるため、<strong>各 <code>OptionPayout</code> ごとに独立した
             <code>PriceQuantity</code>（<code>quantity-1</code>〜<code>quantity-2N</code>）を1対1で割り当てる設計</strong>が適しています。<br />
@@ -622,7 +622,7 @@
         </li>
         <li>
           <strong>ゼロコスト（Zero-Cost） vs ネット・プレミアム決済と対顧客マージン</strong>：<br />
-          シンセティック・マルチフォワードは、顧客の初期プレミアム支払をゼロにする<strong>ゼロコスト（Zero-Cost）</strong>で組成されることが一般的です（銀行側の対顧客マージンはストライクレート $K$
+          シンセティック・マルチフォワードは、顧客の初期プレミアム支払をゼロにする<strong>ゼロコスト（Zero-Cost）</strong>で組成されることが一般的です（銀行側の対顧客マージンはストライクレート <i>K</i>
           の水準、または Call/Put のレシオ比率に織り込まれます）。この場合、プレミアム用の <code>TransferState</code> は不要です。<br />
           一方、約定時にネット・プレミアム（一括または期日・レッグ別）の授受が発生する契約では、<a href="./0006-fx-vanilla-option-ndo-optionpayout.html">Lesson
             0006</a> と同様に <code>TradeState -> transferHistory</code> に
@@ -634,7 +634,7 @@
 
       <h3>4-2. 具体的な JSON マッピング設計例（2期日・ステップストライク＆レシオ 1:2 の USD/JPY シンセティック・マルチフォワード）</h3>
       <p>
-        実務で頻出する複合条件（<strong>2期日 $T_1, T_2$ × ステップ・ストライク $K_1 = 148.00, K_2 = 146.00\text{ JPY/USD}$ × レシオ 1:2［Call 元本
+        実務で頻出する複合条件（<strong>2期日 <i>T</i><sub>1</sub>, <i>T</i><sub>2</sub> &times; ステップ・ストライク <i>K</i><sub>1</sub> = 148.00, <i>K</i><sub>2</sub> = 146.00 JPY/USD &times; レシオ 1:2［Call 元本
           100万USD / Put 元本 200万USD］</strong>、顧客 <code>Party1</code> が各期日に <code>USD</code> を受け取り <code>JPY</code>
         を支払う合成マルチフォワード）をパターンAで設計した正規の <code>TradeState</code> JSON 構造は以下のとおりです。
       </p>
@@ -925,11 +925,11 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3><code>EconomicTerms -> payout (1..*)</code> と Qualification の <code>only-element</code> 挙動</h3>
               <p>
-                <strong>金融実務での意味</strong>：$N$ 期日の各決済日について Call レッグと Put レッグのペアが存在するため、契約全体は $2N$ 個のオプション・レッグで構成されます。
+                <strong>金融実務での意味</strong>：<i>N</i> 期日の各決済日について Call レッグと Put レッグのペアが存在するため、契約全体は 2<i>N</i> 個のオプション・レッグで構成されます。
               </p>
               <p>
                 <strong>CDM での役割</strong>：<code>EconomicTerms -> payout</code> は <code>Payout (1..*)</code>
-                の複数カーディナリティを持つため、$2N$ 個の <code>OptionPayout</code> を格納できます。ただし
+                の複数カーディナリティを持つため、2<i>N</i> 個の <code>OptionPayout</code> を格納できます。ただし
                 <code>Qualify_AssetClass_ForeignExchange</code> や <code>Qualify_ForeignExchange_VanillaOption</code> は
                 <code>economicTerms -> payout only-element as OptionPayout</code> と記述されているため、<code>OptionPayout</code>
                 が2個以上存在すると <code>only-element</code> が <code>empty</code> を返し、判定結果は <code>False</code> になります。
@@ -972,8 +972,8 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3>各期日の Call レッグ（<code>OptionPayout</code>：顧客が買手）</h3>
               <p>
-                <strong>金融実務での意味</strong>：各期日 $T_i$ の満期時スポットレート $S_{T_i}$ がストライク $K_i$ を上回った（$S_{T_i} >
-                K_i$）ときに、顧客（<code>Party1</code>）が権利行使して基準通貨 <code>USD</code> をレート $K_i$ で受け取り、対価通貨 <code>JPY</code>
+                <strong>金融実務での意味</strong>：各期日 <i>T</i><sub><i>i</i></sub> の満期時スポットレート <i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> がストライク <i>K</i><sub><i>i</i></sub> を上回った（<i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> &gt;
+                <i>K</i><sub><i>i</i></sub>）ときに、顧客（<code>Party1</code>）が権利行使して基準通貨 <code>USD</code> をレート <i>K</i><sub><i>i</i></sub> で受け取り、対価通貨 <code>JPY</code>
                 を支払うコール・オプションです。
               </p>
               <p>
@@ -1026,8 +1026,8 @@
             <div class="detail-pane active" data-pane="tab-domain">
               <h3>各期日の Put レッグ（<code>OptionPayout</code>：顧客が売手・銀行が買手）</h3>
               <p>
-                <strong>金融実務での意味</strong>：各期日 $T_i$ の満期時スポットレート $S_{T_i}$ がストライク $K_i$ を下回った（$S_{T_i} <
-                  K_i$）ときに、買手である銀行（<code>Party2</code>）が権利行使して基準通貨 <code>USD</code> を顧客（<code>Party1</code>）へレート $K_i$
+                <strong>金融実務での意味</strong>：各期日 <i>T</i><sub><i>i</i></sub> の満期時スポットレート <i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> がストライク <i>K</i><sub><i>i</i></sub> を下回った（<i>S</i><sub><i>T</i><sub><i>i</i></sub></sub> &lt;
+                  <i>K</i><sub><i>i</i></sub>）ときに、買手である銀行（<code>Party2</code>）が権利行使して基準通貨 <code>USD</code> を顧客（<code>Party1</code>）へレート <i>K</i><sub><i>i</i></sub>
                   で支払い（売り渡し）、顧客が <code>USD</code> を受け取って <code>JPY</code> を支払うプット・オプションです。
               </p>
               <p>
@@ -1140,8 +1140,8 @@
               <h3><code>tradeLot -> priceQuantity (1..*)</code> の多レッグ結線</h3>
               <p>
                 <strong>不変原則と1対1結線</strong>：ストライクレートのクオート基準（例：<code>JPY per USD</code>）に従い、分母（基準通貨
-                <code>USD</code>）の名目元本を常に <code>quantity</code> に、分子（対価通貨 <code>JPY</code>）の交換金額（$\text{quantity} \times
-                K_i$）を <code>price -> derivedQuantity</code> に格納します。
+                <code>USD</code>）の名目元本を常に <code>quantity</code> に、分子（対価通貨 <code>JPY</code>）の交換金額（quantity &times;
+                <i>K</i><sub><i>i</i></sub>）を <code>price -> derivedQuantity</code> に格納します。
               </p>
               <p>
                 <strong>レシオ・ステップストライクへの対応</strong>：各 <code>OptionPayout</code> に対応する <code>PriceQuantity</code>
@@ -1268,20 +1268,20 @@
             を支払うヘッジを行いたい顧客）、銀行 <code>Party2</code></li>
           <li><strong>期日構成（全3期日・ヨーロピアン行使・現物受渡決済）</strong>：
             <ul>
-              <li><strong>第1期（$T_1$）</strong>：満期日 <code>2027-01-26</code> / 決済日 <code>2027-01-28</code>、ストライク $K_1 =
-                148.00\text{ JPY per USD}$</li>
-              <li><strong>第2期（$T_2$）</strong>：満期日 <code>2027-02-24</code> / 決済日 <code>2027-02-26</code>、ストライク $K_2 =
-                146.00\text{ JPY per USD}$</li>
-              <li><strong>第3期（$T_3$）</strong>：満期日 <code>2027-03-29</code> / 決済日 <code>2027-03-31</code>、ストライク $K_3 =
-                144.00\text{ JPY per USD}$</li>
+              <li><strong>第1期（<i>T</i><sub>1</sub>）</strong>：満期日 <code>2027-01-26</code> / 決済日 <code>2027-01-28</code>、ストライク <i>K</i><sub>1</sub> =
+                148.00 JPY per USD</li>
+              <li><strong>第2期（<i>T</i><sub>2</sub>）</strong>：満期日 <code>2027-02-24</code> / 決済日 <code>2027-02-26</code>、ストライク <i>K</i><sub>2</sub> =
+                146.00 JPY per USD</li>
+              <li><strong>第3期（<i>T</i><sub>3</sub>）</strong>：満期日 <code>2027-03-29</code> / 決済日 <code>2027-03-31</code>、ストライク <i>K</i><sub>3</sub> =
+                144.00 JPY per USD</li>
             </ul>
           </li>
           <li><strong>各期日の Call / Put 条件（レシオ 1 : 2、ゼロコスト）</strong>：
             <ul>
-              <li><strong>Call レッグ</strong>：顧客 <code>Party1</code> が基準通貨 <code>1,000,000 USD</code> をストライク $K_i$ で受け取り
+              <li><strong>Call レッグ</strong>：顧客 <code>Party1</code> が基準通貨 <code>1,000,000 USD</code> をストライク <i>K</i><sub><i>i</i></sub> で受け取り
                 <code>JPY</code> を支払う権利を買う。
               </li>
-              <li><strong>Put レッグ</strong>：銀行 <code>Party2</code> が基準通貨 <code>2,000,000 USD</code> をストライク $K_i$ で顧客
+              <li><strong>Put レッグ</strong>：銀行 <code>Party2</code> が基準通貨 <code>2,000,000 USD</code> をストライク <i>K</i><sub><i>i</i></sub> で顧客
                 <code>Party1</code> に支払い <code>JPY</code> を受け取る権利を買う（顧客 <code>Party1</code> が売手）。
               </li>
             </ul>
@@ -1326,9 +1326,9 @@
         <!-- Item 2 -->
         <div class="mapping-item"
           data-answer="OptionStrike -> strikePrice は Price 型であり condition AmountOnlyExists（value exists and datedValue is absent）によって datedValue が禁止されているため、期日ごとに OptionPayout を分けて計6個（3期日×Call/Put）定義する必要がある"
-          data-explanation="<code>OptionStrike -> strikePrice</code> は <code>Price</code> 型（<code>product-template-type.rosetta:L686</code>）であり、<code>observable-asset-type.rosetta:L204-L207</code> の <code>condition AmountOnlyExists: value exists and datedValue is absent</code> によりステップ配列（<code>datedValue</code>）を持つことが禁止されています。したがって、期日ごとにストライクレートが異なる（$148.00, 146.00, 144.00$）本案件を単一 <code>Trade</code> で表現する場合は、期日×Call/Put ごとに計6個の <code>OptionPayout</code> を展開する設計（パターンA）が必要です。">
+          data-explanation="<code>OptionStrike -> strikePrice</code> は <code>Price</code> 型（<code>product-template-type.rosetta:L686</code>）であり、<code>observable-asset-type.rosetta:L204-L207</code> の <code>condition AmountOnlyExists: value exists and datedValue is absent</code> によりステップ配列（<code>datedValue</code>）を持つことが禁止されています。したがって、期日ごとにストライクレートが異なる（148.00, 146.00, 144.00）本案件を単一 <code>Trade</code> で表現する場合は、期日×Call/Put ごとに計6個の <code>OptionPayout</code> を展開する設計（パターンA）が必要です。">
           <div class="mapping-prompt">
-            問2.【ステップ・ストライクと <code>.rosetta</code> 型制約】本案件（$K_1 = 148.00, K_2 = 146.00, K_3 = 144.00$）を単一
+            問2.【ステップ・ストライクと <code>.rosetta</code> 型制約】本案件（<i>K</i><sub>1</sub> = 148.00, <i>K</i><sub>2</sub> = 146.00, <i>K</i><sub>3</sub> = 144.00）を単一
             <code>Trade</code> で表現する際、「Call 1個・Put 1個の計2個の <code>OptionPayout</code>
             にまとめ、<code>strike -> strikePrice -> datedValue</code> に3期日のストライクを並べる」設計が<strong>できない理由</strong>はどれか？
           </div>
@@ -1354,9 +1354,9 @@
         <!-- Item 3 -->
         <div class="mapping-item"
           data-answer="Call 用 PriceQuantity は quantity = 1,000,000 USD、price -> derivedQuantity = 146,000,000 JPY とし、Put 用 PriceQuantity は quantity = 2,000,000 USD、price -> derivedQuantity = 292,000,000 JPY として別々の @key:scoped で結ぶ"
-          data-explanation="第2期（$T_2$）のストライクは $K_2 = 146.00\text{ JPY per USD}$（分母 <code>perUnitOf = USD</code>、分子 <code>unit = JPY</code>）です。不変原則に従い、常に分母通貨 <code>USD</code> が <code>quantity</code>、分子通貨 <code>JPY</code> が <code>price -> derivedQuantity</code> となります。レシオ 1:2 のため、第2期 Call 用は <code>quantity = 1,000,000 USD</code>・<code>derivedQuantity = 146,000,000 JPY</code>、第2期 Put 用は <code>quantity = 2,000,000 USD</code>・<code>derivedQuantity = 292,000,000 JPY</code> と個別の <code>PriceQuantity</code> に分離して <code>@ref:scoped</code> で参照します。">
+          data-explanation="第2期（<i>T</i><sub>2</sub>）のストライクは <i>K</i><sub>2</sub> = 146.00 JPY per USD（分母 <code>perUnitOf = USD</code>、分子 <code>unit = JPY</code>）です。不変原則に従い、常に分母通貨 <code>USD</code> が <code>quantity</code>、分子通貨 <code>JPY</code> が <code>price -> derivedQuantity</code> となります。レシオ 1:2 のため、第2期 Call 用は <code>quantity = 1,000,000 USD</code>・<code>derivedQuantity = 146,000,000 JPY</code>、第2期 Put 用は <code>quantity = 2,000,000 USD</code>・<code>derivedQuantity = 292,000,000 JPY</code> と個別の <code>PriceQuantity</code> に分離して <code>@ref:scoped</code> で参照します。">
           <div class="mapping-prompt">
-            問3.【<code>tradeLot -> priceQuantity</code> の設計】第2期（$T_2$：ストライク $K_2 = 146.00\text{ JPY per USD}$）の Call
+            問3.【<code>tradeLot -> priceQuantity</code> の設計】第2期（<i>T</i><sub>2</sub>：ストライク <i>K</i><sub>2</sub> = 146.00 JPY per USD）の Call
             レッグ（元本100万USD）と Put レッグ（元本200万USD）に対応する <code>PriceQuantity</code> はどう設定すべきか？
           </div>
           <div class="mapping-controls">
@@ -1421,9 +1421,9 @@
         <!-- Item 5 -->
         <div class="mapping-item"
           data-answer="ExerciseInstruction -> exerciseOption（[metadata reference]）で第1期 Put レッグの OptionPayout（@key = opt-t1-put）を参照指定して Create_Exercise を実行する。生成される為替決済取引（SettlementPayout）の payerReceiver は Update_ProductDirection により payer = Party2, receiver = Party1 となる"
-          data-explanation="第1期満期日に $S_{T_1} = 142.00 < K_1 = 148.00$ となった場合、銀行 <code>Party2</code> が買手である第1期 Put レッグ（<code>opt-t1-put</code>、元本 <code>2,000,000 USD</code>）が In-the-Money となり権利行使されます。<code>ExerciseInstruction -> exerciseOption</code>（<code>event-common-type.rosetta:L132-L133</code>）で <code>opt-t1-put</code> を指定して <code>Create_Exercise</code> を実行すると、<code>optionType = Put</code> のため約定時の <code>payerReceiver</code>（<code>payer: Party1, receiver: Party2</code>）が <code>Update_ProductDirection</code> で反転し、新規生成される為替決済取引（<code>SettlementPayout</code>）では <code>payer: Party2, receiver: Party1</code>（銀行が <code>2,000,000 USD</code> を支払い、顧客が受け取って <code>296,000,000 JPY</code> を支払う）となります。">
+          data-explanation="第1期満期日に <i>S</i><sub><i>T</i><sub>1</sub></sub> = 142.00 &lt; <i>K</i><sub>1</sub> = 148.00 となった場合、銀行 <code>Party2</code> が買手である第1期 Put レッグ（<code>opt-t1-put</code>、元本 <code>2,000,000 USD</code>）が In-the-Money となり権利行使されます。<code>ExerciseInstruction -> exerciseOption</code>（<code>event-common-type.rosetta:L132-L133</code>）で <code>opt-t1-put</code> を指定して <code>Create_Exercise</code> を実行すると、<code>optionType = Put</code> のため約定時の <code>payerReceiver</code>（<code>payer: Party1, receiver: Party2</code>）が <code>Update_ProductDirection</code> で反転し、新規生成される為替決済取引（<code>SettlementPayout</code>）では <code>payer: Party2, receiver: Party1</code>（銀行が <code>2,000,000 USD</code> を支払い、顧客が受け取って <code>296,000,000 JPY</code> を支払う）となります。">
           <div class="mapping-prompt">
-            問5.【第1期満期日の権利行使】第1期満期日（<code>2027-01-26</code>）に市場レートが <code>142.00 JPY/USD</code>（$< K_1=148.00$）となった場合、CDM
+            問5.【第1期満期日の権利行使】第1期満期日（<code>2027-01-26</code>）に市場レートが <code>142.00 JPY/USD</code>（&lt; <i>K</i><sub>1</sub> = 148.00）となった場合、CDM
               上でどのレッグがどう行使され、生成される為替決済取引の <code>SettlementPayout -> payerReceiver</code> はどうなるか？
           </div>
           <div class="mapping-controls">

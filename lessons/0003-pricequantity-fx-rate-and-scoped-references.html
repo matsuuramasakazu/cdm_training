@@ -199,11 +199,31 @@
           <code>PriceQuantity</code> 型の制約 <code>PriceQuantityTriangulation(price, quantity) = True</code>（<span
             class="cite-badge">observable-asset-type.rosetta:L120-L121</span>, <span
             class="cite-badge">observable-common-func.rosetta:L18-L38</span>）により、CDMは自動的に以下の等式を検証します：
-          \[
-          \underbrace{\text{price.value}}_{0.9175\text{ (USD/EUR)}} \times
-          \underbrace{\text{quantity.value}}_{10,000,000\text{ (EUR)}} =
-          \underbrace{\text{price.derivedQuantity.value}}_{9,175,000\text{ (USD)}}
-          \]
+          <math display="block">
+            <munder>
+              <munder>
+                <mtext>price.value</mtext>
+                <mo>&#x23DF;</mo>
+              </munder>
+              <mtext>0.9175 (USD/EUR)</mtext>
+            </munder>
+            <mo>&times;</mo>
+            <munder>
+              <munder>
+                <mtext>quantity.value</mtext>
+                <mo>&#x23DF;</mo>
+              </munder>
+              <mtext>10,000,000 (EUR)</mtext>
+            </munder>
+            <mo>=</mo>
+            <munder>
+              <munder>
+                <mtext>price.derivedQuantity.value</mtext>
+                <mo>&#x23DF;</mo>
+              </munder>
+              <mtext>9,175,000 (USD)</mtext>
+            </munder>
+          </math>
         </li>
       </ul>
     </section>

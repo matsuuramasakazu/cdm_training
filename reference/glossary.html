@@ -234,15 +234,15 @@
           <td><span class="cite-badge">product-template-type.rosetta:L635-L638, L661-L667</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29, L85-L101</span><br /><span class="cite-badge">observable-event-enum.rosetta:L15-L25</span></td>
         </tr>
         <tr>
-          <td><strong>ギャップ・オプション（ストライク $K_1$ vs トリガー $K_2$）</strong><br />Gap Option (Strike $K_1$ vs Trigger $K_2$)</td>
-          <td><code>strike -> strikePrice</code> ($K_1$)<br /><code>feature -> barrier -> knockIn -> trigger -> level</code> ($K_2$)</td>
-          <td>権利が有効化される発動閾値（トリガー $K_2$）と、発動した際の2通貨交換・差額精算の基準レート（ストライク $K_1$, $K_1 \neq K_2$）が分離しているオプション。CDM では精算基準の $K_1$ を <code>strike -> strikePrice</code> に、発動閾値の $K_2$ を <code>feature -> barrier -> knockIn -> trigger -> level</code> に分離配置し、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク $K_1$ で換算した対価通貨金額（$\text{quantity} \times K_1$）を格納する。</td>
+          <td><strong>ギャップ・オプション（ストライク <i>K</i><sub>1</sub> vs トリガー <i>K</i><sub>2</sub>）</strong><br />Gap Option (Strike <i>K</i><sub>1</sub> vs Trigger <i>K</i><sub>2</sub>)</td>
+          <td><code>strike -> strikePrice</code> (<i>K</i><sub>1</sub>)<br /><code>feature -> barrier -> knockIn -> trigger -> level</code> (<i>K</i><sub>2</sub>)</td>
+          <td>権利が有効化される発動閾値（トリガー <i>K</i><sub>2</sub>）と、発動した際の2通貨交換・差額精算の基準レート（ストライク <i>K</i><sub>1</sub>, <i>K</i><sub>1</sub> &ne; <i>K</i><sub>2</sub>）が分離しているオプション。CDM では精算基準の <i>K</i><sub>1</sub> を <code>strike -> strikePrice</code> に、発動閾値の <i>K</i><sub>2</sub> を <code>feature -> barrier -> knockIn -> trigger -> level</code> に分離配置し、<code>tradeLot -> priceQuantity -> price -> derivedQuantity</code> にはストライク <i>K</i><sub>1</sub> で換算した対価通貨金額（quantity &times; <i>K</i><sub>1</sub>）を格納する。</td>
           <td><span class="cite-badge">product-template-type.rosetta:L126-L136, L635-L638, L684-L694</span><br /><span class="cite-badge">observable-event-type.rosetta:L11-L29</span></td>
         </tr>
         <tr>
           <td><strong>シンセティック・マルチフォワード（複数期日合成先渡）</strong><br />Synthetic Multi-Forward (Call + Put Strip)</td>
-          <td><code>EconomicTerms -> payout (1..*)</code><br /><code>OptionPayout</code> × $2N$<br /><code>TradeLot -> priceQuantity (1..*)</code></td>
-          <td>各期日について同一当事者が Call の買手（<code>buyer</code>）かつ Put の売手（<code>seller</code>）となる合成フォワードを複数期日（$N$ 期日）にわたり束ねた複合為替デリバティブ。Call と Put で <code>buyerSeller</code>（および約定時の <code>OptionPayout -> payerReceiver</code>）が逆転するため <code>Straddle</code> で1つにまとめることはできず、単一 <code>Trade</code> で表現する場合は $2N$ 個の <code>OptionPayout</code> と対応する <code>PriceQuantity</code> を展開する。複数 <code>OptionPayout</code> 時は <code>Qualify_AssetClass_ForeignExchange</code> 等の <code>only-element</code> が空になるため自動判定は <code>False</code> となり、<code>nonStandardisedTerms = True</code> 設定時は <code>condition PrimaryAssetClass</code> に従い <code>taxonomy -> primaryAssetClass</code> を明示する。</td>
+          <td><code>EconomicTerms -> payout (1..*)</code><br /><code>OptionPayout</code> &times; 2<i>N</i><br /><code>TradeLot -> priceQuantity (1..*)</code></td>
+          <td>各期日について同一当事者が Call の買手（<code>buyer</code>）かつ Put の売手（<code>seller</code>）となる合成フォワードを複数期日（<i>N</i> 期日）にわたり束ねた複合為替デリバティブ。Call と Put で <code>buyerSeller</code>（および約定時の <code>OptionPayout -> payerReceiver</code>）が逆転するため <code>Straddle</code> で1つにまとめることはできず、単一 <code>Trade</code> で表現する場合は 2<i>N</i> 個の <code>OptionPayout</code> と対応する <code>PriceQuantity</code> を展開する。複数 <code>OptionPayout</code> 時は <code>Qualify_AssetClass_ForeignExchange</code> 等の <code>only-element</code> が空になるため自動判定は <code>False</code> となり、<code>nonStandardisedTerms = True</code> 設定時は <code>condition PrimaryAssetClass</code> に従い <code>taxonomy -> primaryAssetClass</code> を明示する。</td>
           <td><span class="cite-badge">product-template-type.rosetta:L45, L126-L135, L307-L320</span><br /><span class="cite-badge">product-qualification-func.rosetta:L143-L176, L1754-L1785</span></td>
         </tr>
         <tr>
