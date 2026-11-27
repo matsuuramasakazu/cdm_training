@@ -565,6 +565,19 @@ th {
   gap: 1rem;
 }
 
+.site-disclaimer {
+  margin-top: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.site-disclaimer p {
+  margin: 0;
+}
+
 /* Print Optimization */
 @media print {
   body {

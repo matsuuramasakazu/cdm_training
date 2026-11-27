@@ -12,7 +12,27 @@ document.addEventListener("DOMContentLoaded", () => {
   initMappingChallenges();
   initQuizzes();
   initGlossaryFilter();
+  ensureDisclaimerFooter();
 });
+
+/**
+ * 5. Ensure Disclaimer Footer is present in every HTML document
+ */
+function ensureDisclaimerFooter() {
+  if (document.querySelector(".site-disclaimer")) return;
+  const wrapper = document.querySelector(".page-wrapper") || document.body;
+  let footer = wrapper.querySelector("footer.lesson-footer");
+  if (!footer) {
+    footer = document.createElement("footer");
+    footer.className = "lesson-footer";
+    wrapper.appendChild(footer);
+  }
+  const disclaimer = document.createElement("div");
+  disclaimer.className = "site-disclaimer";
+  disclaimer.innerHTML =
+    "<p><strong>免責事項 (Disclaimer)</strong>: 本ドキュメントは個人の学習・研究目的でAIエージェント（Google Gemini）を用いて生成された私的な資料であり、「現状有姿（AS IS）」で提供されます。作成者は記載内容の正確性・完全性・最新性を保証せず、金融取引・法務・投資等の専門的助言を提供するものではありません。本情報の利用により生じたいかなる損害についても、作成者は一切の責任を負いません。</p>";
+  footer.appendChild(disclaimer);
+}
 
 /**
  * 1. Interactive Top-Down Hierarchy Explorer
